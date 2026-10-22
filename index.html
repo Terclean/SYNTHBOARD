@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SYNTHBOARD | Modulares Ambient-Rack</title>
+    <meta name="description" content="Bau dir dein eigenes Synthboard: Drone-Maschine, Keys, Sequencer, Noise und Effekte wie Filter, Delay und Reverb frei kombinieren, sortieren und als Boards speichern." />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div class="bg-aurora" aria-hidden="true"></div>
+
+    <!-- Browser erlauben Audio erst nach einer Interaktion -->
+    <div id="start-overlay" class="start-overlay">
+      <div class="start-card">
+        <div class="start-sun" aria-hidden="true"></div>
+        <h2>Bereit zum Spielen</h2>
+        <p>Dein Browser startet Audio erst nach einem Klick.</p>
+        <button id="btn-start" class="btn btn-primary btn-lg">🔊 Sound starten</button>
+      </div>
+    </div>
+
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-logo" aria-hidden="true">⚡</div>
+          <div>
+            <h1>SYNTHBOARD <span>STUDIO</span></h1>
+            <p class="brand-sub">MODULARES AMBIENT-RACK</p>
+          </div>
+        </div>
+
+        <div class="board-bar" role="group" aria-label="Boards verwalten">
+          <label for="board-select" class="bar-label">BOARD</label>
+          <select id="board-select" class="select"></select>
+          <span id="dirty-dot" class="dirty-dot" title="Ungespeicherte Änderungen"></span>
+          <button id="btn-new" class="btn" title="Neues leeres Board">＋ Neu</button>
+          <button id="btn-save" class="btn btn-accent" title="Board speichern">💾 Speichern</button>
+          <button id="btn-save-as" class="btn" title="Als neues Board speichern">⧉ Kopie</button>
+          <button id="btn-delete" class="btn btn-icon" title="Board löschen">🗑</button>
+          <button id="btn-export" class="btn btn-icon" title="Board als Datei exportieren">⇩</button>
+          <button id="btn-import" class="btn btn-icon" title="Board-Datei importieren">⇧</button>
+          <input id="file-import" type="file" accept="application/json,.json" hidden />
+        </div>
+
+        <div class="master-bar">
+          <canvas id="scope" class="scope" width="180" height="46" aria-label="Oszilloskop"></canvas>
+          <button id="btn-power" class="btn btn-power" title="Audio pausieren / fortsetzen"><span class="led"></span><span class="txt">AUS</span></button>
+          <button id="btn-record" class="btn btn-record" title="Aufnehmen & als Datei speichern"><span class="rec-dot"></span><span class="txt">REC</span></button>
+          <div class="master-knob">
+            <div id="knob-master" data-knob-color="white" data-knob-size="sm"></div>
+            <span>MASTER</span>
+          </div>
+        </div>
+      </header>
+
+      <div class="workspace">
+        <aside class="library" aria-label="Modul-Bibliothek">
+          <h2>Module</h2>
+          <p class="lib-hint">Klicken oder ins Rack ziehen</p>
+          <h3>Klangquellen</h3>
+          <div id="lib-sources" class="lib-list"></div>
+          <h3>Effekte</h3>
+          <div id="lib-effects" class="lib-list"></div>
+        </aside>
+
+        <main class="rack">
+          <section class="zone" id="zone-sources">
+            <div class="zone-head">
+              <h2><span class="zone-dot src"></span>Klangquellen</h2>
+              <span class="zone-sub">laufen parallel und werden zusammengemischt</span>
+            </div>
+            <div class="zone-body" id="rack-sources"></div>
+          </section>
+
+          <section class="zone" id="zone-effects">
+            <div class="zone-head">
+              <h2><span class="zone-dot fx"></span>Effektkette</h2>
+              <span class="zone-sub">Signal fließt von links nach rechts · Reihenfolge per Drag &amp; Drop oder ◀ ▶</span>
+            </div>
+            <div class="zone-body chain" id="rack-effects"></div>
+          </section>
+        </main>
+      </div>
+
+      <footer class="statusbar">
+        <span>⌨️ Tastatur <kbd>A</kbd>–<kbd>#</kbd> spielt die Touch Keys · Doppelklick auf einen Regler setzt ihn zurück</span>
+        <span class="status"><span id="status-led" class="status-led"></span><span id="status-text">Audio wartet…</span></span>
+      </footer>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
