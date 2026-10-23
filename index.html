@@ -52,7 +52,9 @@
 
         <div class="master-bar">
           <canvas id="scope" class="scope" width="180" height="46" aria-label="Oszilloskop"></canvas>
-          <button id="btn-cables" class="btn btn-cables on" title="Patch-Kabel ein-/ausblenden"><span class="cable-dot"></span><span class="txt">KABEL</span></button>
+          <button id="btn-guide" class="btn btn-guide" title="Erklärungsseite &amp; Patch-Handbuch öffnen [Taste H]"><span class="guide-icon">📖</span><span class="txt">HANDBUCH</span></button>
+          <button id="btn-info" class="btn btn-info on" title="Infoboxen &amp; Erklärungen ein-/ausblenden [Taste I]"><span class="info-dot"></span><span class="txt">INFO: AN</span></button>
+          <button id="btn-cables" class="btn btn-cables on" title="Patch-Kabel ein-/ausblenden [Taste C]"><span class="cable-dot"></span><span class="txt">KABEL</span></button>
           <button id="btn-power" class="btn btn-power" title="Audio pausieren / fortsetzen"><span class="led"></span><span class="txt">AUS</span></button>
           <button id="btn-record" class="btn btn-record" title="Aufnehmen & als Datei speichern"><span class="rec-dot"></span><span class="txt">REC</span></button>
           <div class="master-knob">
@@ -102,7 +104,10 @@
       </div>
 
       <footer class="statusbar">
-        <span>🔌 Ziehe Kabel von Buchse zu Buchse · Rechtsklick auf Buchse trennt Kabel · ⌨️ Tastatur <kbd>A</kbd>–<kbd>#</kbd> spielt Keys</span>
+        <div class="status-hints">
+          <span>🔌 Ziehe Kabel von Buchse zu Buchse · Rechtsklick trennt Kabel · ⌨️ Tastatur <kbd>A</kbd>–<kbd>#</kbd> spielt Keys</span>
+          <button id="btn-guide-footer" class="footer-guide-link">📖 Handbuch &amp; Patch-Anleitung</button>
+        </div>
         <span class="status"><span id="status-led" class="status-led"></span><span id="status-text">Audio wartet…</span></span>
       </footer>
     </div>

@@ -3,6 +3,7 @@ import { RackEngine, MODULES, TEMPLATES } from './modules/index.js';
 import { Knob } from './ui/Knob.js';
 import { Oscilloscope } from './ui/Oscilloscope.js';
 import { PatchBay } from './ui/PatchBay.js';
+import { InfoSystem } from './ui/InfoSystem.js';
 
 const LS_BOARDS = 'synthboard:boards';
 const LS_AUTO = 'synthboard:autosave';
@@ -104,9 +105,10 @@ const masterKnob = new Knob($('#knob-master'), {
 
 new Oscilloscope($('#scope'), engine.analyser).start();
 
-// ───────────────────────── PatchBay (Kabel) ──
+// ───────────────────────── PatchBay (Kabel) & Info ──
 const patchCanvas = $('#patch-canvas');
 const patchBay = new PatchBay(patchCanvas, engine, { onModified: changed });
+const infoSystem = new InfoSystem(engine, patchBay);
 
 $('#btn-cables').addEventListener('click', () => {
   const vis = patchBay.toggleVisible();
@@ -213,6 +215,7 @@ function createCard(mod, fxIndex = -1) {
       <div class="mod-actions">
         ${isFx ? `<button class="icon-btn mv-left" title="Nach links" ${fxIndex === 0 ? 'disabled' : ''}>◀</button>
                   <button class="icon-btn mv-right" title="Nach rechts" ${fxIndex === engine.effects.length - 1 ? 'disabled' : ''}>▶</button>` : ''}
+        <button class="icon-btn mod-info-btn" title="Modul-Info &amp; Handbuch">?</button>
         <button class="icon-btn power" title="${isFx ? 'Bypass' : 'An / Aus'}"><span class="pled"></span></button>
         <button class="icon-btn remove" title="Entfernen">✕</button>
       </div>
@@ -278,6 +281,11 @@ function createCard(mod, fxIndex = -1) {
   mod.renderExtra(card.querySelector('.mod-extra'), { changed });
 
   // Aktionen
+  card.querySelector('.mod-info-btn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    infoSystem.openGuide('tab-modules');
+    infoSystem.renderGuideModulesList('all', M.title);
+  });
   card.querySelector('.power').addEventListener('click', () => {
     mod.setEnabled(!mod.enabled);
     card.classList.toggle('bypassed', !mod.enabled);
@@ -498,6 +506,13 @@ $('#file-import').addEventListener('change', async (e) => {
 const isTyping = (el) => el && (el.tagName === 'INPUT' && el.type !== 'range') || el?.tagName === 'TEXTAREA' || el?.tagName === 'SELECT';
 window.addEventListener('keydown', (e) => {
   if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || isTyping(e.target)) return;
+  if (e.key.toLowerCase() === 'c') {
+    const vis = patchBay.toggleVisible();
+    $('#btn-cables').classList.toggle('on', vis);
+    $('#btn-cables .txt').textContent = vis ? 'KABEL' : 'OHNE KABEL';
+    toast(vis ? '🔌 Patch-Kabel sichtbar' : '🙈 Patch-Kabel ausgeblendet');
+    return;
+  }
   let handled = false;
   engine.sources.forEach((m) => { if (m.handleKey?.(e.key, true)) handled = true; });
   if (handled) { e.preventDefault(); if (engine.ctx.state === 'suspended') startAudio(); }
