@@ -14,6 +14,8 @@ export class PatchBay {
     this.activeDrag = null; // { fromKey, currentX, currentY, color, signal }
     this.hoverTargetKey = null;
     this.drawScheduled = false;
+    this.badges = []; // Stärke-Plaketten der Modulationskabel { id, x, y }
+    this.depthDrag = null;
 
     this.initCanvas();
     this.bindEvents();
@@ -244,6 +246,64 @@ export class PatchBay {
       this.activeDrag = null;
       this.requestDraw();
     });
+
+    this.bindDepthEvents();
+  }
+
+  /** Findet die Stärke-Plakette unter dem Mauszeiger (Koordinaten relativ zur App) */
+  badgeAt(e) {
+    if (!this.visible || this.activeDrag || !this.badges.length) return null;
+    if (!this.appEl) this.appEl = document.querySelector('.app');
+    const r = this.appEl.getBoundingClientRect();
+    const x = e.clientX - r.left;
+    const y = e.clientY - r.top;
+    return this.badges.find((b) => Math.abs(x - b.x) <= 21 && Math.abs(y - b.y) <= 10) || null;
+  }
+
+  setDepth(id, depth) {
+    const c = this.engine.patchSystem.connections.get(id);
+    if (!c) return;
+    c.depth = Math.max(0, Math.min(2, Math.round(depth * 100) / 100));
+    this.requestDraw();
+    this.onModified?.();
+  }
+
+  bindDepthEvents() {
+    window.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      const b = this.badgeAt(e);
+      if (!b) return;
+      const c = this.engine.patchSystem.connections.get(b.id);
+      if (!c) return;
+      e.preventDefault();
+      e.stopPropagation();
+      this.depthDrag = { id: b.id, startY: e.clientY, startDepth: c.depth ?? 1 };
+      document.body.style.cursor = 'ns-resize';
+    }, true);
+
+    window.addEventListener('mousemove', (e) => {
+      if (!this.depthDrag) return;
+      this.setDepth(this.depthDrag.id, this.depthDrag.startDepth + (this.depthDrag.startY - e.clientY) * 0.01);
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (!this.depthDrag) return;
+      this.depthDrag = null;
+      document.body.style.cursor = '';
+    });
+
+    window.addEventListener('dblclick', (e) => {
+      const b = this.badgeAt(e);
+      if (b) { e.preventDefault(); this.setDepth(b.id, 1); }
+    }, true);
+
+    window.addEventListener('wheel', (e) => {
+      const b = this.badgeAt(e);
+      if (!b) return;
+      e.preventDefault();
+      const c = this.engine.patchSystem.connections.get(b.id);
+      this.setDepth(b.id, (c?.depth ?? 1) - Math.sign(e.deltaY) * 0.05);
+    }, { passive: false, capture: true });
   }
 
   clearHoverTarget() {
@@ -280,14 +340,21 @@ export class PatchBay {
     const conns = this.engine.patchSystem.getConnections();
 
     // 1. Bereits gesteckte Kabel zeichnen (starr verankert)
+    this.badges = [];
     if (this.visible) {
       conns.forEach((c) => {
         const p1 = this.getJackCenter(`${c.fromModuleId}:${c.fromPortId}`);
         const p2 = this.getJackCenter(`${c.toModuleId}:${c.toPortId}`);
         if (p1 && p2) {
           this.drawDroopingCord(p1.x, p1.y, p2.x, p2.y, c.color);
+          if (c.signal === 'mod') {
+            const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+            const sag = Math.min(80, 10 + dist * 0.12);
+            this.badges.push({ id: c.id, x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 + sag * 0.5, depth: c.depth ?? 1, color: c.color });
+          }
         }
       });
+      this.badges.forEach((b) => this.drawDepthBadge(b));
     }
 
     // 2. Aktuell gezogenes Kabel zeichnen
@@ -304,6 +371,31 @@ export class PatchBay {
         );
       }
     }
+  }
+
+  drawDepthBadge(b) {
+    const ctx = this.ctx;
+    const w = 40, h = 17;
+    const active = this.depthDrag?.id === b.id;
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(b.x - w / 2, b.y - h / 2, w, h, 8);
+    ctx.fillStyle = active ? '#0b0d12' : 'rgba(12, 14, 20, 0.88)';
+    ctx.fill();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = b.color;
+    ctx.stroke();
+    // Füllstand-Balken (0–200 %)
+    ctx.fillStyle = b.color + '55';
+    ctx.beginPath();
+    ctx.roundRect(b.x - w / 2 + 2, b.y + h / 2 - 5, (w - 4) * (b.depth / 2), 3, 1.5);
+    ctx.fill();
+    ctx.fillStyle = '#e9ebf0';
+    ctx.font = '600 9.5px "JetBrains Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${Math.round(b.depth * 100)}%`, b.x, b.y - 1.5);
+    ctx.restore();
   }
 
   drawDroopingCord(x1, y1, x2, y2, color, isDragging = false) {

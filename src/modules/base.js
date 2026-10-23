@@ -212,7 +212,13 @@ export class ModuleBase {
   onClock(_portId, _time, _tick) {}
 
   getState() {
-    return { type: this.meta.type, id: this.id, enabled: this.enabled, values: { ...this.values }, extra: this.getExtra() };
+    return {
+      type: this.meta.type,
+      id: this.id,
+      enabled: this.enabled,
+      values: { ...this.values },
+      extra: { ...this.getExtra(), ...(this.getChannelStripState ? this.getChannelStripState() : {}) },
+    };
   }
 
   getExtra() { return {}; }
@@ -249,5 +255,107 @@ export class EffectBase extends ModuleBase {
     this.enabled = on;
     this.ramp(this.wet.gain, on ? 1 : 0, 0.02);
     this.ramp(this.dry.gain, on ? 0 : 1, 0.02);
+  }
+}
+
+/**
+ * Klangquellen-Basis mit integriertem Mixer-Kanalzug:
+ * - VCA (Lautstärke + VCA CV Modulation für Hüllkurven & Swells)
+ * - Stereo-Panner (+ Pan CV Modulation)
+ * - Unabhängige Aux-Sends für Delay & Reverb
+ * - Direkter Dry-Weg
+ */
+export class SourceBase extends ModuleBase {
+  static category = 'source';
+
+  constructor(ctx, state = {}) {
+    super(ctx, state);
+    this.vca = ctx.createGain();
+    this.panner = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+    this.dryGain = ctx.createGain();
+    this.delaySendGain = ctx.createGain();
+    this.reverbSendGain = ctx.createGain();
+
+    // Gespeicherte Kanalzug-Werte oder Standard
+    const extra = state.extra || {};
+    this.chPan = Number.isFinite(extra.chPan) ? extra.chPan : 0;
+    this.chDelay = Number.isFinite(extra.chDelay) ? extra.chDelay : 0.15;
+    this.chReverb = Number.isFinite(extra.chReverb) ? extra.chReverb : 0.35;
+    this.chLevel = Number.isFinite(extra.chLevel) ? extra.chLevel : 0.85;
+
+    this.vcaMod = 1.0;
+    this.panMod = 0.0;
+
+    // Interner Signalfluss: this.output (Stimme) → VCA → Panner → [dryGain, delaySendGain, reverbSendGain]
+    this.output.connect(this.vca);
+    if (this.panner) {
+      this.vca.connect(this.panner);
+      this.panner.connect(this.dryGain);
+      this.panner.connect(this.delaySendGain);
+      this.panner.connect(this.reverbSendGain);
+    } else {
+      this.vca.connect(this.dryGain);
+      this.vca.connect(this.delaySendGain);
+      this.vca.connect(this.reverbSendGain);
+    }
+
+    this.updateChannelStrip();
+  }
+
+  updateChannelStrip() {
+    const t = this.ctx.currentTime;
+    const hasVcaPatch = this.patchSystem?.hasIncoming(this.id, 'vcaCv');
+    const effLevel = hasVcaPatch ? (this.vcaMod * this.chLevel) : this.chLevel;
+    this.vca.gain.setTargetAtTime(Math.max(0, Math.min(2.0, effLevel)), t, 0.02);
+
+    const hasPanPatch = this.patchSystem?.hasIncoming(this.id, 'panCv');
+    const effPan = Math.max(-1, Math.min(1, this.chPan + (hasPanPatch ? this.panMod : 0)));
+    if (this.panner) {
+      this.panner.pan.setTargetAtTime(effPan, t, 0.02);
+    }
+
+    this.dryGain.gain.setTargetAtTime(1.0, t, 0.02);
+    this.delaySendGain.gain.setTargetAtTime(this.chDelay, t, 0.02);
+    this.reverbSendGain.gain.setTargetAtTime(this.chReverb, t, 0.02);
+  }
+
+  setChannelStrip({ pan, delay, reverb, level } = {}) {
+    if (pan !== undefined) this.chPan = pan;
+    if (delay !== undefined) this.chDelay = delay;
+    if (reverb !== undefined) this.chReverb = reverb;
+    if (level !== undefined) this.chLevel = level;
+    this.updateChannelStrip();
+  }
+
+  handleSourceModulation(portId, value) {
+    if (portId === 'vcaCv') {
+      this.vcaMod = Math.max(0, Math.min(1.5, value));
+      this.updateChannelStrip();
+      return true;
+    }
+    if (portId === 'panCv') {
+      this.panMod = (value - 0.5) * 2; // Skaliert 0..1 auf -1..+1
+      this.updateChannelStrip();
+      return true;
+    }
+    return false;
+  }
+
+  getChannelStripState() {
+    return {
+      chPan: this.chPan,
+      chDelay: this.chDelay,
+      chReverb: this.chReverb,
+      chLevel: this.chLevel,
+    };
+  }
+
+  destroy() {
+    super.destroy();
+    try { this.vca.disconnect(); } catch { /* ignore */ }
+    if (this.panner) try { this.panner.disconnect(); } catch { /* ignore */ }
+    try { this.dryGain.disconnect(); } catch { /* ignore */ }
+    try { this.delaySendGain.disconnect(); } catch { /* ignore */ }
+    try { this.reverbSendGain.disconnect(); } catch { /* ignore */ }
   }
 }

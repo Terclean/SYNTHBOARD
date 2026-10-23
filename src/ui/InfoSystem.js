@@ -57,6 +57,22 @@ export const JACK_HELP = {
   'macro_controller:macro3Out': { name: 'Macro 3 CV', desc: 'Steuerspannung für Regler 3.' },
   'macro_controller:morphOut': { name: 'Morph CV', desc: 'Überblendet fließend zwischen verschiedenen Modulationszuständen.' },
 
+  // Slope Generator
+  'slope_generator:trigIn': { name: 'Trigger Eingang', desc: 'Löst die Rise/Fall-Hüllkurve einmalig aus.' },
+  'slope_generator:gateIn': { name: 'Gate Eingang', desc: 'Hält die Hüllkurve im Attack-Sustain-Release Modus oben, solange der Gate aktiv ist.' },
+  'slope_generator:modRise': { name: 'Rise CV Eingang', desc: 'Moduliert die Anstiegszeit (0.05s bis 60s) dynamisch von außen.' },
+  'slope_generator:modFall': { name: 'Fall CV Eingang', desc: 'Moduliert die Abfallzeit (0.05s bis 60s) dynamisch von außen.' },
+  'slope_generator:envOut': { name: 'Hüllkurve Ausgang', desc: 'Gibt die positive Hüllkurve (0.0 bis 1.0) nach Skalierung und Offset aus.' },
+  'slope_generator:invOut': { name: 'Invertierter Ausgang', desc: 'Gibt die umgekehrte Hüllkurve (1.0 bis 0.0) aus – ideal für Ducking oder Gegenbewegungen.' },
+  'slope_generator:eocOut': { name: 'End-Of-Cycle Trigger', desc: 'Sendet einen Trigger-Puls, sobald die Hüllkurve fertig abgeklungen ist. Ermöglicht Kaskaden mehrerer Hüllkurven!' },
+
+  // Attenuverter & Offset
+  'attenuverter:inA': { name: 'Eingang A', desc: 'Eingehendes CV-Signal für Kanal A.' },
+  'attenuverter:outA': { name: 'Ausgang A', desc: 'Skalierter, invertierter (-100%..+100%) und offset-verschobener Ausgang A.' },
+  'attenuverter:inB': { name: 'Eingang B', desc: 'Eingehendes CV-Signal für Kanal B.' },
+  'attenuverter:outB': { name: 'Ausgang B', desc: 'Skalierter Ausgang B.' },
+  'attenuverter:sumOut': { name: 'Summen-Ausgang', desc: 'Mischung aus Ausgang A + Ausgang B.' },
+
   // Drone
   'drone:gateIn': { name: 'Gate / Swell In', desc: 'Triggert ein sanftes Anschwellen der Drone-Akkorde.' },
   'drone:modCutoff': { name: 'Filter CV', desc: 'Moduliert die Klangfarbe / Filter-Eckfrequenz des Drones.' },
@@ -93,6 +109,69 @@ export const JACK_HELP = {
   'drum_rack:hhIn': { name: 'Hi-Hat Trigger', desc: 'Triggert die metallische Hi-Hat.' },
   'drum_rack:percIn': { name: 'Percussion Trigger', desc: 'Triggert den resonanten Rimshot / Holz-Percussion-Klang.' },
 
+  // Morph Voice
+  'morph_voice:gateIn': { name: 'Gate Eingang', desc: 'Startet den Hüllkurvenverlauf der Morph Voice (Attack bis Release).' },
+  'morph_voice:pitchIn': { name: 'Pitch CV', desc: 'Bestimmt die Grundtonhöhe der Multiquellen-Stimme (1V/Okt).' },
+  'morph_voice:jumpIn': { name: 'Jump Trigger', desc: 'Wählt per Zufall eine neue Wellenformposition auf der Wavetable-Achse.' },
+  'morph_voice:morphCv': { name: 'Morph CV', desc: 'Fährt stufenlos durch die 8 Wellenformen (Analog bis Metall/Digital).' },
+  'morph_voice:timbreCv': { name: 'Helligkeit CV', desc: 'Moduliert die dynamische Filter-Eckfrequenz.' },
+  'morph_voice:envCv': { name: 'Hüllkurvenzeit CV', desc: 'Skaliert Attack- und Release-Zeiten dynamisch in Echtzeit.' },
+  'morph_voice:mutateIn': { name: 'Mutation Trigger', desc: 'Würfelt alle ungesperrten Klangparameter neu aus.' },
+
+  // Hybrid Percussion
+  'hybrid_perc:gateIn': { name: 'Trigger Eingang', desc: 'Löst den transienten Percussion-Schlag aus.' },
+  'hybrid_perc:pitchIn': { name: 'Pitch CV', desc: 'Steuert die Basistonhöhe des Klangkörpers (1V/Okt).' },
+  'hybrid_perc:timbreCv': { name: 'Material CV', desc: 'Blendet zwischen tiefem Fell/Körper und metallisch-glockigem Obertonklang.' },
+  'hybrid_perc:lengthCv': { name: 'Length CV', desc: 'Verkürzt oder verlängert den Ausklang (Ausschwingzeit).' },
+  'hybrid_perc:mutateIn': { name: 'Mutation Trigger', desc: 'Würfelt Trommelcharakter neu (Körper, Material, Drop, Rauschen).' },
+
+  // Resonator Garden
+  'resonator_garden:gateIn': { name: 'Anregung / Gate', desc: 'Regt die gestimmten Resonanzkörper mit einem Impuls oder Rauschstoß an.' },
+  'resonator_garden:pitchIn': { name: 'Pitch CV', desc: 'Stimmt die Grundresonanzfrequenz des Instruments.' },
+  'resonator_garden:materialCv': { name: 'Material CV', desc: 'Wechselt fließend zwischen harmonischen Saiten und unharmonischem Metall/Stäben.' },
+  'resonator_garden:dampCv': { name: 'Dämpfung CV', desc: 'Dämpft hohe Obertöne schneller ab für holzige, warme Klänge.' },
+  'resonator_garden:mutateIn': { name: 'Mutation Trigger', desc: 'Erzeugt neue Resonanzverhältnisse und Dämpfungskombinationen.' },
+
+  // Granular Cloud
+  'granular_cloud:gateIn': { name: 'Trigger / Gate', desc: 'Im Trigger-Modus startet ein Impuls eine Körnerwolke; im Cloud-Modus springt er zur Position.' },
+  'granular_cloud:jumpIn': { name: 'Jump Trigger', desc: 'Springt sofort zu einer neuen Abspielposition im Sample.' },
+  'granular_cloud:freezeIn': { name: 'Freeze Trigger', desc: 'Friert den aktuellen Audioausschnitt als stehende Klangwolke ein.' },
+  'granular_cloud:pitchIn': { name: 'Pitch CV', desc: 'Transponiert die Granular-Körner in Halbtönen nach oben/unten.' },
+  'granular_cloud:posCv': { name: 'Position CV', desc: 'Verschiebt das Ablesefenster entlang des Audio-Puffers.' },
+  'granular_cloud:densityCv': { name: 'Dichte CV', desc: 'Moduliert die Anzahl der Körner pro Sekunde (Korn-Dichte).' },
+  'granular_cloud:mutateIn': { name: 'Mutation Trigger', desc: 'Variiert Korngröße, Dichte, Zeitstreuung und Rückwärtsanteil.' },
+
+  // Spectral Swarm
+  'spectral_swarm:gateIn': { name: 'Gate / Burst', desc: 'Löst im Partikelmodus einen Schwarm kleiner Teiltöne aus; im Dronemodus einen Akzent.' },
+  'spectral_swarm:pitchIn': { name: 'Pitch CV', desc: 'Stimmt die gemeinsame Basisfrequenz des Obertontonschwarms.' },
+  'spectral_swarm:scatterIn': { name: 'Scatter Trigger', desc: 'Verteilt alle 32 Teiltöne wild in Frequenz, Raum und Bewegung.' },
+  'spectral_swarm:gatherIn': { name: 'Gather Trigger', desc: 'Zieht alle gestreuten Teiltöne wieder zu einem harmonischen Akkord zusammen.' },
+  'spectral_swarm:cohesionCv': { name: 'Zusammenhalt CV', desc: 'Zieht die Teiltöne enger an die harmonische Obertonreihe heran.' },
+  'spectral_swarm:mutateIn': { name: 'Mutation Trigger', desc: 'Verändert Unharmonik, Streuung und Helligkeit.' },
+
+  // Scene Conductor
+  'scene_conductor:clockIn': { name: 'Clock Eingang', desc: 'Taktet Rhythmus-Muster und quantisierte Szenenwechsel (Schlag, Takt, Phrase).' },
+  'scene_conductor:nextIn': { name: 'Next Scene Trigger', desc: 'Schaltet zur nächsten Szene weiter (Ambient ➜ Downtempo ➜ Broken Beat ➜ Techno).' },
+  'scene_conductor:returnIn': { name: 'Return Trigger', desc: 'Springt zurück zur vorigen Szene.' },
+  'scene_conductor:fillIn': { name: 'Fill Trigger', desc: 'Startet ein dichtes Drum-Fill bis zum Taktende.' },
+  'scene_conductor:breakIn': { name: 'Break Trigger', desc: 'Nimmt Bass und Kick heraus; Flächen und Hallfahnen wachsen an.' },
+  'scene_conductor:mutateIn': { name: 'Mutation Trigger', desc: 'Würfelt die Rhythmus-Muster der aktuellen Szene neu.' },
+  'scene_conductor:kickOut': { name: 'Kick Gate', desc: 'Rhythmus-Trigger für Kick / Bassdrum der aktuellen Szene.' },
+  'scene_conductor:snareOut': { name: 'Snare Gate', desc: 'Rhythmus-Trigger für Snare / Claps.' },
+  'scene_conductor:hatOut': { name: 'Hi-Hat Gate', desc: 'Rhythmus-Trigger für geschlossene und offene Hi-Hats.' },
+  'scene_conductor:percOut': { name: 'Perc Gate', desc: 'Rhythmus-Trigger für Akzente, Rimshots oder Resonator-Impulse.' },
+  'scene_conductor:bassGate': { name: 'Bass Gate', desc: 'Rhythmisches Gate für Bass-Synthesizer.' },
+  'scene_conductor:bassPitch': { name: 'Bass Pitch CV', desc: 'Musikalisch passende Tonhöhe für die Bassline der Szene.' },
+  'scene_conductor:leadGate': { name: 'Lead Gate', desc: 'Rhythmisches Gate für Melodie- und Zupfstimmen.' },
+  'scene_conductor:leadPitch': { name: 'Lead Pitch CV', desc: 'Skalenreine Melodienotenspannung für Leads oder Keys.' },
+  'scene_conductor:changeOut': { name: 'Change Trigger', desc: 'Sendet einen Impuls bei jedem Szenenwechsel oder Drop nach einem Break.' },
+  'scene_conductor:padOut': { name: 'Pad Mod CV', desc: 'Flächenintensität: hoch im Ambient, sparsam im Techno.' },
+  'scene_conductor:cloudOut': { name: 'Cloud Mod CV', desc: 'Modulationsspannung für Granular Cloud oder Shimmer.' },
+  'scene_conductor:energyOut': { name: 'Energy Mod CV', desc: 'Gesamtenergie und Rhythmusdrang (0.1 Ambient bis 1.0 Techno).' },
+  'scene_conductor:spaceOut': { name: 'Space Mod CV', desc: 'Raumgröße & Nachhallanteil (groß bei Ambient, trocken bei Beats).' },
+  'scene_conductor:timbreOut': { name: 'Timbre Mod CV', desc: 'Klangfarben-Öffnung für Filter und Wavetable-Morphs.' },
+  'scene_conductor:sceneOut': { name: 'Scene Index CV', desc: 'Stufenlose Spannung von 0.0 (Ambient) bis 1.0 (Techno).' },
+
   // Filter Effekt
   'filter:cvCutoff': { name: 'Cutoff CV', desc: 'Moduliert die Filterfrequenz von außen (z. B. durch Slow Random oder LFO).' },
 
@@ -102,6 +181,14 @@ export const JACK_HELP = {
 
 // Beschreibungen für Regler
 export const KNOB_HELP = {
+  rise: 'Anstiegszeit (Attack) der Hüllkurve von 0.05 Sekunden bis zu 60 Sekunden für ultralange Ambient-Swells.',
+  fall: 'Abfallzeit (Decay/Release) der Hüllkurve von 0.05 Sekunden bis zu 60 Sekunden.',
+  scale: 'Attenuverter-Regler (-100% bis +100%). Invertiert und dämpft das Signal stufenlos.',
+  scalea: 'Dämpfungs- und Invertierungs-Regler für Kanal A (-100% bis +100%).',
+  scaleb: 'Dämpfungs- und Invertierungs-Regler für Kanal B (-100% bis +100%).',
+  offset: 'Gleichspannungs-Offset (-1.0 bis +1.0) zur Nullpunkt-Verschiebung.',
+  offseta: 'Gleichspannungs-Offset für Kanal A.',
+  offsetb: 'Gleichspannungs-Offset für Kanal B.',
   tempo: 'Regelt das Master-Tempo in BPM (Beats per Minute). Hält alle Rhythmen und Sequenzen im gemeinsamen Takt.',
   swing: 'Verschiebt ungerade Sechzehntel-Noten leicht nach hinten für einen lebendigen, jazzigen Groove.',
   steps: 'Anzahl der Schritte im Zyklus (z. B. 8 oder 16 Steps).',
@@ -122,7 +209,20 @@ export const KNOB_HELP = {
   ratio: 'Frequenzverhältnis zwischen Träger- und Modulator-Oszillator bei FM-Synthese.',
   index: 'FM-Modulationstiefe. Höhere Werte erzeugen scharfe, metallische und glockenartige Obertöne.',
   crackle: 'Intensität des analogen Vinyl-Knisterns und Staub-Rauschens.',
-  motion: 'Sanfte Wind- und Meeresrauschen-Schwankungen des Rauschgenerators.',
+  motion: 'Sanfte Wind- und Meeresrauschen-Schwankungen des Rauschgenerators oder Teilchenbewegung.',
+  morph: 'Wavetable-Morph-Position: Fährt stufenlos zwischen warmen analogen Wellen, Vokalen, Metall und digitalen Strukturen.',
+  formant: 'Mischung vokalähnlicher Formanten (Chöre und sprechende Obertöne).',
+  rough: 'Analoge Rauheit und Sättigungsobertöne.',
+  material: 'Klangkörper-Material: Harmonische Saiten vs. unharmonisches Metall oder Holz.',
+  body: 'Tiefton-Resonanzkörper für Punch und Wärme.',
+  drop: 'Tonhöhenabfall (Pitch Drop) beim Anschlag für druckvolle Kicks und Toms.',
+  snap: 'Transienten-Anschlagsklick für maximale Durchsetzungskraft im Mix.',
+  density: 'Dichte der Granular-Körner oder rhythmischen Schläge.',
+  scatter: 'Streuung der Körner in der Zeit bzw. Frequenzabweichung der Teiltöne.',
+  cohesion: 'Zusammenhalt der Obertöne: 1.0 = reiner Akkord/Orgel, 0.0 = schwebender Cluster.',
+  inharm: 'Unharmonische Frequenzverhältnisse für metallische Science-Fiction-Flächen.',
+  mutation: 'Stärke der zufälligen Klangveränderung (gesperrte Parameter mit 🔒 bleiben unverändert).',
+  velsens: 'Velocity-Empfindlichkeit: Bestimmt, wie stark Tasten- und Kabelanschläge Klang und Lautstärke formen.',
 };
 
 export class InfoSystem {
@@ -552,8 +652,8 @@ export class InfoSystem {
             <div class="module-search-bar">
               <input type="text" id="guide-module-search" placeholder="🔍 Modul oder Funktion suchen (z. B. Clock, Bass, Reverb, Euclidean)..." />
               <div class="filter-pills">
-                <button class="pill active" data-cat="all">Alle (18)</button>
-                <button class="pill" data-cat="control">Steuerung (8)</button>
+                <button class="pill active" data-cat="all">Alle (24)</button>
+                <button class="pill" data-cat="control">Steuerung (10)</button>
                 <button class="pill" data-cat="source">Klangquellen (8)</button>
                 <button class="pill" data-cat="effect">Effekte (6)</button>
               </div>
@@ -609,6 +709,19 @@ export class InfoSystem {
                   <li>Verbinde <code>Slow Random: SMOOTH CV</code> ➜ <code>Filter: CUTOFF CV</code></li>
                   <li>Drehe am Slow Random den Regler <i>Rate</i> auf ca. 0.1 Hz und <i>Tiefe</i> auf 70%.</li>
                   <li>Das Filter atmet nun langsam wie eine Meereswelle.</li>
+                </ol>
+              </div>
+
+              <div class="recipe-card" style="border-color: #8b5cf666;">
+                <div class="recipe-tag" style="background: #8b5cf622; color: #a78bfa;">Rezept 4 · 40s Ambient Swell</div>
+                <h4>Langsamer Drone-Swell &amp; Getrennte Sends</h4>
+                <p>Erzeugt ein 40 Sekunden langes Anschwellen der Drone mit getrenntem Hall-Send, während Bass und Drums trocken bleiben.</p>
+                <ol class="recipe-steps">
+                  <li>Füge <b>Slope Generator</b> und <b>Drone Machine</b> hinzu.</li>
+                  <li>Setze den Slope Generator auf Modus <code>loop</code> (oder <code>trig</code>), <i>Rise</i> auf 12s und <i>Fall</i> auf 30s.</li>
+                  <li>Verbinde <code>Slope Generator: ENV OUT</code> ➜ <code>Drone Machine: VCA CV</code>.</li>
+                  <li>Stelle an der Drone Machine den <b>REVERB-Send</b> auf 70% und <b>DELAY-Send</b> auf 40%.</li>
+                  <li>Die Drone schwillt sanft an und taucht tief in den Hallraum ab, während andere Stimmen präzise im Mix stehen.</li>
                 </ol>
               </div>
             </div>

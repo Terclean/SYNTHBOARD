@@ -1,12 +1,11 @@
 // SYNTHBOARD – Dedizierte Instrumenten- & Drum-Module
-import { ModuleBase, midiToFreq, midiToName, makeSaturationCurve, getNoiseBuffers } from './base.js';
+import { ModuleBase, SourceBase, midiToFreq, midiToName, makeSaturationCurve, getNoiseBuffers } from './base.js';
 
 function cleanupOnEnd(node, nodes) {
   node.onended = () => nodes.forEach((n) => { try { n.disconnect(); } catch { /* ignore */ } });
 }
 
-// ───────────────────────────────────────────── 1. PLUCK SYNTH ──
-export class PluckModule extends ModuleBase {
+export class PluckModule extends SourceBase {
   static type = 'pluck';
   static title = 'Pluck Synth';
   static category = 'source';
@@ -24,6 +23,8 @@ export class PluckModule extends ModuleBase {
   static jacks = [
     { id: 'gateIn', type: 'in', signal: 'gate', label: 'GATE' },
     { id: 'pitchIn', type: 'in', signal: 'pitch', label: 'PITCH' },
+    { id: 'vcaCv', type: 'in', signal: 'mod', label: 'VCA CV' },
+    { id: 'panCv', type: 'in', signal: 'mod', label: 'PAN CV' },
     { id: 'modCutoff', type: 'in', signal: 'mod', label: 'FILTER CV' },
   ];
 
@@ -49,6 +50,7 @@ export class PluckModule extends ModuleBase {
   }
 
   onModulation(portId, value) {
+    if (this.handleSourceModulation(portId, value)) return;
     if (portId === 'modCutoff') this.modCv = value;
   }
 
@@ -132,7 +134,7 @@ export class PluckModule extends ModuleBase {
 }
 
 // ───────────────────────────────────────────── 2. FM METALLIC SYNTH ──
-export class FmVoiceModule extends ModuleBase {
+export class FmVoiceModule extends SourceBase {
   static type = 'fm_voice';
   static title = 'FM Bell & Metal';
   static category = 'source';
@@ -150,6 +152,8 @@ export class FmVoiceModule extends ModuleBase {
   static jacks = [
     { id: 'gateIn', type: 'in', signal: 'gate', label: 'GATE' },
     { id: 'pitchIn', type: 'in', signal: 'pitch', label: 'PITCH' },
+    { id: 'vcaCv', type: 'in', signal: 'mod', label: 'VCA CV' },
+    { id: 'panCv', type: 'in', signal: 'mod', label: 'PAN CV' },
     { id: 'modIndex', type: 'in', signal: 'mod', label: 'FM MOD' },
   ];
 
@@ -175,6 +179,7 @@ export class FmVoiceModule extends ModuleBase {
   }
 
   onModulation(portId, value) {
+    if (this.handleSourceModulation(portId, value)) return;
     if (portId === 'modIndex') this.modCv = value;
   }
 
@@ -249,7 +254,7 @@ export class FmVoiceModule extends ModuleBase {
 }
 
 // ───────────────────────────────────────────── 3. ANALOG BASS ──
-export class BassModule extends ModuleBase {
+export class BassModule extends SourceBase {
   static type = 'bass';
   static title = 'Analog Bass';
   static category = 'source';
@@ -268,6 +273,8 @@ export class BassModule extends ModuleBase {
   static jacks = [
     { id: 'gateIn', type: 'in', signal: 'gate', label: 'GATE' },
     { id: 'pitchIn', type: 'in', signal: 'pitch', label: 'PITCH' },
+    { id: 'vcaCv', type: 'in', signal: 'mod', label: 'VCA CV' },
+    { id: 'panCv', type: 'in', signal: 'mod', label: 'PAN CV' },
     { id: 'modCutoff', type: 'in', signal: 'mod', label: 'CUTOFF CV' },
   ];
 
@@ -294,6 +301,7 @@ export class BassModule extends ModuleBase {
   }
 
   onModulation(portId, value) {
+    if (this.handleSourceModulation(portId, value)) return;
     if (portId === 'modCutoff') this.modCv = value;
   }
 
@@ -379,7 +387,7 @@ export class BassModule extends ModuleBase {
 }
 
 // ───────────────────────────────────────────── 4. DRUM RACK ──
-export class DrumRackModule extends ModuleBase {
+export class DrumRackModule extends SourceBase {
   static type = 'drum_rack';
   static title = 'Drum Rack';
   static category = 'source';
@@ -399,6 +407,8 @@ export class DrumRackModule extends ModuleBase {
     { id: 'trigSnare', type: 'in', signal: 'gate', label: 'SNARE IN' },
     { id: 'trigHat', type: 'in', signal: 'gate', label: 'HI-HAT IN' },
     { id: 'trigPerc', type: 'in', signal: 'gate', label: 'PERC IN' },
+    { id: 'vcaCv', type: 'in', signal: 'mod', label: 'VCA CV' },
+    { id: 'panCv', type: 'in', signal: 'mod', label: 'PAN CV' },
   ];
 
   constructor(ctx, state = {}) {
@@ -410,6 +420,10 @@ export class DrumRackModule extends ModuleBase {
 
   applyParam(id, val) {
     if (id === 'level') this.ramp(this.levelGain.gain, val);
+  }
+
+  onModulation(portId, value) {
+    if (this.handleSourceModulation(portId, value)) return;
   }
 
   onTrigger(portId, time, velocity = 1) {

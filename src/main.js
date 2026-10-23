@@ -24,6 +24,10 @@ function fmt(p, v) {
     case 'cents': return `${Math.round(v)} ct`;
     case 'bpm': return `${Math.round(v)} BPM`;
     case 'int': return `${Math.round(v)}`;
+    case 'st': return `${v > 0 ? '+' : ''}${Math.round(v)} st`;
+    case 'gps': return `${v < 10 ? v.toFixed(1) : Math.round(v)}/s`;
+    case 'sgn': return `${v > 0 ? '+' : ''}${Math.round(v * 100)}%`;
+    case 'x': return `${v.toFixed(2)}×`;
     default: return v.toFixed(1);
   }
 }
@@ -203,6 +207,7 @@ function createCard(mod, fxIndex = -1) {
   const card = document.createElement('article');
   card.className = `module-card is-${M.category}${mod.enabled ? '' : ' bypassed'}`;
   card.dataset.id = mod.id;
+  card.dataset.type = M.type;
   card.style.setProperty('--mod-color', M.color);
 
   const subTitle = isFx ? `FX ${fxIndex + 1}` : isCtrl ? 'Steuerung' : 'Stimme';
@@ -239,7 +244,30 @@ function createCard(mod, fxIndex = -1) {
         <select class="select select-sm" data-opt="${o.id}">${o.choices.map(([v, l]) => `<option value="${v}" ${String(mod.values[o.id]) === String(v) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>
       </label>`).join('')}</div>` : ''}
     <div class="mod-knobs"></div>
-    <div class="mod-extra"></div>`;
+    <div class="mod-extra"></div>
+    ${!isFx && !isCtrl ? `
+      <div class="mod-channel-strip">
+        <div class="strip-header">
+          <span class="strip-title">KANALZUG · PAN &amp; AUX SENDS</span>
+        </div>
+        <div class="strip-controls">
+          <div class="strip-col">
+            <span class="strip-lbl">PAN</span>
+            <input type="range" class="strip-slider" data-strip="pan" min="-1" max="1" step="0.05" value="${mod.chPan ?? 0}" />
+            <span class="strip-val" data-val="pan">${mod.chPan === 0 ? 'C' : mod.chPan < 0 ? Math.round(Math.abs(mod.chPan)*100)+'L' : Math.round(mod.chPan*100)+'R'}</span>
+          </div>
+          <div class="strip-col">
+            <span class="strip-lbl">DELAY</span>
+            <input type="range" class="strip-slider" data-strip="delay" min="0" max="1" step="0.02" value="${mod.chDelay ?? 0.15}" />
+            <span class="strip-val" data-val="delay">${Math.round((mod.chDelay ?? 0.15)*100)}%</span>
+          </div>
+          <div class="strip-col">
+            <span class="strip-lbl">REVERB</span>
+            <input type="range" class="strip-slider" data-strip="reverb" min="0" max="1" step="0.02" value="${mod.chReverb ?? 0.35}" />
+            <span class="strip-val" data-val="reverb">${Math.round((mod.chReverb ?? 0.35)*100)}%</span>
+          </div>
+        </div>
+      </div>` : ''}`;
 
   // Hardware Jacks in PatchBay registrieren
   if (M.jacks?.length) {
@@ -254,6 +282,7 @@ function createCard(mod, fxIndex = -1) {
 
   // Regler
   const knobsEl = card.querySelector('.mod-knobs');
+  const knobRefs = [];
   M.params.forEach((p) => {
     const cell = document.createElement('div');
     cell.className = 'knob-cell';
@@ -266,7 +295,18 @@ function createCard(mod, fxIndex = -1) {
     });
     valEl.textContent = fmt(p, mod.values[p.id]);
     cell.addEventListener('dblclick', () => knob.setValue(p.value, true));
+    knobRefs.push({ p, knob, valEl });
   });
+
+  // Regler & Auswahlfelder nachziehen, wenn das Modul sie selbst verändert (z. B. Mutation)
+  mod.refreshKnobs = () => {
+    knobRefs.forEach(({ p, knob, valEl }) => {
+      knob.setValue(mod.values[p.id]);
+      valEl.textContent = fmt(p, mod.values[p.id]);
+    });
+    card.querySelectorAll('select[data-opt]').forEach((sel) => { sel.value = String(mod.values[sel.dataset.opt]); });
+  };
+  mod.notifyChanged = changed;
 
   // Optionen
   card.querySelectorAll('select[data-opt]').forEach((sel) => {
@@ -279,6 +319,26 @@ function createCard(mod, fxIndex = -1) {
   });
 
   mod.renderExtra(card.querySelector('.mod-extra'), { changed });
+
+  // Kanalzug-Regler (Pan, Delay Send, Reverb Send)
+  card.querySelectorAll('.strip-slider').forEach((slider) => {
+    slider.addEventListener('input', (e) => {
+      const type = e.target.dataset.strip;
+      const val = parseFloat(e.target.value);
+      const valEl = card.querySelector(`.strip-val[data-val="${type}"]`);
+      if (type === 'pan') {
+        mod.setChannelStrip({ pan: val });
+        if (valEl) valEl.textContent = val === 0 ? 'C' : val < 0 ? `${Math.round(Math.abs(val) * 100)}L` : `${Math.round(val * 100)}R`;
+      } else if (type === 'delay') {
+        mod.setChannelStrip({ delay: val });
+        if (valEl) valEl.textContent = `${Math.round(val * 100)}%`;
+      } else if (type === 'reverb') {
+        mod.setChannelStrip({ reverb: val });
+        if (valEl) valEl.textContent = `${Math.round(val * 100)}%`;
+      }
+      changed();
+    });
+  });
 
   // Aktionen
   card.querySelector('.mod-info-btn')?.addEventListener('click', (e) => {

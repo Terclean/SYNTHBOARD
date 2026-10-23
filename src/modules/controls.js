@@ -688,3 +688,236 @@ export class MacroControllerModule extends ModuleBase {
     super.destroy();
   }
 }
+
+// ───────────────────────────────────────────── 9. SLOPE GENERATOR (AMBIENT ENVELOPE) ──
+export class SlopeGeneratorModule extends ModuleBase {
+  static type = 'slope_generator';
+  static title = 'Slope Generator';
+  static category = 'control';
+  static color = '#eab308';
+  static icon = '⋀';
+  static description = 'Flexible Ambient-Hüllkurve & Funktionsgenerator (0.05s–60s)';
+  static params = [
+    { id: 'rise', label: 'Rise (Att)', min: 0.05, max: 60, value: 4.0, log: true, fmt: 's' },
+    { id: 'fall', label: 'Fall (Dec)', min: 0.05, max: 60, value: 8.0, log: true, fmt: 's' },
+    { id: 'curve', label: 'Kurve', min: 0, max: 1, value: 0.6, fmt: 'pct' },
+    { id: 'scale', label: 'Scale', min: -1, max: 1, value: 1.0, fmt: 'pct' },
+    { id: 'offset', label: 'Offset', min: -1, max: 1, value: 0, fmt: 'num' },
+  ];
+  static options = [
+    { id: 'mode', label: 'Modus', choices: [['loop', '🔄 Zyklisch (LFO)'], ['trig', '⚡ Trigger AD'], ['gate', '🚪 Gate ASR']], value: 'loop' },
+  ];
+  static jacks = [
+    { id: 'trigIn', type: 'in', signal: 'gate', label: 'TRIG IN' },
+    { id: 'gateIn', type: 'in', signal: 'gate', label: 'GATE IN' },
+    { id: 'modRise', type: 'in', signal: 'mod', label: 'RISE CV' },
+    { id: 'modFall', type: 'in', signal: 'mod', label: 'FALL CV' },
+    { id: 'envOut', type: 'out', signal: 'mod', label: 'ENV OUT' },
+    { id: 'invOut', type: 'out', signal: 'mod', label: 'INV OUT' },
+    { id: 'eocOut', type: 'out', signal: 'gate', label: 'EOC OUT' },
+  ];
+
+  constructor(ctx, state = {}) {
+    super(ctx, state);
+    this.stage = 'idle';
+    this.currentVal = 0;
+    this.startVal = 0;
+    this.stageProgress = 0;
+    this.stageStartTime = ctx.currentTime;
+    this.gateHeld = false;
+    this.cvRiseMod = 1.0;
+    this.cvFallMod = 1.0;
+    this.initValues(state);
+
+    if (this.values.mode === 'loop') {
+      this.triggerRise(ctx.currentTime);
+    }
+
+    this.timer = setInterval(() => this.tick(), 25);
+  }
+
+  triggerRise(time = null) {
+    this.stage = 'rise';
+    this.stageStartTime = time || this.ctx.currentTime;
+    this.startVal = this.currentVal;
+  }
+
+  triggerFall(time = null) {
+    this.stage = 'fall';
+    this.stageStartTime = time || this.ctx.currentTime;
+    this.startVal = this.currentVal;
+  }
+
+  onTrigger(portId, time, _velocity = 1, duration = 0.1) {
+    if (portId === 'trigIn' && this.enabled) {
+      this.triggerRise(time);
+    } else if (portId === 'gateIn' && this.enabled) {
+      this.gateHeld = true;
+      this.triggerRise(time);
+      if (duration) {
+        setTimeout(() => {
+          this.gateHeld = false;
+          if (this.stage === 'sustain') this.triggerFall();
+        }, duration * 1000);
+      }
+    }
+  }
+
+  onModulation(portId, value) {
+    if (portId === 'modRise') {
+      this.cvRiseMod = Math.max(0.1, value * 2);
+    } else if (portId === 'modFall') {
+      this.cvFallMod = Math.max(0.1, value * 2);
+    }
+  }
+
+  tick() {
+    if (!this.enabled) return;
+    const now = this.ctx.currentTime;
+    const riseTime = Math.max(0.02, (this.values.rise || 4) * this.cvRiseMod);
+    const fallTime = Math.max(0.02, (this.values.fall || 8) * this.cvFallMod);
+    const curveExp = (this.values.curve || 0.6) * 1.5 + 1;
+
+    if (this.stage === 'rise') {
+      const elapsed = now - this.stageStartTime;
+      const linearP = Math.min(1, elapsed / riseTime);
+      this.stageProgress = Math.pow(linearP, 1 / curveExp);
+      this.currentVal = this.startVal + (1.0 - this.startVal) * this.stageProgress;
+
+      if (linearP >= 1) {
+        this.currentVal = 1.0;
+        if (this.values.mode === 'gate' && this.gateHeld) {
+          this.stage = 'sustain';
+        } else {
+          this.triggerFall(now);
+        }
+      }
+    } else if (this.stage === 'fall') {
+      const elapsed = now - this.stageStartTime;
+      const linearP = Math.min(1, elapsed / fallTime);
+      this.stageProgress = Math.pow(linearP, curveExp);
+      this.currentVal = Math.max(0, this.startVal * (1.0 - this.stageProgress));
+
+      if (linearP >= 1) {
+        this.currentVal = 0;
+        this.stage = 'idle';
+        this.emitTrigger('eocOut', now, 1.0, 0.05);
+
+        if (this.values.mode === 'loop') {
+          this.triggerRise(now);
+        }
+      }
+    } else if (this.stage === 'idle' && this.values.mode === 'loop') {
+      this.triggerRise(now);
+    }
+
+    const scale = this.values.scale ?? 1.0;
+    const offset = this.values.offset ?? 0.0;
+    const scaledVal = Math.max(-1, Math.min(1, this.currentVal * scale + offset));
+    const invVal = Math.max(-1, Math.min(1, (1.0 - this.currentVal) * scale + offset));
+
+    this.emitMod('envOut', Math.max(0, scaledVal), now);
+    this.emitMod('invOut', Math.max(0, invVal), now);
+    this.updateDisplay?.(this.currentVal, this.stage);
+  }
+
+  applyParam(id, val) {
+    if (id === 'mode' && val === 'loop' && this.stage === 'idle') {
+      this.triggerRise();
+    }
+  }
+
+  renderExtra(el) {
+    el.innerHTML = `
+      <div class="slope-meter-wrap">
+        <div class="slope-bar">
+          <div class="slope-fill"></div>
+        </div>
+        <div class="slope-info">
+          <span class="slope-stage">IDLE</span>
+          <span class="slope-val">0%</span>
+        </div>
+      </div>`;
+    const fill = el.querySelector('.slope-fill');
+    const stageEl = el.querySelector('.slope-stage');
+    const valEl = el.querySelector('.slope-val');
+
+    this.updateDisplay = (v, st) => {
+      if (fill) fill.style.width = `${Math.round(v * 100)}%`;
+      if (stageEl) {
+        stageEl.textContent = st.toUpperCase();
+        stageEl.className = `slope-stage is-${st}`;
+      }
+      if (valEl) valEl.textContent = `${Math.round(v * 100)}%`;
+    };
+  }
+
+  destroy() {
+    clearInterval(this.timer);
+    super.destroy();
+  }
+}
+
+// ───────────────────────────────────────────── 10. ATTENUVERTER & OFFSET ──
+export class AttenuverterModule extends ModuleBase {
+  static type = 'attenuverter';
+  static title = 'Attenuverter & Offset';
+  static category = 'control';
+  static color = '#a855f7';
+  static icon = '⧉';
+  static description = 'Dämpfen, Invertieren (-100%..+100%) & CV-Offset/Mischer';
+  static params = [
+    { id: 'scaleA', label: 'Skala A', min: -1, max: 1, value: 1.0, fmt: 'pct' },
+    { id: 'offsetA', label: 'Offset A', min: -1, max: 1, value: 0, fmt: 'num' },
+    { id: 'scaleB', label: 'Skala B', min: -1, max: 1, value: -1.0, fmt: 'pct' },
+    { id: 'offsetB', label: 'Offset B', min: -1, max: 1, value: 0, fmt: 'num' },
+  ];
+  static options = [];
+  static jacks = [
+    { id: 'inA', type: 'in', signal: 'mod', label: 'IN A' },
+    { id: 'outA', type: 'out', signal: 'mod', label: 'OUT A' },
+    { id: 'inB', type: 'in', signal: 'mod', label: 'IN B' },
+    { id: 'outB', type: 'out', signal: 'mod', label: 'OUT B' },
+    { id: 'sumOut', type: 'out', signal: 'mod', label: 'SUM OUT' },
+  ];
+
+  constructor(ctx, state = {}) {
+    super(ctx, state);
+    this.inAVal = 0.5;
+    this.inBVal = 0.5;
+    this.initValues(state);
+    this.timer = setInterval(() => this.process(), 30);
+  }
+
+  onModulation(portId, value) {
+    if (portId === 'inA') {
+      this.inAVal = value;
+    } else if (portId === 'inB') {
+      this.inBVal = value;
+    }
+  }
+
+  process() {
+    if (!this.enabled) return;
+    const now = this.ctx.currentTime;
+    const inAPatched = this.patchSystem?.hasIncoming(this.id, 'inA');
+    const inBPatched = this.patchSystem?.hasIncoming(this.id, 'inB');
+
+    const valA = inAPatched ? this.inAVal : 1.0;
+    const valB = inBPatched ? this.inBVal : 1.0;
+
+    const outA = Math.max(0, Math.min(1, valA * this.values.scaleA + this.values.offsetA));
+    const outB = Math.max(0, Math.min(1, valB * this.values.scaleB + this.values.offsetB));
+    const sum = Math.max(0, Math.min(1, (outA + outB) * 0.5));
+
+    this.emitMod('outA', outA, now);
+    this.emitMod('outB', outB, now);
+    this.emitMod('sumOut', sum, now);
+  }
+
+  destroy() {
+    clearInterval(this.timer);
+    super.destroy();
+  }
+}
+

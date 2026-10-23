@@ -1,5 +1,4 @@
-// Klangquellen-Module: Drone, Keys, Sequencer, Noise
-import { ModuleBase, midiToFreq, midiToName, scaleNote, SCALES, getNoiseBuffers } from './base.js';
+import { ModuleBase, SourceBase, midiToFreq, midiToName, scaleNote, SCALES, getNoiseBuffers } from './base.js';
 
 const WAVES = [['sawtooth', 'Saw'], ['triangle', 'Tri'], ['square', 'Square'], ['sine', 'Sine']];
 const KEYS = [[0, 'C'], [2, 'D'], [4, 'E'], [5, 'F'], [7, 'G'], [9, 'A'], [10, 'B♭']];
@@ -20,7 +19,7 @@ const CHORDS = {
   cluster: { name: 'Cluster', iv: [0, 2, 7, 12, 14, 19] },
 };
 
-export class DroneModule extends ModuleBase {
+export class DroneModule extends SourceBase {
   static type = 'drone';
   static title = 'Drone Maschine';
   static color = '#ff8a3d';
@@ -40,6 +39,8 @@ export class DroneModule extends ModuleBase {
     { id: 'wave', label: 'Welle', choices: WAVES, value: 'sawtooth' },
   ];
   static jacks = [
+    { id: 'vcaCv', type: 'in', signal: 'mod', label: 'VCA CV' },
+    { id: 'panCv', type: 'in', signal: 'mod', label: 'PAN CV' },
     { id: 'cvFm', type: 'in', signal: 'mod', label: 'FM CV' },
     { id: 'cvTone', type: 'in', signal: 'mod', label: 'TONE CV' },
   ];
@@ -139,6 +140,7 @@ export class DroneModule extends ModuleBase {
   }
 
   onModulation(portId, val, time) {
+    if (this.handleSourceModulation(portId, val)) return;
     const t = time || this.ctx.currentTime;
     if (portId === 'cvFm') {
       const root = Number(this.values.root ?? 33);
@@ -176,7 +178,7 @@ export class DroneModule extends ModuleBase {
 // ───────────────────────────────────────────── KEYS ──
 const KEYBOARD = ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 'ö', 'ä', '#'];
 
-export class KeysModule extends ModuleBase {
+export class KeysModule extends SourceBase {
   static type = 'keys';
   static title = 'Touch Keys';
   static color = '#4dd4c6';
@@ -199,6 +201,8 @@ export class KeysModule extends ModuleBase {
   static jacks = [
     { id: 'gateIn', type: 'in', signal: 'gate', label: 'GATE IN' },
     { id: 'pitchIn', type: 'in', signal: 'pitch', label: 'PITCH IN' },
+    { id: 'vcaCv', type: 'in', signal: 'mod', label: 'VCA CV' },
+    { id: 'panCv', type: 'in', signal: 'mod', label: 'PAN CV' },
     { id: 'gateOut', type: 'out', signal: 'gate', label: 'GATE OUT' },
     { id: 'pitchOut', type: 'out', signal: 'pitch', label: 'PITCH OUT' },
   ];
@@ -217,6 +221,10 @@ export class KeysModule extends ModuleBase {
 
   onPitch(portId, _time, midiNote) {
     if (portId === 'pitchIn') this.extMidi = midiNote;
+  }
+
+  onModulation(portId, val) {
+    if (this.handleSourceModulation(portId, val)) return;
   }
 
   onTrigger(portId, time, velocity = 1, duration = 0.3) {
@@ -333,7 +341,7 @@ export class KeysModule extends ModuleBase {
 }
 
 // ───────────────────────────────────────────── SEQUENCER ──
-export class SequencerModule extends ModuleBase {
+export class SequencerModule extends SourceBase {
   static type = 'sequencer';
   static title = 'Step Sequencer';
   static color = '#b98cff';
@@ -357,6 +365,8 @@ export class SequencerModule extends ModuleBase {
   ];
   static jacks = [
     { id: 'clockIn', type: 'in', signal: 'clock', label: 'CLOCK IN' },
+    { id: 'vcaCv', type: 'in', signal: 'mod', label: 'VCA CV' },
+    { id: 'panCv', type: 'in', signal: 'mod', label: 'PAN CV' },
     { id: 'gateOut', type: 'out', signal: 'gate', label: 'GATE OUT' },
     { id: 'pitchOut', type: 'out', signal: 'pitch', label: 'PITCH OUT' },
   ];
@@ -386,6 +396,10 @@ export class SequencerModule extends ModuleBase {
     if (portId === 'clockIn' && this.enabled && this.running) {
       this.triggerStep(time);
     }
+  }
+
+  onModulation(portId, val) {
+    if (this.handleSourceModulation(portId, val)) return;
   }
 
   triggerStep(time) {
@@ -510,7 +524,7 @@ function makeCrackleBuffer(ctx) {
   return buf;
 }
 
-export class NoiseModule extends ModuleBase {
+export class NoiseModule extends SourceBase {
   static type = 'noise';
   static title = 'Noise Textur';
   static color = '#8fb8ff';
@@ -527,6 +541,11 @@ export class NoiseModule extends ModuleBase {
   static options = [
     { id: 'color', label: 'Farbe', choices: [['pink', 'Pink'], ['white', 'Weiß']], value: 'pink' },
     { id: 'ftype', label: 'Filter', choices: [['lowpass', 'Lowpass'], ['bandpass', 'Bandpass'], ['highpass', 'Highpass']], value: 'bandpass' },
+  ];
+  static jacks = [
+    { id: 'vcaCv', type: 'in', signal: 'mod', label: 'VCA CV' },
+    { id: 'panCv', type: 'in', signal: 'mod', label: 'PAN CV' },
+    { id: 'cvTone', type: 'in', signal: 'mod', label: 'TONE CV' },
   ];
 
   constructor(ctx, state = {}) {
@@ -581,5 +600,18 @@ export class NoiseModule extends ModuleBase {
       case 'color': this.setColor(val); break;
       case 'ftype': this.filter.type = val; break;
     }
+  }
+
+  onModulation(portId, val, time) {
+    if (this.handleSourceModulation(portId, val)) return;
+    if (portId === 'cvTone') {
+      const base = this.values.tone || 1600;
+      this.filter.frequency.setTargetAtTime(Math.max(40, Math.min(14000, base * (0.2 + val * 2))), time || this.ctx.currentTime, 0.04);
+    }
+  }
+
+  destroy() {
+    try { this.src?.stop(); } catch { /* ignore */ }
+    super.destroy();
   }
 }

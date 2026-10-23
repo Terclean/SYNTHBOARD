@@ -20,7 +20,7 @@ export class PatchSystem {
     return `${fromModuleId}:${fromPortId}->${toModuleId}:${toPortId}`;
   }
 
-  connect(fromModuleId, fromPortId, toModuleId, toPortId, customColor = null) {
+  connect(fromModuleId, fromPortId, toModuleId, toPortId, customColor = null, depth = 1) {
     if (fromModuleId === toModuleId && fromPortId === toPortId) return null;
 
     let fromMod = this.engine.find(fromModuleId) || this.engine.findByType?.(fromModuleId);
@@ -48,6 +48,7 @@ export class PatchSystem {
       toPortId,
       signal,
       color,
+      depth: Number.isFinite(depth) ? Math.max(0, Math.min(2, depth)) : 1, // Modulationsstärke pro Kabel
     };
 
     this.connections.set(id, conn);
@@ -134,7 +135,13 @@ export class PatchSystem {
       if (c.fromModuleId === fromModuleId && c.fromPortId === fromPortId) {
         const target = this.engine.find(c.toModuleId);
         if (target && target.enabled) {
-          target.receiveMod(c.toPortId, value, time);
+          let v = value;
+          const d = c.depth ?? 1;
+          if (d !== 1) {
+            // Pan wird um die Mitte skaliert, alle anderen CVs wie ein Abschwächer
+            v = c.toPortId === 'panCv' ? 0.5 + (value - 0.5) * d : value * d;
+          }
+          target.receiveMod(c.toPortId, v, time);
         }
       }
     }
@@ -166,6 +173,7 @@ export class PatchSystem {
       from: `${c.fromModuleId}:${c.fromPortId}`,
       to: `${c.toModuleId}:${c.toPortId}`,
       color: c.color,
+      ...((c.depth ?? 1) !== 1 ? { depth: c.depth } : {}),
     }));
   }
 
@@ -177,7 +185,7 @@ export class PatchSystem {
       const [fromMod, fromPort] = c.from.split(':');
       const [toMod, toPort] = c.to.split(':');
       if (fromMod && fromPort && toMod && toPort) {
-        this.connect(fromMod, fromPort, toMod, toPort, c.color);
+        this.connect(fromMod, fromPort, toMod, toPort, c.color, c.depth ?? 1);
       }
     }
     this.onConnectionsChanged?.();
