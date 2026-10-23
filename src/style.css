@@ -144,7 +144,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  max-width: 1800px;
+  max-width: min(98vw, 2400px);
   margin: 0 auto;
   padding: 16px 20px 20px;
   min-height: 100vh;
@@ -158,7 +158,7 @@ body {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 14px 24px;
+  gap: 12px 18px;
   padding: 12px 20px;
   border-radius: var(--radius);
   background: rgba(22, 25, 32, 0.78);
@@ -182,9 +182,60 @@ body {
 
 .board-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .bar-label { font-family: var(--font-hw); font-size: 0.72rem; letter-spacing: 2px; color: var(--text-mute); font-weight: 700; }
-#board-select { min-width: 220px; }
+#board-select { min-width: 200px; }
 .dirty-dot { width: 8px; height: 8px; border-radius: 50%; background: transparent; transition: 0.3s; margin-right: 4px; }
 .dirty-dot.on { background: var(--accent-2); box-shadow: 0 0 8px var(--accent-2); }
+
+/* ── Zoom & Workspace Controls ── */
+.zoom-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.zoom-cluster {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(14, 16, 21, 0.85);
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.zoom-cluster .btn {
+  border: none;
+  background: transparent;
+  padding: 5px 8px;
+  font-size: 0.78rem;
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+.zoom-cluster .btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: none;
+}
+
+.btn-zoom-val {
+  min-width: 48px;
+  text-align: center;
+  font-family: var(--font-mono, monospace);
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.btn-accent-dim {
+  background: rgba(255, 138, 61, 0.18) !important;
+  color: #ff9d5c !important;
+  font-weight: 700 !important;
+}
+
+.btn-accent-dim:hover {
+  background: rgba(255, 138, 61, 0.32) !important;
+  box-shadow: 0 0 10px rgba(255, 138, 61, 0.4) !important;
+}
 
 .master-bar { display: flex; align-items: center; gap: 12px; }
 .scope {
@@ -203,6 +254,16 @@ body {
   grid-template-columns: 270px 1fr;
   gap: 14px;
   align-items: start;
+  zoom: var(--workspace-zoom, 1);
+  transition: grid-template-columns 0.2s ease;
+}
+
+.workspace.lib-collapsed {
+  grid-template-columns: 1fr;
+}
+
+.workspace.lib-collapsed .library {
+  display: none;
 }
 
 /* ───────────── Bibliothek ───────────── */
@@ -215,6 +276,7 @@ body {
   border-radius: var(--radius);
   background: rgba(20, 22, 29, 0.75);
   border: 1px solid var(--line);
+  transition: opacity 0.2s;
 }
 .library h2 { font-family: var(--font-display); font-size: 0.9rem; letter-spacing: 2px; }
 .lib-hint { font-size: 0.75rem; color: var(--text-mute); margin: 4px 0 14px; }

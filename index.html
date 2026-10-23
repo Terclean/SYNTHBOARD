@@ -50,6 +50,16 @@
           <input id="file-import" type="file" accept="application/json,.json" hidden />
         </div>
 
+        <div class="zoom-bar" role="group" aria-label="Arbeitsbereich zoomen">
+          <button id="btn-toggle-lib" class="btn" title="Modul-Bibliothek ein-/ausklappen [Taste B]"><span class="lib-icon-symbol">◀</span> <span class="txt">Module</span></button>
+          <div class="zoom-cluster">
+            <button id="btn-zoom-out" class="btn btn-icon" title="Arbeitsbereich verkleinern (Mehr Übersicht) [Taste -]">🔍−</button>
+            <button id="btn-zoom-reset" class="btn btn-zoom-val" title="Zoom auf 100% zurücksetzen [Taste 0]"><span id="zoom-val">100%</span></button>
+            <button id="btn-zoom-in" class="btn btn-icon" title="Arbeitsbereich vergrößern [Taste +]">🔍＋</button>
+            <button id="btn-zoom-fit" class="btn btn-accent-dim" title="Ganzes Rack auf den Bildschirm einpassen [Taste F]">⤢ Fit</button>
+          </div>
+        </div>
+
         <div class="master-bar">
           <canvas id="scope" class="scope" width="180" height="46" aria-label="Oszilloskop"></canvas>
           <button id="btn-guide" class="btn btn-guide" title="Erklärungsseite &amp; Patch-Handbuch öffnen [Taste H]"><span class="guide-icon">📖</span><span class="txt">HANDBUCH</span></button>

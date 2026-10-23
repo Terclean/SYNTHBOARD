@@ -562,10 +562,117 @@ $('#file-import').addEventListener('change', async (e) => {
   }
 });
 
+// ───────────────────────── Zoom & Arbeitsbereich ──
+const LS_ZOOM = 'synthboard_zoom';
+const LS_LIB_COLLAPSED = 'synthboard_lib_collapsed';
+let currentZoom = 1.0;
+try {
+  const savedZoom = parseFloat(localStorage.getItem(LS_ZOOM));
+  if (!isNaN(savedZoom) && savedZoom >= 0.4 && savedZoom <= 1.5) currentZoom = savedZoom;
+} catch { /* ignore */ }
+
+const workspaceEl = document.querySelector('.workspace');
+
+function applyZoom(level, notify = false) {
+  currentZoom = Math.max(0.45, Math.min(1.3, Math.round(level * 100) / 100));
+  if (workspaceEl) {
+    workspaceEl.style.zoom = currentZoom;
+    document.documentElement.style.setProperty('--workspace-zoom', currentZoom);
+  }
+  const valEl = document.getElementById('zoom-val');
+  if (valEl) valEl.textContent = `${Math.round(currentZoom * 100)}%`;
+  try { localStorage.setItem(LS_ZOOM, currentZoom); } catch { /* ignore */ }
+  patchBay.updateSize?.();
+  patchBay.requestDraw?.();
+  if (notify) toast(`🔍 Zoom: ${Math.round(currentZoom * 100)}%`);
+}
+
+function fitZoomToScreen() {
+  const rackEl = document.querySelector('.rack');
+  if (!workspaceEl || !rackEl) return;
+
+  workspaceEl.style.zoom = '1';
+  document.documentElement.style.setProperty('--workspace-zoom', 1);
+
+  const topbar = document.querySelector('.topbar');
+  const statusbar = document.querySelector('.statusbar');
+  const topH = topbar ? topbar.offsetHeight + 24 : 80;
+  const bottomH = statusbar ? statusbar.offsetHeight + 20 : 60;
+  const availableH = window.innerHeight - topH - bottomH;
+  const naturalH = rackEl.scrollHeight || rackEl.offsetHeight || 1200;
+
+  let targetRatio = availableH / naturalH;
+  targetRatio = Math.max(0.45, Math.min(1.0, Math.round(targetRatio * 100) / 100));
+
+  applyZoom(targetRatio, false);
+  toast(`⤢ Rack auf Bildschirm eingepasst (${Math.round(targetRatio * 100)}%)`);
+}
+
+function toggleLibrary(force) {
+  if (!workspaceEl) return;
+  const isCollapsed = typeof force === 'boolean' ? force : !workspaceEl.classList.contains('lib-collapsed');
+  workspaceEl.classList.toggle('lib-collapsed', isCollapsed);
+  const btn = document.getElementById('btn-toggle-lib');
+  if (btn) {
+    btn.classList.toggle('collapsed', isCollapsed);
+    const sym = btn.querySelector('.lib-icon-symbol');
+    if (sym) sym.textContent = isCollapsed ? '▶' : '◀';
+  }
+  try { localStorage.setItem(LS_LIB_COLLAPSED, isCollapsed ? '1' : '0'); } catch { /* ignore */ }
+  patchBay.updateSize?.();
+  patchBay.requestDraw?.();
+  toast(isCollapsed ? 'Modul-Bibliothek eingeklappt' : 'Modul-Bibliothek ausgeklappt');
+}
+
+$('#btn-zoom-out')?.addEventListener('click', () => applyZoom(currentZoom - 0.1, true));
+$('#btn-zoom-in')?.addEventListener('click', () => applyZoom(currentZoom + 0.1, true));
+$('#btn-zoom-reset')?.addEventListener('click', () => applyZoom(1.0, true));
+$('#btn-zoom-fit')?.addEventListener('click', () => fitZoomToScreen());
+$('#btn-toggle-lib')?.addEventListener('click', () => toggleLibrary());
+
+workspaceEl?.addEventListener('wheel', (e) => {
+  if (e.ctrlKey || e.metaKey || e.altKey) {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 0.05 : -0.05;
+    applyZoom(currentZoom + delta);
+  }
+}, { passive: false });
+
 // ───────────────────────── Tastatur ──
 const isTyping = (el) => el && (el.tagName === 'INPUT' && el.type !== 'range') || el?.tagName === 'TEXTAREA' || el?.tagName === 'SELECT';
 window.addEventListener('keydown', (e) => {
-  if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || isTyping(e.target)) return;
+  if (isTyping(e.target)) return;
+
+  // Zoom Shortcuts
+  if ((e.key === '-' || e.key === '_') && (e.ctrlKey || e.metaKey || !e.shiftKey)) {
+    e.preventDefault();
+    applyZoom(currentZoom - 0.1, true);
+    return;
+  }
+  if ((e.key === '+' || e.key === '=') && (e.ctrlKey || e.metaKey || !e.shiftKey)) {
+    e.preventDefault();
+    applyZoom(currentZoom + 0.1, true);
+    return;
+  }
+  if (e.key === '0' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    applyZoom(1.0, true);
+    return;
+  }
+  if (!e.metaKey && !e.ctrlKey && !e.altKey) {
+    if (e.key.toLowerCase() === 'f') {
+      e.preventDefault();
+      fitZoomToScreen();
+      return;
+    }
+    if (e.key.toLowerCase() === 'b') {
+      e.preventDefault();
+      toggleLibrary();
+      return;
+    }
+  }
+
+  if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.key.toLowerCase() === 'c') {
     const vis = patchBay.toggleVisible();
     $('#btn-cables').classList.toggle('on', vis);
@@ -597,7 +704,14 @@ function boot() {
   } else {
     loadBoard('tpl', 'generative');
   }
+  try {
+    if (localStorage.getItem(LS_LIB_COLLAPSED) === '1') {
+      toggleLibrary(true);
+    }
+  } catch { /* ignore */ }
+  applyZoom(currentZoom);
   updateStatus();
 }
 
 boot();
+

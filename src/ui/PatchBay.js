@@ -42,11 +42,16 @@ export class PatchBay {
       this.requestDraw();
     };
 
+    this.updateSize = updateSize;
     updateSize();
     window.addEventListener('resize', updateSize);
 
-    if (window.ResizeObserver && this.appEl) {
-      new ResizeObserver(() => updateSize()).observe(this.appEl);
+    if (window.ResizeObserver) {
+      if (this.appEl) new ResizeObserver(() => updateSize()).observe(this.appEl);
+      const ws = document.querySelector('.workspace');
+      if (ws) new ResizeObserver(() => updateSize()).observe(ws);
+      const rk = document.querySelector('.rack');
+      if (rk) new ResizeObserver(() => updateSize()).observe(rk);
     }
   }
 
@@ -192,6 +197,75 @@ export class PatchBay {
     }
   }
 
+  handleAutoScroll(e) {
+    if (!this.activeDrag) {
+      this.stopAutoScroll();
+      return;
+    }
+    this.lastDragPoint = { clientX: e.clientX, clientY: e.clientY };
+    const edgeMargin = 75;
+    const maxSpeed = 18;
+    const y = e.clientY;
+    const h = window.innerHeight;
+
+    let vy = 0;
+    if (y < edgeMargin) {
+      const factor = (edgeMargin - y) / edgeMargin;
+      vy = -Math.round(factor * maxSpeed + 4);
+    } else if (y > h - edgeMargin) {
+      const factor = (y - (h - edgeMargin)) / edgeMargin;
+      vy = Math.round(factor * maxSpeed + 4);
+    }
+
+    this.autoScrollVy = vy;
+
+    if (vy !== 0 && !this.autoScrollTimer) {
+      const loop = () => {
+        if (!this.activeDrag || this.autoScrollVy === 0) {
+          this.autoScrollTimer = null;
+          return;
+        }
+        window.scrollBy(0, this.autoScrollVy);
+
+        if (this.lastDragPoint && this.appEl) {
+          const appRect = this.appEl.getBoundingClientRect();
+          this.activeDrag.currentX = this.lastDragPoint.clientX - appRect.left;
+          this.activeDrag.currentY = this.lastDragPoint.clientY - appRect.top;
+          this.requestDraw();
+
+          const elems = document.elementsFromPoint(this.lastDragPoint.clientX, this.lastDragPoint.clientY);
+          const jackEl = elems.find((el) => el.classList.contains('hw-jack'));
+          if (jackEl?.dataset.jackKey && jackEl.dataset.jackType === 'in') {
+            const targetKey = jackEl.dataset.jackKey;
+            if (targetKey !== this.activeDrag.fromKey) {
+              if (this.hoverTargetKey !== targetKey) {
+                this.clearHoverTarget();
+                this.hoverTargetKey = targetKey;
+                jackEl.classList.add('jack-hover-target');
+              }
+            }
+          } else {
+            this.clearHoverTarget();
+          }
+        }
+        this.autoScrollTimer = requestAnimationFrame(loop);
+      };
+      this.autoScrollTimer = requestAnimationFrame(loop);
+    } else if (vy === 0 && this.autoScrollTimer) {
+      cancelAnimationFrame(this.autoScrollTimer);
+      this.autoScrollTimer = null;
+    }
+  }
+
+  stopAutoScroll() {
+    if (this.autoScrollTimer) {
+      cancelAnimationFrame(this.autoScrollTimer);
+      this.autoScrollTimer = null;
+    }
+    this.autoScrollVy = 0;
+    this.lastDragPoint = null;
+  }
+
   bindEvents() {
     window.addEventListener('mousemove', (e) => {
       if (!this.activeDrag) return;
@@ -201,6 +275,8 @@ export class PatchBay {
       this.activeDrag.currentX = e.clientX - appRect.left;
       this.activeDrag.currentY = e.clientY - appRect.top;
       this.requestDraw();
+
+      this.handleAutoScroll(e);
 
       const elems = document.elementsFromPoint(e.clientX, e.clientY);
       const jackEl = elems.find((el) => el.classList.contains('hw-jack'));
@@ -218,8 +294,18 @@ export class PatchBay {
       this.clearHoverTarget();
     });
 
+    window.addEventListener('scroll', () => {
+      if (this.activeDrag && this.lastDragPoint && this.appEl) {
+        const appRect = this.appEl.getBoundingClientRect();
+        this.activeDrag.currentX = this.lastDragPoint.clientX - appRect.left;
+        this.activeDrag.currentY = this.lastDragPoint.clientY - appRect.top;
+        this.requestDraw();
+      }
+    }, { passive: true });
+
     window.addEventListener('mouseup', (e) => {
       if (!this.activeDrag) return;
+      this.stopAutoScroll();
 
       const elems = document.elementsFromPoint(e.clientX, e.clientY);
       const jackEl = elems.find((el) => el.classList.contains('hw-jack'));
