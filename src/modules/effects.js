@@ -25,6 +25,9 @@ export class FilterModule extends EffectBase {
   static options = [
     { id: 'ftype', label: 'Typ', choices: [['lowpass', 'Lowpass'], ['highpass', 'Highpass'], ['bandpass', 'Bandpass']], value: 'lowpass' },
   ];
+  static jacks = [
+    { id: 'cvCutoff', type: 'in', signal: 'mod', label: 'CUTOFF CV' },
+  ];
 
   constructor(ctx, state = {}) {
     super(ctx, state);
@@ -52,6 +55,16 @@ export class FilterModule extends EffectBase {
     this.initValues(state);
   }
 
+  onModulation(portId, val, time) {
+    if (portId === 'cvCutoff') {
+      const base = this.values.cutoff || 2200;
+      const target = Math.max(40, Math.min(16000, base * Math.pow(2, (val - 0.5) * 4)));
+      const t = time || this.ctx.currentTime;
+      this.f1.frequency.setTargetAtTime(target, t, 0.04);
+      this.f2.frequency.setTargetAtTime(target, t, 0.04);
+    }
+  }
+
   applyParam(id, val) {
     switch (id) {
       case 'cutoff': this.ramp(this.f1.frequency, val); this.ramp(this.f2.frequency, val); break;
@@ -77,6 +90,9 @@ export class DelayModule extends EffectBase {
     { id: 'tone', label: 'Tone', min: 400, max: 9000, value: 2600, log: true, fmt: 'hz' },
     { id: 'mod', label: 'Wobble', min: 0, max: 1, value: 0.25, fmt: 'pct' },
     { id: 'mix', label: 'Mix', min: 0, max: 1, value: 0.4, fmt: 'pct' },
+  ];
+  static jacks = [
+    { id: 'cvTime', type: 'in', signal: 'mod', label: 'TIME CV' },
   ];
   static options = [
     { id: 'mode', label: 'Modus', choices: [['stereo', 'Stereo'], ['pingpong', 'Ping-Pong']], value: 'stereo' },
@@ -139,6 +155,16 @@ export class DelayModule extends EffectBase {
       case 'mod': this.ramp(this.modL.gain, val * 0.004); this.ramp(this.modR.gain, -val * 0.004); break;
       case 'mix': { const m = mixGains(val); this.ramp(this.dryMix.gain, m.dry); this.ramp(this.wetMix.gain, m.wet); break; }
       default: this.updateRouting();
+    }
+  }
+
+  onModulation(portId, val, time) {
+    if (portId === 'cvTime') {
+      const base = this.values.time ?? 0.42;
+      const target = Math.max(0.04, Math.min(1.8, base * (0.3 + val * 1.4)));
+      const t = time || this.ctx.currentTime;
+      this.dL.delayTime.setTargetAtTime(target, t, 0.06);
+      this.dR.delayTime.setTargetAtTime(this.values.mode === 'pingpong' ? target : target * 1.25, t, 0.06);
     }
   }
 }

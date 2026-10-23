@@ -64,15 +64,70 @@ export function getNoiseBuffers(ctx) {
   return res;
 }
 
+/** Deterministischer Zufallszahlengenerator (Mulberry32) */
+export function createRng(seed = 12345) {
+  let s = Math.floor(Math.abs(seed)) || 1;
+  return function() {
+    s |= 0; s = s + 0x6D2B79F5 | 0;
+    let t = Math.imul(s ^ s >>> 15, 1 | s);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+/** Björklunds Euklidischer Rhythmus-Algorithmus */
+export function getEuclideanPattern(steps, pulses, rotation = 0) {
+  steps = Math.max(1, Math.min(32, Math.floor(steps)));
+  pulses = Math.max(0, Math.min(steps, Math.floor(pulses)));
+  if (pulses === 0) return new Array(steps).fill(false);
+  if (pulses >= steps) return new Array(steps).fill(true);
+
+  let pattern = [];
+  let counts = [];
+  let remainders = [];
+  let divisor = steps - pulses;
+  remainders.push(pulses);
+  let level = 0;
+
+  while (true) {
+    counts.push(Math.floor(divisor / remainders[level]));
+    remainders.push(divisor % remainders[level]);
+    divisor = remainders[level];
+    level++;
+    if (remainders[level] <= 1) break;
+  }
+  counts.push(divisor);
+
+  function build(lvl) {
+    if (lvl === -1) pattern.push(false);
+    else if (lvl === -2) pattern.push(true);
+    else {
+      for (let i = 0; i < counts[lvl]; i++) build(lvl - 1);
+      if (remainders[lvl] !== 0) build(lvl - 2);
+    }
+  }
+  build(level);
+
+  const idx = pattern.indexOf(true);
+  pattern = pattern.slice(idx).concat(pattern.slice(0, idx));
+
+  const rot = ((rotation % steps) + steps) % steps;
+  if (rot > 0) {
+    pattern = pattern.slice(steps - rot).concat(pattern.slice(0, steps - rot));
+  }
+  return pattern;
+}
+
 export class ModuleBase {
   static type = 'base';
   static title = 'Modul';
-  static category = 'source'; // 'source' | 'effect'
+  static category = 'source'; // 'control' | 'source' | 'effect'
   static color = '#888';
   static icon = '◆';
   static description = '';
   static params = [];  // [{ id, label, min, max, value, log?, fmt? }]
   static options = []; // [{ id, label, choices: [[value, label]], value }]
+  static jacks = [];   // [{ id, type: 'in'|'out', signal: 'gate'|'pitch'|'mod'|'clock', label }]
 
   constructor(ctx, state = {}) {
     this.ctx = ctx;
@@ -80,7 +135,8 @@ export class ModuleBase {
     this.values = {};
     this.enabled = state.enabled ?? true;
     this.stoppables = [];
-    // "output" ist bei allen Modulen der Ausgang; Quellen nutzen ihn als An/Aus-Gate
+    this.patchSystem = null; // wird von der Engine injiziert
+    // "output" ist bei allen Audio-Modulen der Ausgang
     this.output = ctx.createGain();
   }
 
@@ -116,6 +172,44 @@ export class ModuleBase {
     this.stoppables.push(node);
     return node;
   }
+
+  // ── Modulare Patch-Event Weiterleitung ──
+  emitTrigger(portId, time, velocity = 1, duration = 0.1) {
+    this.patchSystem?.routeTrigger(this.id, portId, time, velocity, duration);
+  }
+
+  emitPitch(portId, time, midiNote, velocity = 1, duration = 0.1) {
+    this.patchSystem?.routePitch(this.id, portId, time, midiNote, velocity, duration);
+  }
+
+  emitMod(portId, value, time) {
+    this.patchSystem?.routeMod(this.id, portId, value, time);
+  }
+
+  emitClock(portId, time, tick = 0) {
+    this.patchSystem?.routeClock(this.id, portId, time, tick);
+  }
+
+  receiveTrigger(portId, time, velocity = 1, duration = 0.1) {
+    this.onTrigger(portId, time, velocity, duration);
+  }
+
+  receivePitch(portId, time, midiNote, velocity = 1, duration = 0.1) {
+    this.onPitch(portId, time, midiNote, velocity, duration);
+  }
+
+  receiveMod(portId, value, time) {
+    this.onModulation(portId, value, time);
+  }
+
+  receiveClock(portId, time, tick = 0) {
+    this.onClock(portId, time, tick);
+  }
+
+  onTrigger(_portId, _time, _velocity, _duration) {}
+  onPitch(_portId, _time, _midiNote, _velocity, _duration) {}
+  onModulation(_portId, _value, _time) {}
+  onClock(_portId, _time, _tick) {}
 
   getState() {
     return { type: this.meta.type, id: this.id, enabled: this.enabled, values: { ...this.values }, extra: this.getExtra() };

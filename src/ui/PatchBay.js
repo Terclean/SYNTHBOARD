@@ -1,280 +1,385 @@
-// Interactive 3.5mm Modular Patch Cable System
+// SYNTHBOARD – Interaktives modulares Patch-Kabel-System
+import { SIGNAL_COLORS } from '../modules/patchSystem.js';
 
 export class PatchBay {
-  constructor(canvasEl, audioEngine) {
+  constructor(canvasEl, engine, options = {}) {
     this.canvas = canvasEl;
     this.ctx = canvasEl.getContext('2d');
-    this.engine = audioEngine;
+    this.engine = engine;
+    this.appEl = document.querySelector('.app');
+    this.onModified = options.onModified || null;
+    this.visible = true;
 
-    this.jacks = new Map(); // id -> { el, type: 'in' | 'out', name, target }
-    this.cables = []; // { id, fromJackId, toJackId, color }
-
-    this.activeDrag = null; // { fromJackId, currentX, currentY, color }
-    this.cableColors = ['#a0aab2', '#e06c75', '#e5c07b', '#98c379', '#61afef', '#c678dd'];
-    this.colorIndex = 0;
+    this.jacks = new Map(); // key `${moduleId}:${portId}` -> { el, moduleId, portId, type, signal, label }
+    this.activeDrag = null; // { fromKey, currentX, currentY, color, signal }
+    this.hoverTargetKey = null;
+    this.drawScheduled = false;
 
     this.initCanvas();
     this.bindEvents();
-    this.startRenderLoop();
+    this.setupEngineHooks();
+    this.requestDraw();
   }
 
   initCanvas() {
-    const resize = () => {
+    this.appEl = document.querySelector('.app');
+
+    const updateSize = () => {
+      if (!this.appEl) return;
       const dpr = window.devicePixelRatio || 1;
-      this.canvas.width = window.innerWidth * dpr;
-      this.canvas.height = window.innerHeight * dpr;
+      const w = Math.max(window.innerWidth, this.appEl.scrollWidth || this.appEl.offsetWidth || 1200);
+      const h = Math.max(window.innerHeight, this.appEl.scrollHeight || this.appEl.offsetHeight || 800);
+
+      this.canvas.width = Math.round(w * dpr);
+      this.canvas.height = Math.round(h * dpr);
+      this.canvas.style.width = `${w}px`;
+      this.canvas.style.height = `${h}px`;
+
+      this.ctx.setTransform(1, 0, 0, 1, 0, 0);
       this.ctx.scale(dpr, dpr);
+      this.requestDraw();
     };
-    resize();
-    window.addEventListener('resize', resize);
+
+    updateSize();
+    window.addEventListener('resize', updateSize);
+
+    if (window.ResizeObserver && this.appEl) {
+      new ResizeObserver(() => updateSize()).observe(this.appEl);
+    }
   }
 
-  registerJack(id, element, type, name, onConnect) {
-    this.jacks.set(id, {
-      id,
+  setupEngineHooks() {
+    this.engine.patchSystem.onConnectionsChanged = () => {
+      this.syncPatchedClasses();
+      this.requestDraw();
+      this.onModified?.();
+    };
+
+    this.engine.patchSystem.onActivity = ({ fromModuleId, fromPortId, toModuleId, toPortId }) => {
+      const fromKey = `${fromModuleId}:${fromPortId}`;
+      const toKey = `${toModuleId}:${toPortId}`;
+      this.flashJack(fromKey);
+      this.flashJack(toKey);
+    };
+  }
+
+  flashJack(key) {
+    const jack = this.jacks.get(key);
+    if (!jack?.el) return;
+    const led = jack.el.querySelector('.jack-led') || jack.el;
+    led.classList.add('flash');
+    setTimeout(() => led.classList.remove('flash'), 120);
+  }
+
+  registerJack(element, moduleId, portId, type, signal = 'gate', label = '') {
+    const key = `${moduleId}:${portId}`;
+    const jack = {
+      key,
       el: element,
-      type, // 'in' or 'out'
-      name,
-      onConnect
-    });
+      moduleId,
+      portId,
+      type, // 'in' | 'out'
+      signal, // 'gate' | 'pitch' | 'mod' | 'clock'
+      label,
+    };
+    this.jacks.set(key, jack);
 
-    element.dataset.jackId = id;
+    element.dataset.jackKey = key;
     element.dataset.jackType = type;
-    element.title = `${type.toUpperCase()}: ${name}`;
+    element.dataset.jackSignal = signal;
+    element.title = `${type === 'out' ? 'AUSGANG' : 'EINGANG'}: ${label} (${signal.toUpperCase()})`;
 
-    element.addEventListener('mousedown', (e) => this.handleJackMouseDown(id, e));
+    // Jack Event-Listener
+    element.onmousedown = (e) => this.handleJackMouseDown(key, e);
+    element.oncontextmenu = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.disconnectJack(key);
+    };
+
+    this.syncPatchedClassFor(key);
+    this.requestDraw();
   }
 
-  getJackCenter(id) {
-    const jack = this.jacks.get(id);
-    if (!jack || !jack.el) return null;
+  unregisterModuleJacks(moduleId) {
+    for (const [key, j] of this.jacks.entries()) {
+      if (j.moduleId === moduleId) {
+        this.jacks.delete(key);
+      }
+    }
+    this.requestDraw();
+  }
+
+  disconnectJack(key) {
+    const jack = this.jacks.get(key);
+    if (!jack) return;
+    this.engine.patchSystem.disconnectPort(jack.moduleId, jack.portId);
+    this.syncPatchedClasses();
+    this.requestDraw();
+    this.onModified?.();
+  }
+
+  syncPatchedClasses() {
+    for (const [key, jack] of this.jacks.entries()) {
+      this.syncPatchedClassFor(key);
+    }
+  }
+
+  syncPatchedClassFor(key) {
+    const jack = this.jacks.get(key);
+    if (!jack?.el) return;
+    const conns = this.engine.patchSystem.getConnections();
+    const isConnected = conns.some(
+      (c) => `${c.fromModuleId}:${c.fromPortId}` === key || `${c.toModuleId}:${c.toPortId}` === key
+    );
+    jack.el.classList.toggle('patched', isConnected);
+  }
+
+  getJackCenter(key) {
+    const jack = this.jacks.get(key);
+    if (!jack || !jack.el || !document.body.contains(jack.el)) return null;
+    if (!this.appEl) this.appEl = document.querySelector('.app');
+    const appRect = this.appEl.getBoundingClientRect();
     const rect = jack.el.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) return null;
     return {
-      x: rect.left + rect.width / 2,
-      y: rect.top + rect.height / 2
+      x: rect.left + rect.width / 2 - appRect.left,
+      y: rect.top + rect.height / 2 - appRect.top,
     };
   }
 
-  handleJackMouseDown(jackId, e) {
+  handleJackMouseDown(key, e) {
+    if (e.button === 2) return;
     e.stopPropagation();
     e.preventDefault();
 
-    // Check if jack already has a cable connected; if so, disconnect or pull it
-    const existingIndex = this.cables.findIndex(c => c.fromJackId === jackId || c.toJackId === jackId);
-    if (existingIndex !== -1 && e.button === 2) { // right click disconnect
-      this.removeCable(existingIndex);
-      return;
-    }
-
-    const jack = this.jacks.get(jackId);
+    const jack = this.jacks.get(key);
     if (!jack) return;
+    if (!this.appEl) this.appEl = document.querySelector('.app');
+    const appRect = this.appEl.getBoundingClientRect();
 
     if (jack.type === 'out') {
-      const color = this.cableColors[this.colorIndex % this.cableColors.length];
-      this.colorIndex++;
+      const color = SIGNAL_COLORS[jack.signal] || '#fbbf24';
       this.activeDrag = {
-        fromJackId: jackId,
-        currentX: e.clientX,
-        currentY: e.clientY,
-        color
+        fromKey: key,
+        currentX: e.clientX - appRect.left,
+        currentY: e.clientY - appRect.top,
+        color,
+        signal: jack.signal,
       };
-    } else if (jack.type === 'in' && existingIndex !== -1) {
-      // Unplug from input and start dragging to re-patch
-      const cable = this.cables[existingIndex];
-      this.activeDrag = {
-        fromJackId: cable.fromJackId,
-        currentX: e.clientX,
-        currentY: e.clientY,
-        color: cable.color
-      };
-      this.removeCable(existingIndex);
+      this.requestDraw();
+    } else if (jack.type === 'in') {
+      const incoming = this.engine.patchSystem.getIncoming(jack.moduleId, jack.portId);
+      if (incoming) {
+        const fromKey = `${incoming.fromModuleId}:${incoming.fromPortId}`;
+        const color = incoming.color;
+        const signal = incoming.signal;
+        this.engine.patchSystem.disconnect(incoming.id);
+        this.syncPatchedClasses();
+        this.onModified?.();
+
+        this.activeDrag = {
+          fromKey,
+          currentX: e.clientX - appRect.left,
+          currentY: e.clientY - appRect.top,
+          color,
+          signal,
+        };
+        this.requestDraw();
+      }
     }
   }
 
   bindEvents() {
     window.addEventListener('mousemove', (e) => {
-      if (this.activeDrag) {
-        this.activeDrag.currentX = e.clientX;
-        this.activeDrag.currentY = e.clientY;
+      if (!this.activeDrag) return;
+      if (!this.appEl) this.appEl = document.querySelector('.app');
+      const appRect = this.appEl.getBoundingClientRect();
+
+      this.activeDrag.currentX = e.clientX - appRect.left;
+      this.activeDrag.currentY = e.clientY - appRect.top;
+      this.requestDraw();
+
+      const elems = document.elementsFromPoint(e.clientX, e.clientY);
+      const jackEl = elems.find((el) => el.classList.contains('hw-jack'));
+      if (jackEl?.dataset.jackKey && jackEl.dataset.jackType === 'in') {
+        const targetKey = jackEl.dataset.jackKey;
+        if (targetKey !== this.activeDrag.fromKey) {
+          if (this.hoverTargetKey !== targetKey) {
+            this.clearHoverTarget();
+            this.hoverTargetKey = targetKey;
+            jackEl.classList.add('jack-hover-target');
+          }
+          return;
+        }
       }
+      this.clearHoverTarget();
     });
 
     window.addEventListener('mouseup', (e) => {
       if (!this.activeDrag) return;
 
-      // Check if dropped on an input jack
-      const elemBelow = document.elementFromPoint(e.clientX, e.clientY);
-      const jackEl = elemBelow ? elemBelow.closest('.hw-jack') : null;
+      const elems = document.elementsFromPoint(e.clientX, e.clientY);
+      const jackEl = elems.find((el) => el.classList.contains('hw-jack'));
 
-      if (jackEl && jackEl.dataset.jackId) {
-        const targetId = jackEl.dataset.jackId;
-        const targetJack = this.jacks.get(targetId);
+      if (jackEl?.dataset.jackKey && jackEl.dataset.jackType === 'in') {
+        const targetKey = jackEl.dataset.jackKey;
+        const fromJack = this.jacks.get(this.activeDrag.fromKey);
+        const toJack = this.jacks.get(targetKey);
 
-        if (targetJack && targetJack.type === 'in' && targetId !== this.activeDrag.fromJackId) {
-          // Connect!
-          this.connect(this.activeDrag.fromJackId, targetId, this.activeDrag.color);
+        if (fromJack && toJack && fromJack.key !== toJack.key) {
+          this.engine.patchSystem.connect(
+            fromJack.moduleId,
+            fromJack.portId,
+            toJack.moduleId,
+            toJack.portId,
+            this.activeDrag.color
+          );
+          this.syncPatchedClasses();
+          this.onModified?.();
         }
       }
 
+      this.clearHoverTarget();
       this.activeDrag = null;
-    });
-
-    window.addEventListener('contextmenu', (e) => {
-      if (e.target.closest('.hw-jack')) {
-        e.preventDefault();
-      }
+      this.requestDraw();
     });
   }
 
-  connect(fromId, toId, color) {
-    // Remove any existing cable to that input
-    const prevIdx = this.cables.findIndex(c => c.toJackId === toId);
-    if (prevIdx !== -1) this.removeCable(prevIdx);
-
-    const cable = {
-      id: `${fromId}->${toId}`,
-      fromJackId: fromId,
-      toJackId: toId,
-      color: color || '#a0aab2'
-    };
-    this.cables.push(cable);
-
-    // Visual indicators on jacks
-    const fromJack = this.jacks.get(fromId);
-    const toJack = this.jacks.get(toId);
-    if (fromJack?.el) fromJack.el.classList.add('patched');
-    if (toJack?.el) toJack.el.classList.add('patched');
-
-    // Trigger audio routing
-    this.applyAudioPatch(fromId, toId, true);
-  }
-
-  removeCable(index) {
-    if (index >= 0 && index < this.cables.length) {
-      const cable = this.cables[index];
-      this.applyAudioPatch(cable.fromJackId, cable.toJackId, false);
-
-      const fromJack = this.jacks.get(cable.fromJackId);
-      const toJack = this.jacks.get(cable.toJackId);
-      if (fromJack?.el) fromJack.el.classList.remove('patched');
-      if (toJack?.el) toJack.el.classList.remove('patched');
-
-      this.cables.splice(index, 1);
+  clearHoverTarget() {
+    if (this.hoverTargetKey) {
+      const prev = this.jacks.get(this.hoverTargetKey);
+      if (prev?.el) prev.el.classList.remove('jack-hover-target');
+      this.hoverTargetKey = null;
     }
   }
 
-  applyAudioPatch(fromId, toId, isConnected) {
-    if (!this.engine) return;
-    // Map of supported modular routes
-    if (toId === 'jack_filter_cv') {
-      if (isConnected) {
-        if (fromId === 'jack_seq_cv') this.engine.sequencerModTarget = 'filter';
-        if (fromId === 'jack_lfo_cv') this.engine.filter.setLfoDepth(0.85);
-      } else {
-        if (fromId === 'jack_seq_cv') this.engine.sequencerModTarget = null;
-        if (fromId === 'jack_lfo_cv') this.engine.filter.setLfoDepth(0);
-      }
-    } else if (toId === 'jack_delay_cv') {
-      if (isConnected && fromId === 'jack_lfo_cv') {
-        this.engine.delay.setMod(0.8);
-      } else if (!isConnected && fromId === 'jack_lfo_cv') {
-        this.engine.delay.setMod(0.2);
-      }
-    } else if (toId === 'jack_drone_fm') {
-      if (isConnected && fromId === 'jack_noise_out') {
-        this.engine.droneEngine.voices.forEach(v => v.setFmAmount(0.6));
-      } else if (!isConnected && fromId === 'jack_noise_out') {
-        this.engine.droneEngine.voices.forEach(v => v.setFmAmount(0.1));
-      }
-    }
+  toggleVisible() {
+    this.visible = !this.visible;
+    this.requestDraw();
+    return this.visible;
   }
 
-  startRenderLoop() {
-    const draw = () => {
+  requestDraw() {
+    if (this.drawScheduled) return;
+    this.drawScheduled = true;
+    requestAnimationFrame(() => {
+      this.drawScheduled = false;
       this.drawCables();
-      requestAnimationFrame(draw);
-    };
-    draw();
+    });
   }
 
   drawCables() {
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    if (!this.appEl) this.appEl = document.querySelector('.app');
+    const w = this.appEl ? (this.appEl.scrollWidth || this.appEl.offsetWidth) : window.innerWidth;
+    const h = this.appEl ? (this.appEl.scrollHeight || this.appEl.offsetHeight) : window.innerHeight;
 
-    // Draw established cables
-    this.cables.forEach(c => {
-      const p1 = this.getJackCenter(c.fromJackId);
-      const p2 = this.getJackCenter(c.toJackId);
-      if (p1 && p2) {
-        this.drawDroopingCord(p1.x, p1.y, p2.x, p2.y, c.color);
-      }
-    });
+    this.ctx.clearRect(0, 0, w, h);
+    if (!this.visible && !this.activeDrag) return;
 
-    // Draw active dragging cable
+    const conns = this.engine.patchSystem.getConnections();
+
+    // 1. Bereits gesteckte Kabel zeichnen (starr verankert)
+    if (this.visible) {
+      conns.forEach((c) => {
+        const p1 = this.getJackCenter(`${c.fromModuleId}:${c.fromPortId}`);
+        const p2 = this.getJackCenter(`${c.toModuleId}:${c.toPortId}`);
+        if (p1 && p2) {
+          this.drawDroopingCord(p1.x, p1.y, p2.x, p2.y, c.color);
+        }
+      });
+    }
+
+    // 2. Aktuell gezogenes Kabel zeichnen
     if (this.activeDrag) {
-      const p1 = this.getJackCenter(this.activeDrag.fromJackId);
+      const p1 = this.getJackCenter(this.activeDrag.fromKey);
       if (p1) {
-        this.drawDroopingCord(p1.x, p1.y, this.activeDrag.currentX, this.activeDrag.currentY, this.activeDrag.color);
+        this.drawDroopingCord(
+          p1.x,
+          p1.y,
+          this.activeDrag.currentX,
+          this.activeDrag.currentY,
+          this.activeDrag.color,
+          true
+        );
       }
     }
   }
 
-  drawDroopingCord(x1, y1, x2, y2, color) {
+  drawDroopingCord(x1, y1, x2, y2, color, isDragging = false) {
     const ctx = this.ctx;
     const dx = x2 - x1;
     const dy = y2 - y1;
     const dist = Math.sqrt(dx * dx + dy * dy);
 
-    // Natural gravity sag
-    const sag = Math.min(180, 40 + dist * 0.28);
+    // Straffe, formstabile Kurve ("starr" ohne extremes Durchhängen)
+    const sag = Math.min(80, 10 + dist * 0.12);
     const midX = (x1 + x2) / 2;
     const midY = (y1 + y2) / 2 + sag;
 
-    // Cable shadow
+    // Weicher Schattenwurf
     ctx.beginPath();
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.45)';
-    ctx.lineWidth = 9;
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.lineWidth = 8;
     ctx.lineCap = 'round';
-    ctx.moveTo(x1, y1 + 10);
-    ctx.quadraticCurveTo(midX, midY + 15, x2, y2 + 10);
+    ctx.moveTo(x1, y1 + 8);
+    ctx.quadraticCurveTo(midX, midY + 12, x2, y2 + 8);
     ctx.stroke();
 
-    // Cable body
+    // Straffer Kabel-Körper
     ctx.beginPath();
     ctx.strokeStyle = color;
-    ctx.lineWidth = 6;
+    ctx.lineWidth = isDragging ? 5.5 : 4.5;
     ctx.lineCap = 'round';
     ctx.moveTo(x1, y1);
     ctx.quadraticCurveTo(midX, midY, x2, y2);
     ctx.stroke();
 
-    // Cable highlight reflection
+    // Dezente 3D-Glanzkante
     ctx.beginPath();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.lineWidth = 1.5;
     ctx.moveTo(x1, y1 - 1);
-    ctx.quadraticCurveTo(midX, midY - 2, x2, y2 - 1);
+    ctx.quadraticCurveTo(midX, midY - 1.5, x2, y2 - 1);
     ctx.stroke();
 
-    // Plug barrels
+    // Klinkenstecker
     this.drawPlugHead(x1, y1, color);
-    this.drawPlugHead(x2, y2, color);
+    if (!isDragging || this.hoverTargetKey) {
+      this.drawPlugHead(x2, y2, color);
+    } else {
+      this.drawFloatingPlugHead(x2, y2, color);
+    }
   }
 
   drawPlugHead(x, y, color) {
     const ctx = this.ctx;
-    ctx.fillStyle = '#222';
+    ctx.fillStyle = '#1c1e24';
     ctx.beginPath();
-    ctx.arc(x, y, 9, 0, Math.PI * 2);
+    ctx.arc(x, y, 8.5, 0, Math.PI * 2);
     ctx.fill();
+
+    ctx.strokeStyle = '#4b5563';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
 
     ctx.fillStyle = color;
     ctx.beginPath();
-    ctx.arc(x, y, 6, 0, Math.PI * 2);
+    ctx.arc(x, y, 5, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = '#silver';
+    ctx.fillStyle = '#d1d5db';
     ctx.beginPath();
-    ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+    ctx.arc(x, y, 2, 0, Math.PI * 2);
     ctx.fill();
+  }
+
+  drawFloatingPlugHead(x, y, color) {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 12;
+    this.drawPlugHead(x, y, color);
+    ctx.restore();
   }
 }

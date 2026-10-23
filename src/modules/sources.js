@@ -39,6 +39,10 @@ export class DroneModule extends ModuleBase {
     { id: 'chord', label: 'Akkord', choices: Object.entries(CHORDS).map(([k, c]) => [k, c.name]), value: 'fifths' },
     { id: 'wave', label: 'Welle', choices: WAVES, value: 'sawtooth' },
   ];
+  static jacks = [
+    { id: 'cvFm', type: 'in', signal: 'mod', label: 'FM CV' },
+    { id: 'cvTone', type: 'in', signal: 'mod', label: 'TONE CV' },
+  ];
 
   constructor(ctx, state = {}) {
     super(ctx, state);
@@ -134,6 +138,21 @@ export class DroneModule extends ModuleBase {
     if ((id === 'root' || id === 'chord') && this.refreshPads) this.refreshPads();
   }
 
+  onModulation(portId, val, time) {
+    const t = time || this.ctx.currentTime;
+    if (portId === 'cvFm') {
+      const root = Number(this.values.root ?? 33);
+      const iv = (CHORDS[this.values.chord] || CHORDS.fifths).iv;
+      this.voices.forEach((v, i) => {
+        const f = midiToFreq(root + iv[i]);
+        v.fmGain.gain.setTargetAtTime(val * f * 1.5, t, 0.05);
+      });
+    } else if (portId === 'cvTone') {
+      const targetTone = Math.max(100, Math.min(12000, (this.values.tone || 1800) * (0.3 + val * 2)));
+      this.filter.frequency.setTargetAtTime(targetTone, t, 0.04);
+    }
+  }
+
   getExtra() { return { voices: [...this.voicesOn] }; }
 
   renderExtra(el, { changed }) {
@@ -177,16 +196,55 @@ export class KeysModule extends ModuleBase {
     { id: 'scale', label: 'Skala', choices: SCALE_CHOICES, value: 'minorPenta' },
     { id: 'octave', label: 'Oktave', choices: OCTAVES, value: 48 },
   ];
+  static jacks = [
+    { id: 'gateIn', type: 'in', signal: 'gate', label: 'GATE IN' },
+    { id: 'pitchIn', type: 'in', signal: 'pitch', label: 'PITCH IN' },
+    { id: 'gateOut', type: 'out', signal: 'gate', label: 'GATE OUT' },
+    { id: 'pitchOut', type: 'out', signal: 'pitch', label: 'PITCH OUT' },
+  ];
 
   constructor(ctx, state = {}) {
     super(ctx, state);
     this.active = new Map();
+    this.extMidi = 57;
     this.filter = ctx.createBiquadFilter();
     this.filter.type = 'lowpass';
     this.levelGain = ctx.createGain();
     this.filter.connect(this.levelGain);
     this.levelGain.connect(this.output);
     this.initValues(state);
+  }
+
+  onPitch(portId, _time, midiNote) {
+    if (portId === 'pitchIn') this.extMidi = midiNote;
+  }
+
+  onTrigger(portId, time, velocity = 1, duration = 0.3) {
+    if (portId === 'gateIn' && this.enabled) {
+      this.playExtNote(this.extMidi, time, velocity, duration);
+    }
+  }
+
+  playExtNote(midi, time, velocity = 1, duration = 0.3) {
+    const ctx = this.ctx;
+    const f = midiToFreq(midi);
+    const o1 = ctx.createOscillator();
+    const o2 = ctx.createOscillator();
+    o1.type = o2.type = this.values.wave;
+    o1.frequency.setValueAtTime(f, time);
+    o2.frequency.setValueAtTime(f, time);
+    o1.detune.value = -this.values.detune / 2;
+    o2.detune.value = this.values.detune;
+    const vca = ctx.createGain();
+    vca.gain.setValueAtTime(0, time);
+    vca.gain.linearRampToValueAtTime(0.22 * velocity, time + this.values.attack);
+    vca.gain.exponentialRampToValueAtTime(0.0001, time + duration + this.values.release);
+    o1.connect(vca); o2.connect(vca);
+    vca.connect(this.filter);
+    const end = time + duration + this.values.release + 0.05;
+    o1.start(time); o2.start(time);
+    o1.stop(end); o2.stop(end);
+    cleanupOnEnd(o1, [o1, o2, vca]);
   }
 
   applyParam(id, val) {
@@ -204,7 +262,10 @@ export class KeysModule extends ModuleBase {
     if (this.active.has(degree)) this.noteOff(degree);
     const ctx = this.ctx;
     const t = ctx.currentTime;
-    const f = midiToFreq(this.midiFor(degree));
+    const midi = this.midiFor(degree);
+    this.emitPitch('pitchOut', t, midi, 0.9, this.values.release);
+    this.emitTrigger('gateOut', t, 0.9, this.values.release);
+    const f = midiToFreq(midi);
     const o1 = ctx.createOscillator();
     const o2 = ctx.createOscillator();
     o1.type = o2.type = this.values.wave;
@@ -294,6 +355,11 @@ export class SequencerModule extends ModuleBase {
     { id: 'scale', label: 'Skala', choices: SCALE_CHOICES, value: 'minorPenta' },
     { id: 'octave', label: 'Oktave', choices: OCTAVES, value: 48 },
   ];
+  static jacks = [
+    { id: 'clockIn', type: 'in', signal: 'clock', label: 'CLOCK IN' },
+    { id: 'gateOut', type: 'out', signal: 'gate', label: 'GATE OUT' },
+    { id: 'pitchOut', type: 'out', signal: 'pitch', label: 'PITCH OUT' },
+  ];
 
   constructor(ctx, state = {}) {
     super(ctx, state);
@@ -316,17 +382,36 @@ export class SequencerModule extends ModuleBase {
     if (['key', 'scale', 'octave'].includes(id) && this.refreshSteps) this.refreshSteps();
   }
 
+  onClock(portId, time) {
+    if (portId === 'clockIn' && this.enabled && this.running) {
+      this.triggerStep(time);
+    }
+  }
+
+  triggerStep(time) {
+    const s = this.steps[this.step];
+    if (s && s.on && Math.random() <= this.values.chance) {
+      const midi = this.midiFor(s.deg);
+      if (this.values.level > 0.01) this.playNote(midi, time);
+      this.emitPitch('pitchOut', time, midi, 0.9, this.values.decay);
+      this.emitTrigger('gateOut', time, 0.9, this.values.decay);
+    }
+    const idx = this.step;
+    const delayMs = Math.max(0, (time - this.ctx.currentTime) * 1000);
+    setTimeout(() => this.showStep?.(idx), delayMs);
+    this.step = (this.step + 1) % this.steps.length;
+  }
+
   tick() {
+    // Wenn eine externe Master Clock eingesteckt ist, steuert diese den Sequencer
+    if (this.patchSystem?.hasIncoming(this.id, 'clockIn')) return;
+
     const now = this.ctx.currentTime;
     if (this.nextTime < now - 0.2) this.nextTime = now + 0.02; // nach Pause wieder einsteigen
     const stepDur = 60 / this.values.tempo / Number(this.values.division);
     while (this.nextTime < now + 0.12) {
       if (this.running) {
-        const s = this.steps[this.step];
-        if (this.enabled && s.on && Math.random() <= this.values.chance) this.playNote(this.midiFor(s.deg), this.nextTime);
-        const idx = this.step;
-        setTimeout(() => this.showStep?.(idx), Math.max(0, (this.nextTime - now) * 1000));
-        this.step = (this.step + 1) % this.steps.length;
+        this.triggerStep(this.nextTime);
       }
       this.nextTime += stepDur;
     }

@@ -25,6 +25,9 @@
     </div>
 
     <div class="app">
+      <!-- Fester Canvas für modulare Patch-Kabel (starr mit dem Rack verankert) -->
+      <canvas id="patch-canvas" class="patch-canvas"></canvas>
+
       <header class="topbar">
         <div class="brand">
           <div class="brand-logo" aria-hidden="true">⚡</div>
@@ -49,6 +52,7 @@
 
         <div class="master-bar">
           <canvas id="scope" class="scope" width="180" height="46" aria-label="Oszilloskop"></canvas>
+          <button id="btn-cables" class="btn btn-cables on" title="Patch-Kabel ein-/ausblenden"><span class="cable-dot"></span><span class="txt">KABEL</span></button>
           <button id="btn-power" class="btn btn-power" title="Audio pausieren / fortsetzen"><span class="led"></span><span class="txt">AUS</span></button>
           <button id="btn-record" class="btn btn-record" title="Aufnehmen & als Datei speichern"><span class="rec-dot"></span><span class="txt">REC</span></button>
           <div class="master-knob">
@@ -62,17 +66,27 @@
         <aside class="library" aria-label="Modul-Bibliothek">
           <h2>Module</h2>
           <p class="lib-hint">Klicken oder ins Rack ziehen</p>
-          <h3>Klangquellen</h3>
+          <h3>Steuerung &amp; Rhythmus</h3>
+          <div id="lib-controls" class="lib-list"></div>
+          <h3>Klangquellen &amp; Stimmen</h3>
           <div id="lib-sources" class="lib-list"></div>
           <h3>Effekte</h3>
           <div id="lib-effects" class="lib-list"></div>
         </aside>
 
         <main class="rack">
+          <section class="zone" id="zone-controls">
+            <div class="zone-head">
+              <h2><span class="zone-dot ctrl"></span>Steuerung &amp; Generatoren</h2>
+              <span class="zone-sub">Clock, Rhythmus, Noten &amp; Modulation · über Kabel frei patchbar</span>
+            </div>
+            <div class="zone-body" id="rack-controls"></div>
+          </section>
+
           <section class="zone" id="zone-sources">
             <div class="zone-head">
-              <h2><span class="zone-dot src"></span>Klangquellen</h2>
-              <span class="zone-sub">laufen parallel und werden zusammengemischt</span>
+              <h2><span class="zone-dot src"></span>Klangquellen &amp; Instrumente</h2>
+              <span class="zone-sub">laufen parallel und empfangen Steuerimpulse per Kabel</span>
             </div>
             <div class="zone-body" id="rack-sources"></div>
           </section>
@@ -88,7 +102,7 @@
       </div>
 
       <footer class="statusbar">
-        <span>⌨️ Tastatur <kbd>A</kbd>–<kbd>#</kbd> spielt die Touch Keys · Doppelklick auf einen Regler setzt ihn zurück</span>
+        <span>🔌 Ziehe Kabel von Buchse zu Buchse · Rechtsklick auf Buchse trennt Kabel · ⌨️ Tastatur <kbd>A</kbd>–<kbd>#</kbd> spielt Keys</span>
         <span class="status"><span id="status-led" class="status-led"></span><span id="status-text">Audio wartet…</span></span>
       </footer>
     </div>

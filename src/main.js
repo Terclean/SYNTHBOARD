@@ -1,14 +1,15 @@
-// SYNTHBOARD – Modulares Rack: UI-Controller
+// SYNTHBOARD – Modulares Rack: UI-Controller & Patchbay-Host
 import { RackEngine, MODULES, TEMPLATES } from './modules/index.js';
 import { Knob } from './ui/Knob.js';
 import { Oscilloscope } from './ui/Oscilloscope.js';
+import { PatchBay } from './ui/PatchBay.js';
 
 const LS_BOARDS = 'synthboard:boards';
 const LS_AUTO = 'synthboard:autosave';
 const $ = (s) => document.querySelector(s);
 
 const engine = new RackEngine();
-let current = { kind: 'tpl', key: 'solar' }; // kind: 'tpl' | 'my' | 'new'
+let current = { kind: 'tpl', key: 'generative' }; // Standard: Generatives Showcase
 let dirty = false;
 
 // ───────────────────────── Hilfen ──
@@ -65,7 +66,7 @@ function updateStatus() {
   $('#btn-power').classList.toggle('on', running);
   $('#btn-power .txt').textContent = running ? 'AN' : 'AUS';
   $('#status-led').classList.toggle('on', running);
-  const n = engine.sources.length + engine.effects.length;
+  const n = engine.controls.length + engine.sources.length + engine.effects.length;
   $('#status-text').textContent = running
     ? `Audio aktiv · ${engine.ctx.sampleRate / 1000} kHz · ${n} Module`
     : 'Audio pausiert';
@@ -103,6 +104,17 @@ const masterKnob = new Knob($('#knob-master'), {
 
 new Oscilloscope($('#scope'), engine.analyser).start();
 
+// ───────────────────────── PatchBay (Kabel) ──
+const patchCanvas = $('#patch-canvas');
+const patchBay = new PatchBay(patchCanvas, engine, { onModified: changed });
+
+$('#btn-cables').addEventListener('click', () => {
+  const vis = patchBay.toggleVisible();
+  $('#btn-cables').classList.toggle('on', vis);
+  $('#btn-cables .txt').textContent = vis ? 'KABEL' : 'OHNE KABEL';
+  toast(vis ? '🔌 Patch-Kabel sichtbar' : '🙈 Patch-Kabel ausgeblendet');
+});
+
 engine.onRecover = () => { renderRack(); toast('⚠️ Audio-Überlauf erkannt – Rack wurde neu gestartet'); };
 
 // ───────────────────────── Bibliothek ──
@@ -113,8 +125,11 @@ function renderLibrary() {
       <span class="lib-text"><b>${esc(M.title)}</b><small>${esc(M.description)}</small></span>
       <span class="lib-add">＋</span>
     </button>`).join('');
+
+  $('#lib-controls').innerHTML = html('control');
   $('#lib-sources').innerHTML = html('source');
   $('#lib-effects').innerHTML = html('effect');
+
   document.querySelectorAll('.lib-item').forEach((el) => {
     el.addEventListener('click', () => addModule(el.dataset.type));
     el.addEventListener('dragstart', (e) => {
@@ -134,18 +149,29 @@ function addModule(type, index = -1) {
   toast(`${mod.meta.icon} ${mod.meta.title} hinzugefügt`);
 }
 
-// ───────────────────────── Rack ──
+// ───────────────────────── Rack Rendering ──
 function renderRack(highlightId) {
+  const ctrlEl = $('#rack-controls');
   const srcEl = $('#rack-sources');
   const fxEl = $('#rack-effects');
+
+  ctrlEl.innerHTML = '';
   srcEl.innerHTML = '';
   fxEl.innerHTML = '';
 
+  // 1. Steuerung & Generatoren
+  if (!engine.controls.length) {
+    ctrlEl.innerHTML = '<div class="empty">Noch keine Steuerung – füge links z.&nbsp;B. eine <b>Master Clock</b> oder einen <b>Euclidean Rhythm</b> hinzu.</div>';
+  }
+  engine.controls.forEach((m) => ctrlEl.appendChild(createCard(m)));
+
+  // 2. Klangquellen & Instrumente
   if (!engine.sources.length) {
-    srcEl.innerHTML = '<div class="empty">Noch keine Klangquelle – füge links z.&nbsp;B. eine <b>Drone Maschine</b> hinzu.</div>';
+    srcEl.innerHTML = '<div class="empty">Noch keine Klangquelle – füge links z.&nbsp;B. einen <b>Pluck Synth</b>, <b>Analog Bass</b> oder <b>Drum Rack</b> hinzu.</div>';
   }
   engine.sources.forEach((m) => srcEl.appendChild(createCard(m)));
 
+  // 3. Effektkette
   fxEl.appendChild(Object.assign(document.createElement('div'), { className: 'chain-pin', innerHTML: '<span>QUELLEN</span>' }));
   engine.effects.forEach((m, i) => {
     fxEl.appendChild(Object.assign(document.createElement('div'), { className: 'chain-arrow', textContent: '➜' }));
@@ -158,6 +184,9 @@ function renderRack(highlightId) {
   fxEl.appendChild(Object.assign(document.createElement('div'), { className: 'chain-arrow', textContent: '➜' }));
   fxEl.appendChild(Object.assign(document.createElement('div'), { className: 'chain-pin out', innerHTML: '<span>MASTER</span>' }));
 
+  // Kabel-Verbindungen visuell synchronisieren
+  setTimeout(() => patchBay.syncPatchedClasses(), 20);
+
   if (highlightId) {
     const card = document.querySelector(`.module-card[data-id="${highlightId}"]`);
     if (card) { card.classList.add('just-added'); card.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' }); }
@@ -168,15 +197,19 @@ function renderRack(highlightId) {
 function createCard(mod, fxIndex = -1) {
   const M = mod.meta;
   const isFx = M.category === 'effect';
+  const isCtrl = M.category === 'control';
   const card = document.createElement('article');
-  card.className = `module-card ${isFx ? 'is-fx' : 'is-src'}${mod.enabled ? '' : ' bypassed'}`;
+  card.className = `module-card is-${M.category}${mod.enabled ? '' : ' bypassed'}`;
   card.dataset.id = mod.id;
   card.style.setProperty('--mod-color', M.color);
+
+  const subTitle = isFx ? `FX ${fxIndex + 1}` : isCtrl ? 'Steuerung' : 'Stimme';
+
   card.innerHTML = `
     <header class="mod-head" ${isFx ? 'draggable="true"' : ''}>
       ${isFx ? '<span class="grip" title="Ziehen zum Umsortieren">⋮⋮</span>' : ''}
       <span class="mod-icon">${M.icon}</span>
-      <div class="mod-titles"><h3>${esc(M.title)}</h3><small>${isFx ? `FX ${fxIndex + 1}` : 'Quelle'}</small></div>
+      <div class="mod-titles"><h3>${esc(M.title)}</h3><small>${subTitle}</small></div>
       <div class="mod-actions">
         ${isFx ? `<button class="icon-btn mv-left" title="Nach links" ${fxIndex === 0 ? 'disabled' : ''}>◀</button>
                   <button class="icon-btn mv-right" title="Nach rechts" ${fxIndex === engine.effects.length - 1 ? 'disabled' : ''}>▶</button>` : ''}
@@ -184,12 +217,37 @@ function createCard(mod, fxIndex = -1) {
         <button class="icon-btn remove" title="Entfernen">✕</button>
       </div>
     </header>
+
+    ${M.jacks?.length ? `
+      <div class="mod-patchbay-strip">
+        ${M.jacks.map((j) => `
+          <div class="jack-socket-wrap ${j.type} sig-${j.signal}">
+            <span class="jack-lbl">${esc(j.label)}</span>
+            <div class="hw-jack" data-port-id="${j.id}">
+              <span class="jack-bezel"></span>
+              <span class="jack-hole"></span>
+              <span class="jack-led"></span>
+            </div>
+          </div>`).join('')}
+      </div>` : ''}
+
     ${M.options.length ? `<div class="mod-options">${M.options.map((o) => `
       <label class="opt"><span>${esc(o.label)}</span>
         <select class="select select-sm" data-opt="${o.id}">${o.choices.map(([v, l]) => `<option value="${v}" ${String(mod.values[o.id]) === String(v) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>
       </label>`).join('')}</div>` : ''}
     <div class="mod-knobs"></div>
     <div class="mod-extra"></div>`;
+
+  // Hardware Jacks in PatchBay registrieren
+  if (M.jacks?.length) {
+    card.querySelectorAll('.hw-jack[data-port-id]').forEach((jackEl) => {
+      const portId = jackEl.dataset.portId;
+      const j = M.jacks.find((x) => x.id === portId);
+      if (j) {
+        patchBay.registerJack(jackEl, mod.id, j.id, j.type, j.signal, j.label);
+      }
+    });
+  }
 
   // Regler
   const knobsEl = card.querySelector('.mod-knobs');
@@ -227,6 +285,7 @@ function createCard(mod, fxIndex = -1) {
   });
   card.querySelector('.remove').addEventListener('click', () => {
     card.classList.add('removing');
+    patchBay.unregisterModuleJacks(mod.id);
     setTimeout(() => { engine.remove(mod.id); renderRack(); changed(); }, 180);
   });
   card.querySelector('.mv-left')?.addEventListener('click', () => { engine.moveEffect(mod.id, fxIndex - 1); renderRack(); changed(); });
@@ -248,12 +307,11 @@ function createCard(mod, fxIndex = -1) {
 
 // ───────────────────────── Drag & Drop ──
 function clearDragState() {
-  document.body.classList.remove('dragging-source', 'dragging-effect');
+  document.body.classList.remove('dragging-control', 'dragging-source', 'dragging-effect');
   document.querySelectorAll('.drop-before, .drag-src').forEach((el) => el.classList.remove('drop-before', 'drag-src'));
   document.querySelectorAll('.zone-body').forEach((z) => z.classList.remove('drop-end', 'drop-target'));
 }
 
-/** Einfügeposition in der Effektkette anhand der Mausposition */
 function dropIndex(e) {
   const cards = [...$('#rack-effects').querySelectorAll('.module-card')];
   for (let i = 0; i < cards.length; i++) {
@@ -264,10 +322,40 @@ function dropIndex(e) {
 }
 
 function setupDropZones() {
-  const fxEl = $('#rack-effects');
+  const ctrlEl = $('#rack-controls');
   const srcEl = $('#rack-sources');
+  const fxEl = $('#rack-effects');
   const isOurs = (e) => e.dataTransfer.types.includes('application/x-module-type') || e.dataTransfer.types.includes('application/x-module-id');
 
+  // Controls Drop Zone
+  ctrlEl.addEventListener('dragover', (e) => {
+    if (!e.dataTransfer.types.includes('application/x-module-type')) return;
+    e.preventDefault();
+    ctrlEl.classList.add('drop-target');
+  });
+  ctrlEl.addEventListener('dragleave', (e) => { if (!ctrlEl.contains(e.relatedTarget)) clearDragState(); });
+  ctrlEl.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const type = e.dataTransfer.getData('application/x-module-type');
+    clearDragState();
+    if (type) addModule(type);
+  });
+
+  // Sources Drop Zone
+  srcEl.addEventListener('dragover', (e) => {
+    if (!e.dataTransfer.types.includes('application/x-module-type')) return;
+    e.preventDefault();
+    srcEl.classList.add('drop-target');
+  });
+  srcEl.addEventListener('dragleave', (e) => { if (!srcEl.contains(e.relatedTarget)) clearDragState(); });
+  srcEl.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const type = e.dataTransfer.getData('application/x-module-type');
+    clearDragState();
+    if (type) addModule(type);
+  });
+
+  // Effects Drop Zone
   fxEl.addEventListener('dragover', (e) => {
     if (!isOurs(e)) return;
     e.preventDefault();
@@ -293,22 +381,9 @@ function setupDropZones() {
       changed();
     }
   });
-
-  srcEl.addEventListener('dragover', (e) => {
-    if (!e.dataTransfer.types.includes('application/x-module-type')) return;
-    e.preventDefault();
-    srcEl.classList.add('drop-target');
-  });
-  srcEl.addEventListener('dragleave', (e) => { if (!srcEl.contains(e.relatedTarget)) srcEl.classList.remove('drop-target'); });
-  srcEl.addEventListener('drop', (e) => {
-    e.preventDefault();
-    const type = e.dataTransfer.getData('application/x-module-type');
-    clearDragState();
-    if (type) addModule(type);
-  });
 }
 
-// ───────────────────────── Boards ──
+// ───────────────────────── Boards Verwaltung ──
 function populateBoards() {
   const boards = loadBoards();
   const sel = $('#board-select');
@@ -370,7 +445,7 @@ $('#btn-save-as').addEventListener('click', saveAs);
 
 $('#btn-new').addEventListener('click', () => {
   if (!confirmDiscard()) return;
-  engine.load({ master: engine.masterValue, modules: [] });
+  engine.load({ master: engine.masterValue, modules: [], cables: [] });
   current = { kind: 'new', key: '' };
   renderRack();
   populateBoards();
@@ -384,7 +459,7 @@ $('#btn-delete').addEventListener('click', () => {
   delete boards[current.key];
   storeBoards(boards);
   toast('Board gelöscht');
-  loadBoard('tpl', 'solar');
+  loadBoard('tpl', 'generative');
 });
 
 $('#btn-export').addEventListener('click', () => {
@@ -430,7 +505,7 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('keyup', (e) => engine.sources.forEach((m) => m.handleKey?.(e.key, false)));
 window.addEventListener('blur', () => engine.sources.forEach((m) => m.active && [...m.active.keys()].forEach((d) => m.noteOff(d))));
 
-// ───────────────────────── Start ──
+// ───────────────────────── Initialisierung ──
 function boot() {
   renderLibrary();
   setupDropZones();
@@ -439,13 +514,13 @@ function boot() {
   if (auto?.state?.modules) {
     engine.load(auto.state);
     masterKnob.setValue(engine.masterValue);
-    current = auto.current || { kind: 'new', key: '' };
+    current = auto.current || { kind: 'tpl', key: 'generative' };
     if (current.kind === 'my' && !loadBoards()[current.key]) current = { kind: 'new', key: '' };
     renderRack();
     populateBoards();
     setDirty(!!auto.dirty);
   } else {
-    loadBoard('tpl', 'solar');
+    loadBoard('tpl', 'generative');
   }
   updateStatus();
 }

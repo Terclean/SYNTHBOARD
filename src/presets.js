@@ -1,6 +1,30 @@
 // Curated Ambient Sound Presets for the Synthboard
 
 export const PRESETS = {
+  sleep_somnus: {
+    name: '🌙 Somnus (Tiefschlaf & Traumdrift)',
+    description: 'Sanfter, warmer Delta-Wellen Ambient-Klang mit tiefem Grundton, beruhigendem Rauschen, weichen Echos und endlosem Traumhall.',
+    drones: [true, true, true, false, true, false],
+    droneFm: 0.02,
+    droneSpread: 8,
+    noise: 0.16,
+    filterCutoff: 750,
+    filterRes: 2.2,
+    filterDrive: 0.08,
+    seqRate: 0.6,
+    delayTimeL: 0.75,
+    delayTimeR: 0.95,
+    delayFeedback: 0.55,
+    delayTone: 0.35,
+    delayMix: 0.35,
+    reverbDecay: 0.95,
+    reverbFilter: 0.4,
+    reverbDepth: 0.6,
+    reverbMode: 'dream',
+    reverbMix: 0.65,
+    scale: 'solarchord',
+    defaultPatch: { from: 'jack_lfo_cv', to: 'jack_filter_cv' }
+  },
   deep_cosmos: {
     name: '🌌 Deep Cosmos (Solar 42 Drone)',
     description: 'Slow evolving minor drone cluster drenched in Meraki analog echoes and deep dream reverb.',

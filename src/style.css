@@ -132,6 +132,7 @@ body {
 
 /* ───────────── Layout ───────────── */
 .app {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -558,6 +559,332 @@ kbd { font-family: var(--font-mono); font-size: 0.7rem; padding: 1px 5px; border
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
+/* ───────────── Modular Patch-Kabel & Buchsen (Hardware Jacks) ───────────── */
+.patch-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 40;
+}
+
+.btn-cables .cable-dot { width: 9px; height: 9px; border-radius: 50%; background: #fbbf24; box-shadow: 0 0 8px #fbbf24; }
+.btn-cables.on { border-color: rgba(251, 191, 36, 0.5); background: #262112; color: #fef3c7; }
+
+.zone-dot.ctrl { background: #06b6d4; box-shadow: 0 0 10px #06b6d4; }
+body.dragging-control #rack-controls { outline-color: rgba(6, 182, 212, 0.4); background: rgba(6, 182, 212, 0.04); }
+.module-card.is-control { width: 330px; }
+
+/* ── Hardware Jack Strip ── */
+.mod-patchbay-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: 6px;
+  padding: 8px 10px;
+  margin: 2px 0 4px;
+  border-radius: 10px;
+  background: rgba(10, 12, 17, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.5);
+  flex-wrap: wrap;
+}
+
+.jack-socket-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+}
+
+.jack-lbl {
+  font-family: var(--font-hw);
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: var(--text-mute);
+  text-transform: uppercase;
+  user-select: none;
+}
+
+.hw-jack {
+  position: relative;
+  width: 27px;
+  height: 27px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #475569, #1e293b 70%, #0f172a);
+  border: 1.5px solid #334155;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.25);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: transform 0.15s, border-color 0.2s, box-shadow 0.2s;
+}
+
+.hw-jack:hover {
+  transform: scale(1.15);
+  border-color: #cbd5e1;
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.35);
+}
+
+.jack-bezel {
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  pointer-events: none;
+}
+
+.jack-hole {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #090b10;
+  border: 1.5px solid #1e2533;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.95);
+  pointer-events: none;
+}
+
+.jack-led {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  transition: background 0.08s, box-shadow 0.08s;
+  pointer-events: none;
+}
+
+/* Signal Farb-Kodierung */
+.jack-socket-wrap.sig-clock .hw-jack { border-color: rgba(6, 182, 212, 0.45); }
+.jack-socket-wrap.sig-gate .hw-jack { border-color: rgba(251, 191, 36, 0.45); }
+.jack-socket-wrap.sig-pitch .hw-jack { border-color: rgba(168, 85, 247, 0.45); }
+.jack-socket-wrap.sig-mod .hw-jack { border-color: rgba(16, 185, 129, 0.45); }
+
+.hw-jack.patched {
+  border-color: #f1f5f9;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.4);
+}
+.jack-socket-wrap.sig-gate .hw-jack.patched { border-color: #fbbf24; box-shadow: 0 0 12px rgba(251, 191, 36, 0.6); }
+.jack-socket-wrap.sig-pitch .hw-jack.patched { border-color: #a855f7; box-shadow: 0 0 12px rgba(168, 85, 247, 0.6); }
+.jack-socket-wrap.sig-mod .hw-jack.patched { border-color: #10b981; box-shadow: 0 0 12px rgba(16, 185, 129, 0.6); }
+.jack-socket-wrap.sig-clock .hw-jack.patched { border-color: #06b6d4; box-shadow: 0 0 12px rgba(6, 182, 212, 0.6); }
+
+.hw-jack.jack-hover-target {
+  transform: scale(1.3);
+  border-color: #ffffff;
+  box-shadow: 0 0 22px #ffffff, 0 0 40px rgba(251, 191, 36, 0.85);
+  animation: jackSnapPulse 0.4s infinite alternate;
+}
+@keyframes jackSnapPulse {
+  to { transform: scale(1.4); box-shadow: 0 0 28px #ffffff; }
+}
+
+.hw-jack.flash .jack-led,
+.hw-jack .jack-led.flash {
+  background: #fbbf24;
+  box-shadow: 0 0 10px #fbbf24, 0 0 20px #fbbf24;
+}
+
+/* ── Zusätzliche Modul-UIs ── */
+/* Master Clock */
+.clock-display {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+}
+.clock-leds {
+  display: grid;
+  grid-template-columns: repeat(16, 1fr);
+  gap: 3px;
+}
+.c-led {
+  height: 6px;
+  border-radius: 2px;
+  background: #232733;
+  transition: background 0.08s;
+}
+.c-led.downbeat { background: #374151; }
+.c-led.active { background: #06b6d4; box-shadow: 0 0 8px #06b6d4; }
+.clock-badge { font-family: var(--font-hw); font-size: 0.75rem; color: #06b6d4; font-weight: 700; text-align: center; }
+
+/* Clock Divider */
+.divider-meters {
+  display: flex;
+  justify-content: space-around;
+  gap: 6px;
+  padding: 6px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+}
+.div-cell { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.d-label { font-family: var(--font-hw); font-size: 0.62rem; color: var(--text-mute); }
+.d-led { width: 10px; height: 10px; border-radius: 50%; background: #1e2533; border: 1px solid #334155; }
+.d-led.flash { background: #38bdf8; box-shadow: 0 0 10px #38bdf8; }
+
+/* Euclidean */
+.euclid-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.euclid-canvas {
+  width: 160px;
+  height: 90px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 8px;
+}
+.euclid-stats { font-family: var(--font-hw); font-size: 0.7rem; color: #f59e0b; font-weight: 600; }
+
+/* Probability Gate */
+.prob-display {
+  display: flex;
+  justify-content: space-around;
+  gap: 10px;
+  padding: 6px 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+}
+.prob-dot { font-family: var(--font-hw); font-size: 0.7rem; font-weight: 700; padding: 4px 10px; border-radius: 6px; }
+.prob-dot.pass { color: #4ade80; background: rgba(74, 222, 128, 0.1); border: 1px solid rgba(74, 222, 128, 0.2); }
+.prob-dot.pass.flash { background: #4ade80; color: #000; box-shadow: 0 0 14px #4ade80; }
+.prob-dot.drop { color: #f87171; background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.2); }
+.prob-dot.drop.flash { background: #f87171; color: #000; box-shadow: 0 0 14px #f87171; }
+
+/* Random Walk */
+.walk-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 10px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+}
+.walk-note { font-family: var(--font-hw); font-size: 0.8rem; font-weight: 700; color: #c084fc; text-align: center; }
+.walk-trail {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  height: 28px;
+  gap: 4px;
+}
+.w-bar {
+  flex: 1;
+  background: #374151;
+  border-radius: 2px 2px 0 0;
+  transition: height 0.1s;
+}
+.w-bar.active { background: #a855f7; box-shadow: 0 0 8px #a855f7; }
+
+/* Scale Quantizer */
+.quant-note {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+}
+.q-txt { font-family: var(--font-hw); font-size: 1.1rem; font-weight: 700; color: #c084fc; }
+.quant-note small { font-size: 0.65rem; color: var(--text-mute); }
+
+/* Slow Random */
+.mod-meter-wrap {
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+}
+.mod-meter-bar {
+  height: 8px;
+  background: #1e293b;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.mod-meter-fill {
+  height: 100%;
+  width: 50%;
+  background: linear-gradient(90deg, #10b981, #34d399);
+  box-shadow: 0 0 10px #10b981;
+  transition: width 0.05s linear;
+}
+
+/* Macro Controller */
+.macro-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 6px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+}
+.macro-seed-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-hw);
+}
+.seed-lbl { font-size: 0.7rem; color: var(--text-mute); font-weight: 700; }
+.seed-val { font-size: 0.95rem; font-weight: 700; color: #fb923c; min-width: 44px; }
+
+/* Drum Rack */
+.drum-pads {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  padding: 4px 0;
+}
+.d-pad {
+  padding: 10px 4px;
+  border-radius: 8px;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-3);
+  font-family: var(--font-hw);
+  font-weight: 700;
+  font-size: 0.72rem;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  transition: background 0.1s, transform 0.1s, box-shadow 0.1s;
+}
+.d-pad:hover { background: #374151; color: #fff; transform: translateY(-1px); }
+.d-pad:active,
+.d-pad.flash {
+  background: #e11d48;
+  color: #fff;
+  box-shadow: 0 0 18px #e11d48;
+  transform: scale(0.96);
+}
+
+/* Voice preview */
+.voice-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+}
+.v-note {
+  font-family: var(--font-hw);
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--mod-color);
+  transition: color 0.1s;
+}
+.v-note.flash {
+  color: #fff;
+  text-shadow: 0 0 10px var(--mod-color);
+}
+
 /* ───────────── Responsive ───────────── */
 @media (max-width: 1100px) {
   .workspace { grid-template-columns: 1fr; }
@@ -566,8 +893,9 @@ kbd { font-family: var(--font-mono); font-size: 0.7rem; padding: 1px 5px; border
 }
 @media (max-width: 720px) {
   .topbar { position: static; }
-  .module-card, .module-card.is-src { width: 100%; }
+  .module-card, .module-card.is-src, .module-card.is-control { width: 100%; }
   .chain-arrow { transform: rotate(90deg); width: 100%; text-align: center; }
   .chain-pin { width: 100%; height: 30px; }
   .chain-pin span { writing-mode: horizontal-tb; transform: none; }
 }
+
