@@ -40,6 +40,7 @@
         <div class="board-bar" role="group" aria-label="Boards verwalten">
           <label for="board-select" class="bar-label">BOARD</label>
           <select id="board-select" class="select"></select>
+          <button id="btn-boards-gallery" class="btn btn-boards-top" title="14 spielfertige Beispiel-Boards durchstöbern [Taste V]">🎛️ Galerie</button>
           <span id="dirty-dot" class="dirty-dot" title="Ungespeicherte Änderungen"></span>
           <button id="btn-new" class="btn" title="Neues leeres Board">＋ Neu</button>
           <button id="btn-save" class="btn btn-accent" title="Board speichern">💾 Speichern</button>
@@ -62,6 +63,7 @@
 
         <div class="master-bar">
           <canvas id="scope" class="scope" width="180" height="46" aria-label="Oszilloskop"></canvas>
+          <button id="btn-tutorials" class="btn btn-tutorials" title="Interaktive Modul-Tutorials &amp; Grüne Buchsen verstehen [Taste T]"><span class="tut-icon">🎓</span><span class="txt">TUTORIALS</span></button>
           <button id="btn-guide" class="btn btn-guide" title="Erklärungsseite &amp; Patch-Handbuch öffnen [Taste H]"><span class="guide-icon">📖</span><span class="txt">HANDBUCH</span></button>
           <button id="btn-info" class="btn btn-info on" title="Infoboxen &amp; Erklärungen ein-/ausblenden [Taste I]"><span class="info-dot"></span><span class="txt">INFO: AN</span></button>
           <button id="btn-cables" class="btn btn-cables on" title="Patch-Kabel ein-/ausblenden [Taste C]"><span class="cable-dot"></span><span class="txt">KABEL</span></button>
@@ -116,7 +118,9 @@
       <footer class="statusbar">
         <div class="status-hints">
           <span>🔌 Ziehe Kabel von Buchse zu Buchse · Rechtsklick trennt Kabel · ⌨️ Tastatur <kbd>A</kbd>–<kbd>#</kbd> spielt Keys</span>
-          <button id="btn-guide-footer" class="footer-guide-link">📖 Handbuch &amp; Patch-Anleitung</button>
+          <button id="btn-boards-footer" class="footer-guide-link tut-link">🎛️ 14 Beispiel-Boards</button>
+          <button id="btn-tutorials-footer" class="footer-guide-link tut-link">🎓 Tutorials &amp; Grüne Buchsen</button>
+          <button id="btn-guide-footer" class="footer-guide-link">📖 Handbuch &amp; Lexikon</button>
         </div>
         <span class="status"><span id="status-led" class="status-led"></span><span id="status-text">Audio wartet…</span></span>
       </footer>

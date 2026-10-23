@@ -112,7 +112,27 @@ new Oscilloscope($('#scope'), engine.analyser).start();
 // ───────────────────────── PatchBay (Kabel) & Info ──
 const patchCanvas = $('#patch-canvas');
 const patchBay = new PatchBay(patchCanvas, engine, { onModified: changed });
-const infoSystem = new InfoSystem(engine, patchBay);
+const infoSystem = new InfoSystem(engine, patchBay, {
+  onRackModified: () => {
+    renderRack();
+    changed();
+  },
+  onToast: (msg) => toast(msg),
+  onStartAudio: () => startAudio(),
+  onLoadTemplate: (key) => loadBoard('tpl', key),
+});
+
+$('#btn-boards-gallery')?.addEventListener('click', () => infoSystem.openGuide('tab-boards'));
+$('#btn-boards-footer')?.addEventListener('click', (e) => {
+  e.preventDefault();
+  infoSystem.openGuide('tab-boards');
+});
+
+$('#btn-tutorials')?.addEventListener('click', () => infoSystem.openGuide('tab-tutorials'));
+$('#btn-tutorials-footer')?.addEventListener('click', (e) => {
+  e.preventDefault();
+  infoSystem.openGuide('tab-tutorials');
+});
 
 $('#btn-cables').addEventListener('click', () => {
   const vis = patchBay.toggleVisible();

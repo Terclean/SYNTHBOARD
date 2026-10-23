@@ -15,7 +15,7 @@
    - [A. Steuerung & Generatoren (Module 1–11)](#a-steuerung--generatoren)
    - [B. Klangquellen & Instrumente (Module 12–24)](#b-klangquellen--instrumente)
    - [C. Stereo-Effektkette (Module 25–30)](#c-stereo-effektkette)
-6. [Interaktives Hilfesystem & Infoboxen](#6-interaktives-hilfesystem--infoboxen)
+6. [Interaktive Modul-Tutorials & Der Grüne Modulations-Guide (CV-Spannungen)](#6-interaktive-modul-tutorials--der-grüne-modulations-guide)
 7. [Board-Verwaltung, Vorlagen, Aufnahme & Audio-Watchdog](#7-board-verwaltung-vorlagen-aufnahme--audio-watchdog)
 8. [Praxis-Rezepte zum Nachbauen](#8-praxis-rezepte-zum-nachbauen)
 9. [Tastatur-Kürzel & Schnellbedienung](#9-tastatur-kürzel--schnellbedienung)
@@ -190,64 +190,70 @@ Alle Instrumente unterstützen dynamische Noten-Anschläge (0 bis 127):
 * **Aufgabe:** Das rhythmische Herzstück des Racks. Erzeugt hochpräzise BPM-Takte.
 * **Regler:** `BPM` (30–300 BPM), `Swing` (0–75 %).
 * **Buchsen:** `RESET` (Eingang), `1/4`, `1/8`, `1/16`, `1/32` (Taktausgänge).
+* **Praxis-Beispiel:** Verbinde `Clock 1/16` mit `Euclidean (CLOCK IN)` und `Clock Divider (CLOCK IN)` ➔ Taktet dein gesamtes Board synchron im 4/4-Takt.
 
 #### 2. Clock Divider (`➗`)
 * **Aufgabe:** Teilt eingehende Takte für rhythmische Unterteilungen, langsame Wechsel und Songstrukturen.
 * **Regler:** `Offset`.
 * **Buchsen:** `CLOCK IN`, `RESET IN`, `/1`, `/2`, `/4`, `/8`, `/16`, `/32` (Geteilte Gate-Ausgänge).
+* **Praxis-Beispiel:** Verbinde `/4` mit `Drum Rack (KICK)` und `/8` mit `Drum Rack (SNARE)` ➔ Ergibt einen soliden 4-on-the-Floor Club-Groove.
 
 #### 3. Euclidean Rhythms (`⭕`)
 * **Aufgabe:** Erzeugt weltmusikalische, mathematisch gleichmäßig verteilte Rhythmen nach dem Euklid-Algorithmus.
 * **Regler:** `Steps` (1–32), `Hits` (0–32), `Rotate` (0–31).
 * **Optionen:** `Auflösung` (`1/16`, `1/8`, `1/4`).
 * **Buchsen:** `CLOCK IN`, `RESET IN`, `GATE OUT`, `ACCENT OUT`.
+* **Praxis-Beispiel:** Stelle `Steps=7` und `Hits=3` ein und verbinde `GATE OUT` mit `Pluck Synth (GATE IN)` ➔ Ergibt ein hypnotisches, versetztes Polyrhythmus-Zupfmuster.
 
 #### 4. Probability Gate (`🎲`)
 * **Aufgabe:** Zufälliger Takt-Filter (Bernoulli-Gate). Lässt eingehende Gates nur mit einer bestimmten Wahrscheinlichkeit passieren.
 * **Regler:** `Chance` (0–100 %).
 * **Buchsen:** `GATE IN`, `PROB CV`, `OUT A` (Erfolg), `OUT B` (Alternativ-Pfad).
+* **Praxis-Beispiel:** Leite den Hi-Hat-Takt durch das Probability Gate (`Chance 60%`) ➔ Erzeugt lebendige, unvorhersehbar aussetzende Human-Hi-Hats.
 
 #### 5. Random Walk (`🎲`)
 * **Aufgabe:** Brown'sche Bewegung für Tonhöhen und Spannungen. Wandert in musikalischen Schritten auf und ab, statt rein zufällig zu springen.
 * **Regler:** `Schrittweite` (1–12 Halbtöne), `Glättung` (Slew), `Dämpfung`, `Bereich`.
 * **Buchsen:** `STEP IN`, `RESET IN`, `PITCH CV` (1V/Okt), `SMOOTH CV`.
+* **Praxis-Beispiel:** Verbinde `PITCH CV` mit `Pluck Synth (PITCH IN)` und `STEP IN` mit `Euclidean (GATE OUT)` ➔ Erzeugt endlose, meditative Harfenläufe, die nie schief klingen.
 
 #### 6. Scale Quantizer (`🎼`)
 * **Aufgabe:** Zwingt beliebige stufenlose Steuerspannungen auf exakte Töne einer gewählten musikalischen Tonleiter.
 * **Regler:** `Glide` (Portamento).
 * **Optionen:** `Grundton` (C bis B), `Skala` (Pentatonik, Dur, Moll, Dorisch, Mixolydisch, Lydisch, Japanisch / Insen etc.).
 * **Buchsen:** `CV IN`, `QUANT OUT` (1V/Okt), `TRIGGER OUT` (Impuls bei Tonhöhenwechsel).
+* **Praxis-Beispiel:** Speise `Slow Random (CV OUT)` in den Quantizer und verbinde `QUANT OUT` mit `Keys (PITCH IN)` ➔ Verwandelt stufenloses LFO-Driften in eine saubere Melodiefolge.
 
 #### 7. Slow Random LFO (`〰`)
 * **Aufgabe:** Extrem langsame, nicht-zyklische Modulationsquelle für organisch wandernde Ambient-Klänge.
 * **Regler:** `Rate` (0.01 bis 5.0 Hz), `Glättung`, `Chaos`.
 * **Buchsen:** `RESET`, `SMOOTH CV`, `STEPPED CV` (Sample & Hold), `CHAOS CV`.
+* **Praxis-Beispiel:** Verbinde `CV OUT` mit `Filter (CUTOFF CV)` ➔ Das Filter öffnet und schließt sich sanft wie das Atmen von Meereswellen.
 
 #### 8. Macro Controller (`🎛`)
-* **Aufgabe:** Zentrale Master-Fernsteuerung für Live-Auftritte. Ein einziger großer Drehregler moduliert bis zu 4 verschiedene Ziele gleichzeitig.
-* **Regler:** `Master Macro Knob` (0.00 bis 1.00), 4 individuelle Skalierungsregler (`A`, `B`, `C`, `D`).
-* **Buchsen:** `OUT A`, `OUT B`, `OUT C`, `OUT D`.
+* **Aufgabe:** Zentrale Master-Fernsteuerung für Live-Auftritte. Drei globale Steuerachsen (Dichte, Variation, Bewegung) für händische Performance.
+* **Regler:** `Dichte`, `Variation`, `Bewegung`, `Seed`.
+* **Buchsen:** `DICHTE CV`, `VARIATION CV`, `BEWEGUNG CV`.
+* **Praxis-Beispiel:** Verbinde `DICHTE CV` mit `Granular Cloud (DENSITY CV)` und `BEWEGUNG CV` mit `Filter (CUTOFF CV)` ➔ Ein Reglergriff lässt die gesamte Klangwolke aufblühen.
 
 #### 9. Slope Generator (`📈`)
-* **Aufgabe:** Flexibler Funktionsgenerator für Anstiegs-/Abfallkurven (Attack/Decay-Hüllkurve, LFO oder Slew-Limiter).
-* **Regler:** `Rise` (0.05s bis 60s), `Fall` (0.05s bis 60s), `Form` (Logarithmisch, Linear, Exponentiell).
-* **Optionen:** Modus (`Trigger`, `Gate`, `Loop / LFO`).
-* **Buchsen:** `TRIG IN`, `CV IN`, `RISE CV`, `FALL CV`, `ENV OUT`, `EOC OUT` (End of Cycle Impuls).
+* **Aufgabe:** Flexibler Funktionsgenerator für Anstiegs-/Abfallkurven (0.05s bis 60s Hüllkurve, LFO oder Slew-Limiter).
+* **Regler:** `Rise` (0.05s bis 60s), `Fall` (0.05s bis 60s).
+* **Optionen:** Modus (`Loop`, `Trig`, `Gate`).
+* **Buchsen:** `TRIG IN`, `GATE IN`, `RISE CV`, `FALL CV`, `ENV OUT`, `INV OUT`, `EOC OUT`.
+* **Praxis-Beispiel:** Verbinde `ENV OUT` mit `Drone (VCA CV)` und `INV OUT` mit `Pluck (VCA CV)` ➔ Bis zu 60s langer Ambient-Swell mit automatischem Sidechain-Ducking der Zupftöne.
 
 #### 10. Dual Attenuverter & Offset (`⚖`)
 * **Aufgabe:** Abschwächer, Invertierer und Gleichspannungs-Offset für Steuersignale.
 * **Regler:** `Scale A` (-1.0 bis +1.0), `Offset A`, `Scale B`, `Offset B`.
 * **Buchsen:** `IN A`, `IN B`, `OUT A`, `OUT B`, `SUM OUT` (A + B).
+* **Praxis-Beispiel:** LFO in `IN A` ➔ `Scale A` auf `20%` ➔ `OUT A` an `Filter (CUTOFF CV)` ➔ Bändigt zu wilde Filtersprünge auf ein feines, seidiges Glänzen.
 
 #### 11. Scene Conductor (`🎬`)
-* **Aufgabe:** Zentraler Dirigent für Live-Arrangements und Genre-Wechsel zwischen **Ambient** (weite Räume), **Downtempo** (weicher Beat & Bass), **Broken Beat** (synkopierte Percussion) und **Techno** (stramme 4/4 Kick und pulsierende Energie).
-* **Regler & Optionen:**
-  - `Stärke`, `Dichte`, `Variation`, `Mutation`.
-  - `Wann`: Quantisierter Wechsel (`Sofort`, `Schlag`, `1 Takt`, `2 Takte`, `4 Takte`).
-  - `Wie`: Überblendzeit (`Hart`, `1 Takt`, `2 Takte`, `4 Takte`, `8 Takte`).
-  - `Lanes`: 4 Spuren (**Beat**, **Bass**, **Lead**, **Texture**) mit Mutes und Locks.
-  - `FILL` & `BREAK`: Live-Buttons für Spontan-Fills und atmosphärische Drops.
-* **Buchsen:** `CLOCK IN`, `NEXT SCENE`, `FILL`, `BREAK`, `MUTATE`, `KICK`, `SNARE`, `HAT`, `PERC`, `BASS GATE/PITCH`, `LEAD GATE/PITCH`, `X-FADE`, `SCENE CV`, `MOD 1`, `MOD 2`.
+* **Aufgabe:** Zentraler Dirigent für Live-Arrangements und Genre-Wechsel zwischen **Ambient**, **Downtempo**, **Broken Beat** und **Techno**.
+* **Regler & Optionen:** `Stärke`, `Dichte`, `Variation`, `Mutation`, `Wann`, `Wie`.
+* **Buchsen:** `CLOCK IN`, `NEXT SCENE`, `FILL`, `BREAK`, `MUTATE`, `KICK`, `SNARE`, `HAT`, `PERC`, `BASS GATE/PITCH`, `LEAD GATE/PITCH`, `TIMBRE`, `ENERGY`, `PAD`, `CLOUD`, `SPACE`, `SCENE`.
+* **Praxis-Beispiel:** Verbinde `TIMBRE` mit `Morph Voice (MORPH CV)` und `KICK` mit `Hybrid Percussion` ➔ Bei Szenenwechsel öffnet sich der Sound automatisch von sanftem Ambient zu schneidendem Techno.
 
 ---
 
@@ -256,88 +262,80 @@ Alle Instrumente unterstützen dynamische Noten-Anschläge (0 bis 127):
 #### 12. Drone Machine (`🪐`)
 * **Aufgabe:** 6-stimmiger additiver Oszillator für kosmische Drones und Akkordcluster.
 * **Regler:** `Level`, `Tone`, `Spread` (Verstimmung), `FM`, `Drift`.
-* **Pads:** 6 Oszillator-Schalter zum Ein-/Ausschalten einzelner Teiltöne.
-* **Buchsen:** `GATE IN`, `FILTER CV`, `SPREAD CV`, `VCA CV`, `PAN CV`.
+* **Buchsen:** `GATE IN`, `PITCH IN`, `FILTER CV`, `VCA CV`, `PAN CV`, `FM CV`, `TONE CV`.
+* **Praxis-Beispiel:** Verbinde `Slope Generator (ENV OUT)` mit `VCA CV` und drehe `REVERB SEND` auf 80 % ➔ Erzeugt einen epischen 40-Sekunden Weltraum-Flächen-Swell.
 
 #### 13. Pluck Synth (`🪕`)
-* **Aufgabe:** Karplus-Strong / Physical Modeling für akustische Harfen, Gitarren, Kalimbas und Glocken.
-* **Regler:** `Level`, `Tone`, `Decay`, `Oberton`, `Body` (Resonanzkorpus).
+* **Aufgabe:** Karplus-Strong Physical Modeling für akustische Harfen, Gitarren, Kalimbas und Glocken.
+* **Regler:** `Level`, `Tone`, `Decay`, `Oberton`, `Body`.
 * **Buchsen:** `GATE IN`, `PITCH IN`, `FILTER CV`, `VCA CV`, `PAN CV`.
+* **Praxis-Beispiel:** `Euclidean (GATE OUT)` ➔ `Pluck (GATE IN)`, `Random Walk (PITCH)` ➔ `Pluck (PITCH IN)` ➔ Traumhafte, nie endende Harfenmelodien.
 
 #### 14. FM Voice (`🔔`)
 * **Aufgabe:** 2-Operatoren FM-Synthese für kristalline Glocken, metallische Klänge und Rhodes-Sounds.
-* **Regler:** `Level`, `Ratio` (Frequenzverhältnis), `Index` (FM-Helligkeit), `Attack`, `Decay`.
-* **Buchsen:** `GATE IN`, `PITCH IN`, `FM INDEX CV`, `VCA CV`, `PAN CV`.
+* **Regler:** `Level`, `Ratio`, `Index` (FM-Tiefe), `Attack`, `Decay`.
+* **Buchsen:** `GATE IN`, `PITCH IN`, `FM MOD CV`, `VCA CV`, `PAN CV`.
+* **Praxis-Beispiel:** Verbinde `Slow Random (CV OUT)` mit `FM MOD CV` ➔ Die Glockenklänge morpht von reinem Rhodes zu strahlend metallischem Gamelan.
 
 #### 15. Analog Bass (`⚡`)
 * **Aufgabe:** Acid- und Sub-Bass Stimme mit transistor-modelliertem 24dB Tiefpassfilter.
 * **Regler:** `Level`, `Cutoff`, `Resonanz`, `Env Mod`, `Decay`, `Glide`.
-* **Optionen:** `Welle` (Sägezahn / Rechteck), `Sub-Oktave` (-1 Okt / -2 Okt).
 * **Buchsen:** `GATE IN`, `PITCH IN`, `CUTOFF CV`, `VCA CV`, `PAN CV`.
+* **Praxis-Beispiel:** `Clock Divider (/4)` ➔ `Bass (GATE IN)`, `Slow Random` ➔ `Bass (CUTOFF CV)` ➔ Schnörkelloser, quietschender 303-Acid-Groove.
 
 #### 16. Drum Rack (`🥁`)
 * **Aufgabe:** 4-Kanal analoger Drum-Computer (Kick, Snare, Hi-Hat, Percussion).
 * **Regler:** `Kick Pitch`, `Kick Decay`, `Snare Snap`, `Snare Tune`, `HH Decay`, `Perc Pitch`.
-* **Pads:** 4 spielbare Trigger-Taster.
 * **Buchsen:** `KICK IN`, `SNARE IN`, `HH IN`, `PERC IN`, `VCA CV`, `PAN CV`.
+* **Praxis-Beispiel:** Verbinde `Clock Divider /4` mit `KICK`, `/8` mit `SNARE` und `/2` mit `HI-HAT` ➔ Felsenfest getakteter Beat mit warmem analogem Punch.
 
 #### 17. Poly Keys (`🎹`)
-* **Aufgabe:** Polyphoner Synthesizer für üppige Pads, Chords und Lead-Melodien.
+* **Aufgabe:** Polyphoner Synthesizer für üppige Pads, Chords und Lead-Melodien (auch per Computertastatur **`A`–`K`** spielbar).
 * **Regler:** `Level`, `Cutoff`, `Resonanz`, `Attack`, `Release`, `Detune`.
-* **Optionen:** `Welle` (Dreieck, Sägezahn, Rechteck), `Skala`, `Grundton`, `Oktave`.
-* **Live-Keyboard:** Kann direkt über Computertasten **`A`–`K`** gespielt werden.
 * **Buchsen:** `GATE IN`, `PITCH IN`, `FILTER CV`, `VCA CV`, `PAN CV`.
+* **Praxis-Beispiel:** `Keys` ➔ `Chorus` ➔ `Reverb` (mit Attack 0.4s & Release 2.5s) ➔ Schwebende 80er-Jahre Synthesizer-Flächen.
 
 #### 18. Step Sequencer (`∿`)
 * **Aufgabe:** 8-Schritt Sequenzer für melodische Loops und Rhythmus-Muster.
 * **Regler:** `Tempo`, `Swing`, `Gate Len`, `Decay` sowie 8 Step-Pitch-Knobs.
-* **Optionen:** `Schritte` (1–8), `Skala`, `Grundton`, `Oktave`.
 * **Buchsen:** `CLOCK IN`, `GATE OUT`, `PITCH OUT`, `VCA CV`, `PAN CV`.
+* **Praxis-Beispiel:** Verbinde `PITCH OUT` mit `FM Voice (PITCH IN)` und `GATE OUT` mit `FM Voice (GATE IN)` ➔ Treibende melodische 8-Step Synthwave-Sequenz.
 
 #### 19. Noise Textur (`≋`)
 * **Aufgabe:** Organischer Rauschgenerator für Meeresbrandung, Windheulen und Vinyl-Knistern.
 * **Regler:** `Level`, `Tone`, `Reso`, `Wind`, `Speed`, `Vinyl`.
-* **Optionen:** `Farbe` (Pink / Weiß), `Filter` (Lowpass, Bandpass, Highpass).
-* **Buchsen:** `VCA CV`, `PAN CV`.
+* **Buchsen:** `VCA CV`, `PAN CV`, `TONE CV`.
+* **Praxis-Beispiel:** Verbinde `Slow Random (CV OUT)` mit `Noise (TONE CV)` ➔ Eine sanfte, atmende Meereswelle, die im Hintergrund rauscht.
 
 #### 20. Morph Voice (`🌀`)
-* **Aufgabe:** Vielseitiges Flaggschiff-Instrument mit stufenlosem Morphing über 4 Synthesewelten: **Wavetable** (Sinus $\rightarrow$ Dreieck $\rightarrow$ Puls $\rightarrow$ Sägezahn), **Virtuell-Analog** (mit Sub-Oszillator), **FM-Synthese** und gefiltertem **Rauschgenerator**.
-* **Besonderheiten:** Vokal-Formantfilter (A/E/I/O/U), Wavefolder-Sättigung, `JUMP`-Trigger für spontane Wellenform-Sprünge, Velocity und Parameter-Locks (`🔒`).
-* **Regler:** `Level`, `Morph`, `Helligkeit`, `Formant`, `Rauheit`, `Verstimmung`, `Attack`, `Release`, `Stimmen`, `Sprung`, `Velocity`, `Mutation`.
-* **Buchsen:** `GATE`, `PITCH`, `VEL`, `JUMP`, `MORPH CV`, `TIMBRE CV`, `ENV CV`, `VCA CV`, `PAN CV`, `MUTATE`, `OUT`.
+* **Aufgabe:** 8-Wellenformen Multiquellen-Synthesizer (Analog, Vokal/Chor, Glocke, Digitalmetall).
+* **Regler:** `Level`, `Morph`, `Helligkeit`, `Formant`, `Rauheit`, `Verstimmung`, `Attack`, `Release`.
+* **Buchsen:** `GATE`, `PITCH`, `JUMP`, `MORPH CV`, `TIMBRE CV`, `ENV CV`, `VCA CV`, `PAN CV`, `MUTATE`.
+* **Praxis-Beispiel:** Verbinde `Slope Generator (ENV OUT)` mit `MORPH CV` ➔ Jeder Ton morpht vom runden Sinus über chorale Vokale zu scharfem Digitalmetall.
 
 #### 21. Hybrid Percussion (`🪘`)
-* **Aufgabe:** Vierteilige Drum-Synthese-Engine:
-  1. *Body*: Sinus/Dreieck-Oszillator mit Pitch-Drop für Kicks und Toms.
-  2. *Snap*: Gefiltertes Rauschen für Snares und Shaker.
-  3. *Clang*: Metallische Ringmodulatoren für Cowbells, Hats und Cymbals.
-  4. *Click*: Transienter Attack-Impuls für druckvollen Durchsetzungs-Punch.
-* **Interaktives UI:** 4 anschlagdynamische Live-Pads (`TIEF`, `TOM`, `SNARE`, `METALL`) mit Pegel-Animation.
-* **Regler:** `Level`, `Tonhöhe`, `Körper`, `Material`, `Tonabfall`, `Rauschen`, `Anschlag`, `Länge`, `Verzerrung`, `Velocity`, `Mutation`.
-* **Buchsen:** `TRIG 1–4`, `GATE`, `PITCH`, `ACCENT / VEL`, `MATERIAL CV`, `LENGTH CV`, `VCA CV`, `PAN CV`, `MUTATE`, `OUT`.
+* **Aufgabe:** 4-Schichten Drum-Synthese (Body Sub-Pitch-Drop, Klick-Snap, Material und Rauschen).
+* **Regler:** `Level`, `Tonhöhe`, `Körper`, `Material`, `Tonabfall`, `Rauschen`, `Anschlag`, `Länge`, `Verzerrung`.
+* **Buchsen:** `TRIG 1–4`, `GATE`, `PITCH`, `MATERIAL CV`, `LENGTH CV`, `VCA CV`, `PAN CV`, `MUTATE`.
+* **Praxis-Beispiel:** Verbinde `Slow Random (CV OUT)` mit `MATERIAL CV` ➔ Schläge transformieren sich dynamisch von hohlem Holz zu schepperndem Eisenamboss.
 
 #### 22. Resonator Garden (`🔔`)
-* **Aufgabe:** Physikalisch modellierte Resonanzbank aus 6 gestimmten Bandpass-Resonatoren. Simuliert Saiten, Marimbas, Glocken, Gongs und stehende Hallräume.
-* **Anregung:** Interner Impuls/Rauschgenerator oder beliebige externe Audiosignale über `IN`.
-* **Visualizer:** Integrierter Canvas visualisiert Schwingung und Abklingverhalten aller 6 Resonanzstäbe in Echtzeit.
-* **Regler:** `Level`, `Material`, `Größe`, `Dämpfung`, `Anschlagposition`, `Verteilung` (Spread), `Ausklang`, `Resonanzen`, `Velocity`, `Mutation`.
-* **Buchsen:** `IN` (Audio), `GATE`, `STRIKE`, `PITCH`, `VEL`, `SPREAD CV`, `MATERIAL CV`, `DAMP CV`, `VCA CV`, `PAN CV`, `MUTATE`, `OUT`.
+* **Aufgabe:** Physikalisch modellierte Resonanzbank aus 6 gestimmten Bandpass-Resonatoren (Saiten, Marimba, Gongs, Klangschalen).
+* **Regler:** `Level`, `Material`, `Größe`, `Dämpfung`, `Anschlagposition`, `Verteilung`, `Ausklang`.
+* **Buchsen:** `IN` (Audio), `GATE`, `PITCH`, `MATERIAL CV`, `DAMP CV`, `VCA CV`, `PAN CV`, `MUTATE`.
+* **Praxis-Beispiel:** Verbinde `Euclidean (GATE OUT)` mit `GATE IN` und `Slow Random` mit `DAMP CV` ➔ Gamelan-Muster, die zwischen kurzen Taps und langen Klangschalen wechseln.
 
 #### 23. Granular Cloud (`☁`)
-* **Aufgabe:** Zerlegt Audio in Mikrokörner (*Grains*, 10–500 ms) mit Hanning-Fensterung für dichte Ambient-Wolken, Vokal-Schwärme oder rhythmische Glitch-Partikel.
-* **Quellen:** 4 prozedurale Generatoren (*Vocal Choir*, *Rain & Water*, *Prepared Piano*, *Machine Drone*), eigene Audio-Dateien (WAV/MP3/OGG via Drag & Drop) oder **Live-Master-Recording** (`● REC`).
-* **Regler:** `Level`, `Position`, `Korngröße`, `Dichte`, `Tonhöhe`, `Rückwärts`, `Zeitstreuung`, `Stereobreite`, `Scan`, `Sprung`, `Freeze`, `Velocity`, `Mutation`.
-* **Optionen:** `Spielweise` (`Cloud` für endlose Flächen, `Trigger` für Beat-Impulse).
-* **Buchsen:** `GATE`, `JUMP`, `FREEZE`, `PITCH`, `POS CV`, `DENSITY CV`, `VCA CV`, `PAN CV`, `MUTATE`, `OUT`.
+* **Aufgabe:** Zerlegt Audio in Mikrokörner (Grains) für dichte Ambient-Wolken, Freeze und Lese-Scans.
+* **Regler:** `Level`, `Position`, `Korngröße`, `Dichte`, `Tonhöhe`, `Rückwärts`, `Zeitstreuung`, `Freeze`.
+* **Buchsen:** `GATE`, `JUMP`, `FREEZE`, `PITCH`, `POS CV`, `DENSITY CV`, `VCA CV`, `PAN CV`, `MUTATE`.
+* **Praxis-Beispiel:** Verbinde `Slow Random (CV OUT)` mit `POS CV` ➔ Der Lese-Scanner wandert wie eine Lupe durch das Sample – endlose, organische Variation ohne starren Loop.
 
 #### 24. Spectral Swarm (`✺`)
-* **Aufgabe:** Additiver Schwarm-Synthesizer aus bis zu 32 unabhängigen Sinus-Teiltönen, die autonom durch Frequenz- und Phasenraum wandern.
-* **Besonderheiten:**
-  - `SCATTER`: Schleudert alle Partials chaotisch in den Frequenzraum.
-  - `GATHER`: Zieht alle Partials synchron auf einen reinen harmonischen Grundakkord zusammen.
-  - Orbit-Visualizer visualisiert Partikeldichte und Bewegung in Echtzeit.
-* **Regler:** `Level`, `Teiltöne`, `Unharmonik`, `Streuung`, `Bewegung`, `Tiefe`, `Helligkeit`, `Zusammenhalt` (Cohesion), `Hüllkurve`, `Velocity`, `Mutation`.
-* **Buchsen:** `GATE`, `PITCH`, `SCATTER`, `GATHER`, `COHESION CV`, `VCA CV`, `PAN CV`, `MUTATE`, `OUT`.
+* **Aufgabe:** Additiver Schwarm-Synthesizer aus 32 unabhängigen Sinus-Teiltönen mit Schwarm-Intelligenz.
+* **Regler:** `Level`, `Teiltöne`, `Unharmonik`, `Streuung`, `Bewegung`, `Zusammenhalt` (Cohesion).
+* **Buchsen:** `GATE`, `PITCH`, `SCATTER`, `GATHER`, `COHESION CV`, `VCA CV`, `PAN CV`, `MUTATE`.
+* **Praxis-Beispiel:** Verbinde `Slope Generator (ENV OUT)` mit `COHESION CV` ➔ 32 chaotisch flirrende Teiltöne ziehen sich über Sekunden zu einem strahlenden Kirchenorgel-Akkord zusammen.
 
 ---
 
@@ -348,53 +346,155 @@ Alle Instrumente unterstützen dynamische Noten-Anschläge (0 bis 127):
 * **Regler:** `Cutoff`, `Resonanz`, `Drive`, `LFO Rate`, `LFO Tiefe`.
 * **Optionen:** Typ (`Lowpass`, `Highpass`, `Bandpass`).
 * **Buchsen:** `CUTOFF CV` (Externe Filtermodulation).
+* **Praxis-Beispiel:** Speise eine Drone in das Filter und moduliere `CUTOFF CV` mit `Slow Random` ➔ Warmer, analoger Moog-Filter-Sweep.
 
 #### 26. Stereo Chorus (`🌊`)
 * **Aufgabe:** Räumliche Stereobreite, Schwebungen und Ensemble-Verdopplung.
 * **Regler:** `Rate`, `Tiefe`, `Delay`, `Mix`.
+* **Praxis-Beispiel:** Schalte den Chorus hinter die `Poly Keys` ➔ Verwandelt ein einfaches E-Piano in ein breites, schwebendes 80er-Jahre Ensemble.
 
 #### 27. Tremolo (`〰`)
 * **Aufgabe:** Periodische Lautstärkemodulation für Vintage- und Pulsing-Effekte.
 * **Regler:** `Rate`, `Tiefe`.
+* **Praxis-Beispiel:** Keys durch Tremolo (`Rate 3.5 Hz`, `Tiefe 65%`) ➔ Erzeugt den warmen, pulsierenden Surf- und Vintage-Rhodes-Klang.
 
 #### 28. Lo-Fi Bitcrusher (`📼`)
 * **Aufgabe:** Digitale Bit-Reduktion, Sampleraten-Dezimierung und Kassetten-Tonband-Flutter.
 * **Regler:** `Bits` (1–16 Bit), `Sample Rate`, `Drive`, `Flutter`, `Mix`.
+* **Praxis-Beispiel:** Stelle `Bits=10` und `Crush=4` ein ➔ Verleiht Synths und Drum-Samples den körnigen Crunch alter SP-1200 Sampler.
 
 #### 29. Tape Delay (`🪞`)
 * **Aufgabe:** Analog modelliertes Bandecho mit getrennten Stereopfaden und Filterdämpfung.
 * **Regler:** `Zeit`, `Feedback`, `Tone`, `Wobble`, `Mix`.
 * **Optionen:** Modus (`Stereo` / `Ping-Pong`).
 * **Buchsen:** `TIME CV` (Tape-Warping und Pitch-Drift).
+* **Praxis-Beispiel:** Verbinde `Slow Random (CV OUT)` mit `TIME CV` ➔ Erzeugt nostalgisches, eierndes Kassetten-Leiern (Pitch Warble & Wow/Flutter).
 
 #### 30. Ambient Reverb (`✨`)
 * **Aufgabe:** Tief shimmernder Hallraum mit dichter Reflexionswolke für endlose Räume (bis 20s Decay).
 * **Regler:** `Decay`, `Dämpfung`, `Pre-Delay`, `Tone`, `Mix`.
+* **Praxis-Beispiel:** Drehe an Drone und Pluck den `REVERB SEND` auf 75 % und stelle `Decay=14s` ein ➔ Die Klänge tauchen in einen unendlichen, meditativen Traumhall ab.
 
 ---
 
-## 6. Interaktives Hilfesystem & Infoboxen
+---
 
-1. **Infoboxen Ein/Aus (`INFO: AN / AUS`):**
-   - Schalter in der Topbar oder über Tastenkürzel **`I`**.
-   - Hover über eine Buchse blendet ein schwebendes Glas-Panel mit Signalart, Typ (IN/OUT), Erklärung und aktiven Verbindungen ein.
-   - Hover über Regler erklärt deren physikalische und klangliche Auswirkung.
-2. **Modul-Hilfe (`?`):**
-   - Jede Modulkarte verfügt über einen `?`-Button in der Titelleiste, der das Handbuch direkt an der passenden Stelle öffnet.
-3. **Suchfunktion:**
-   - Volltextsuche und Kategorie-Filter (`Alle`, `Steuerung`, `Klangquellen`, `Effekte`) direkt im Handbuch-Dialog.
+## 6. Interaktive Modul-Tutorials & Der Grüne Modulations-Guide (CV-Spannungen)
+
+SYNTHBOARD Studio bietet dir neben statischen Hilfetexten ein **vollständig interaktives Tutorial- und Modulations-Center** mit Direkttest im Rack.
+
+### 🎓 Das Tutorial-Center (`TUTORIALS`-Button / Taste `T`)
+Über den neuen Button **`🎓 TUTORIALS`** in der Menüleiste (oder Tastaturkürzel **`T`**) öffnest du kompakte, praxisnahe Erklärungen für alle neu hinzugefügten Studio-Module:
+
+1. **Scene Conductor (Ambient ↔ Downtempo ↔ Broken Beat ↔ Techno):**
+   - Rhythmus-Muster, Fills, Breaks und 6 stufenlose Modulations-CVs (`TIMBRE`, `ENERGY`, `PAD`, `CLOUD`, `SPACE`, `SCENE`).
+   - *Tutorial-Fokus:* Wie Szenenwechsel automatisch Filter und Wavetables öffnen und Hallräume steuern.
+2. **Granular Cloud (Körnerwolke, Freeze & Zeitreise):**
+   - Zerschneidet Audio in Mikrokörner.
+   - *Tutorial-Fokus:* Modulation des Lese-Scanners (`POS CV`) und der Korndichte (`DENSITY CV`).
+3. **Morph Voice (8-facher Wavetable & Vokal/Metall-Morphs):**
+   - Stufenloses Fahren durch 8 Wellenformen (Analog, Chöre, Glocken, Digitalmetall).
+   - *Tutorial-Fokus:* Dynamisches Oberton-Morphing (`MORPH CV`) und Attack/Release-Skalierung (`ENV CV`).
+4. **Hybrid Percussion (Body, Snap, Metall & Ausklang):**
+   - 4-Schichten Drum-Synthese mit Pitch-Drop und physikalischen Materialien.
+   - *Tutorial-Fokus:* Klangkörper-Transformation zwischen Holzkiste und Amboss (`MATERIAL CV`) sowie Ausklanglänge (`LENGTH CV`).
+5. **Resonator Garden (6 modale Resonanzkörper):**
+   - Physikalische Saiten, Klangstäbe und tibetische Schalen.
+   - *Tutorial-Fokus:* Dämpfungsmodulation (`DAMP CV`) und Obertonmoden (`MATERIAL CV`).
+6. **Spectral Swarm (32 Partials & Schwarmsynthese):**
+   - 32 autonome Sinustöne mit Schwarm-Intelligenz.
+   - *Tutorial-Fokus:* Kohäsion (`COHESION CV`) zwischen reinem Kirchenorgel-Akkord und wilder Dissonanz.
+7. **Slope Generator (0.05s bis 60s Rise/Fall & Inverted Ducking):**
+   - Flexibler Funktionsgenerator für epische Ambient-Swells (`ENV OUT`) und automatische Sidechain-Kompression (`INV OUT`).
+8. **Attenuverter & Dual Offset (Spannungen bändigen & invertieren):**
+   - Skalierung (-100 % bis +100 %), Invertierung und Nullpunkt-Offset für feine Nuancen.
+
+> [!TIP]
+> **⚡ One-Click-Test:** Jedes Tutorial im Dialog besitzt einen Button **„⚡ Jetzt im Board testen“**. Ein Klick fügt die benötigten Module ins Rack ein, zieht die passenden Patch-Kabel, stellt die Parameter ein und startet den Sound sofort live!
 
 ---
 
-## 7. Board-Verwaltung, Vorlagen, Aufnahme & Audio-Watchdog
+### 🟢 Der Grüne Modulations-Guide: Welche grünen Dinger steckt man wo rein?
 
-* **Vorlagen (Templates):**
-  - `🎬 Szenen-Wechsel (Ambient ↔ Beats)`: Vollständiges Performance-Setup mit Scene Conductor, Hybrid Percussion, Morph Voice, Granular Cloud und Spectral Swarm.
-  - `Generatives Ambient`: Schwebende generative Harfen und beruhigende Flächen.
-  - `Solar Drone Desk`: Tiefe Kosmos-Drones und modulierter analoger Bass.
-  - `Ambient Sequenz`: Melodische Steps mit Delay- und Reverb-Waschungen.
-  - `Lo-Fi Keys & FM`: Warme E-Piano-Akkorde und digitale Glöckchen.
-  - `Leeres Board`: Freie Arbeitsfläche zum eigenen Rack-Aufbau von Grund auf.
+Im modularen Eurorack und in SYNTHBOARD steht die Farbe **Grün** für **Modulations-CV (Control Voltage / Steuerspannung)**.
+
+* **Was ist der Unterschied zu Gold oder Lila?**
+  - 🟡 **Gold (Gate/Trigger):** Ein kurzer Schlag (Anschlag/Impuls) – *„Jetzt eine Note anschlagen!“*
+  - 🟣 **Lila (Pitch CV):** Musikalische Notenhöhe (1 Volt pro Oktave) – *„Welche Note soll gespielt werden?“*
+  - 🟢 **Grün (Modulation CV):** Eine **stufenlos fließende Bewegung** – *„Wie weit ist ein Regler im Moment aufgedreht?“*
+  - Stell dir vor, ein unsichtbarer Roboter dreht für dich Regler im Takt oder in minutenlangen Meereswellen!
+
+#### Die 3 Grundregeln für grüne Buchsen:
+1. **Grüner Ausgang (OUT) ➜ Grüner Eingang (IN):** Der Ausgang erzeugt eine Bewegung (z. B. LFO oder Hüllkurve). Der Eingang empfängt diese Spannung und verändert damit einen internen Parameter (Filter, Tonfarbe, Dichte, Lautstärke).
+2. **Kabel dürfen sich verzweigen (Multiple):** Du kannst denselben grünen Ausgang an beliebig viele grüne Eingänge anschließen. So atmen mehrere Instrumente im selben organischen Rhythmus!
+3. **Modulationstiefe dosieren:** Am Kabel-Badge oder über den **Attenuverter** kannst du die Stärke von sanften 5 % bis zu extremen 100 % drosseln oder umkehren.
+
+#### ⚡ Die 10 besten grünen Patch-Kombinationen (Klangwirkung & Empfehlung):
+
+| Grüner Ausgang (OUT) | Grüner Eingang (IN) | Hörbare Auswirkung am Klang |
+| :--- | :--- | :--- |
+| **Slow Random `CV OUT`** | **Filter `CUTOFF CV`** | **Sanfte Filter-Atmung:** Der Gesamtsound taucht wie eine Meereswelle warm auf und ab. |
+| **Slope Generator `ENV OUT`** | **Drone `VCA CV`** | **40-Sekunden Traum-Swell:** Ein majestätisches, minutenlanges Anwachsen der Akkorde. |
+| **Slope Generator `INV OUT`** | **Pluck `VCA CV`** | **Automatisches Ducking:** Zupftöne machen leise Platz, während die große Fläche oben ist. |
+| **Slow Random `CV OUT`** | **Granular Cloud `POS CV`** | **Granular-Zeitreise:** Der Lesekopf wandert sanft durch das Sample – nie wiederkehrende Texturen! |
+| **Scene Conductor `TIMBRE`** | **Morph Voice `MORPH CV`** | **Szenen-Wellenform-Morph:** Sanfter Sinus/Chor im Ambient, schneidendes Metall im Techno. |
+| **Scene Conductor `ENERGY`** | **Hybrid Perc `TIMBRE CV`** | **Holz zu Metall-Amboss:** Trommelschläge wandeln sich von Holz zu hartem Industriemetall. |
+| **Slope Generator `ENV OUT`** | **Spectral Swarm `COHESION`** | **Schwarm-Bändigung:** 32 Teiltöne ziehen sich von Dissonanz zu reinem Kirchenorgel-Akkord zusammen. |
+| **Slow Random `CV OUT`** | **Tape Delay `TIME CV`** | **Vintage Band-Leiern:** Echtes Lo-Fi Pitch-Warble wie bei einer alten Audiokassette. |
+| **Slow Random `CV OUT`** | **Resonator `DAMP CV`** | **Resonanz-Dämpfung:** Wechselt zwischen trockenem Holz und endlos singenden Klangschalen. |
+| **Slow Random `CV OUT`** | **Slope Generator `MOD RISE`** | **Selbstmodulierende Hüllkurve:** Anstiegszeit variiert von Schlag zu Schlag – unendliche Variation! |
+
+---
+
+## 7. Board-Verwaltung, Vorlagen-Galerie (14 Racks), Aufnahme & Audio-Watchdog
+
+SYNTHBOARD enthält eine Sammlung von **14 sofort spielfertigen, komplett verdrahteten Modular-Boards**. Jedes Board ist für ein bestimmtes Genre oder eine Klangästhetik optimiert und demonstriert, wie die verschiedenen Steuerungen, Klangquellen und Effekte zu einem stimmigen Ganzen verkabelt werden:
+
+1. **🎬 Szenen-Wechsel (Ambient ↔ Beats)** *(Showcase & Performance)*
+   - **Klangwelt:** Nahtloses Morphing zwischen schwebenden Ambient-Welten und punchigen Minimal-Techno-Grooves.
+   - **Module:** Scene Conductor, Master Clock, Hybrid Percussion, Drum Rack, Analog Bass, Morph Voice, Resonator Garden, Granular Cloud, Spectral Swarm, Filter, Delay, Reverb (12 Module, 15 Patchkabel).
+2. **⚡ Generatives Modular-System (Showcase)** *(Generative Synthese)*
+   - **Klangwelt:** Völlig autonomes, selbstspielendes Eurorack mit Random-Walk-Melodien in Dorisch, Euklidischen Percussion-Rhythmen und atmender Filtermodulation.
+   - **Module:** Master Clock, Clock Divider, Euclidean Rhythm, Probability Gate, Random Walk, Scale Quantizer, Slow Random, Macro Controller, Drone Machine, Pluck Synth, Analog Bass, Drum Rack, Filter, Delay, Reverb (15 Module, 15 Patchkabel).
+3. **🌸 Zen-Garten & Resonator-Meditation** *(Meditativ & Ambient)*
+   - **Klangwelt:** Asiatisch-meditative Klanglandschaft in der japanischen Hirajoshi-Skala mit hölzernen/metallischen Bambus-Resonatoren, zarten Harfen-Plucks und sanftem Wind.
+   - **Module:** Master Clock, Clock Divider, Euclidean Rhythm, Probability Gate, Random Walk, Scale Quantizer, Slow Random, Resonator Garden, Pluck Synth, Drone Machine, Noise Generator, Filter, Stereo Delay, Reverb (14 Module, 12 Patchkabel).
+4. **🪐 Deep Space & Granular-Cluster** *(Cinematic & Sci-Fi)*
+   - **Klangwelt:** Schwerelose Weiten, gefrorene Granular-Partikel, 18-facher Sinus-Schwarm, dunkler Sub-Drone und Attenuverter-dosierte Modulationen.
+   - **Module:** Slow Random, Random Walk, Slope Generator, Attenuverter, Granular Cloud, Spectral Swarm, Drone Machine, Noise Generator, Stereo Chorus, Ladder Filter, Tape Delay, Huge Hall Reverb (12 Module, 7 Patchkabel).
+5. **🌊 Berlin School & Hypnotic Sequenz** *(Elektronisch & Klassik)*
+   - **Klangwelt:** Hypnotische 16-Step Analogsequenz im Stil von Tangerine Dream und Klaus Schulze mit treibendem 24dB Bass, kristallinen FM-Glocken und punktiertem Band-Echo.
+   - **Module:** Master Clock, Clock Divider, 16-Step Sequencer, Slope Generator, Analog Bass, FM Voice, Drum Rack, Drone Machine, Filter, Ping-Pong Delay, Reverb (11 Module, 10 Patchkabel).
+6. **⚡ Cyberpunk & Industrial Glitch** *(Industrial & Beat)*
+   - **Klangwelt:** Aggressiver Dark-Synth Sound mit getriebener Hybrid-Percussion, roboterhafter Morph Voice, 10-Bit Bitcrusher und verzerrter Bassline.
+   - **Module:** Master Clock, Euclidean Rhythm, Probability Gate, Slow Random (Stepped S&H), Hybrid Percussion, Morph Voice, Analog Bass, Noise Generator, Lo-Fi Degrader, Overdrive Filter, Slapback Delay, Dark Reverb (12 Module, 8 Patchkabel).
+7. **🍃 Biophilic Forest & Nature Ambient** *(Organisch & Natur)*
+   - **Klangwelt:** Lebendige Bio-Synthese: Sanfter Nieselregen, warme Rhodes-Pads in Dur-Pentatonik, resonantes Holzglockenspiel und atemberaubender Naturhall.
+   - **Module:** Master Clock, Slow Random, Random Walk, Scale Quantizer, Resonator Garden, Poly Keys, Noise Generator, Drone Machine, Tremolo, Chorus, Diffused Delay, Forest Reverb (12 Module, 7 Patchkabel).
+8. **☁️ Ethereal Dream-Pop & Shimmer Cloud** *(Dream Pop & Shimmer)*
+   - **Klangwelt:** Sphärische Granular-Partikel in Dur-Penta, zarte Harfen-Plucks, sanfter Chor-Swarm, Dimension Chorus und 12 Sekunden Shimmer-Hall.
+   - **Module:** Master Clock, Clock Divider, Random Walk, Scale Quantizer, Granular Cloud, Pluck Synth, Spectral Swarm, Poly Keys, Chorus, Stereo Delay, Shimmer Reverb (11 Module, 8 Patchkabel).
+9. **🥁 Minimal Dub-Techno & Tape Echo** *(Dub Techno & Minimal)*
+   - **Klangwelt:** Subterrane 808-Subbässe, metallische FM-Chordstabs, warmes Band-Echo mit 72% Feedback und staubige Lo-Fi-Textur.
+   - **Module:** Master Clock, Clock Divider, Euclidean Rhythm, Slow Random, FM Voice, Analog Bass, Drum Rack, Noise Generator, Lo-Fi Module, Resonant Filter, Tape Delay, Cavern Reverb (12 Module, 9 Patchkabel).
+10. **🌙 Somnus (Schlaf & Traumdrift)** *(Deep Sleep & Relaxation)*
+    - **Klangwelt:** Beruhigende Delta-Wellen-Frequenzen, sanfter Tri-Drone, gefiltertes rosa Rauschen, samtige Keys und 12s Traumhall.
+    - **Module:** Drone Machine, Pink Noise, Poly Keys, Ladder Filter, Chorus, Stereo Delay, Cathedral Reverb (7 Module).
+11. **☀️ Solar 42 Drone Desk** *(Drone & Space)*
+    - **Klangwelt:** Schwebendes Solar-Akkord-Cluster mit analoger Schwebung, Slow-Random Filteratmung und weiten Stereo-Echos.
+    - **Module:** Slow Random, Drone Machine (Solarchord), Poly Keys, Noise Generator, Chorus, Resonant Filter, Stereo Delay, Dream Reverb (8 Module, 3 Patchkabel).
+12. **🌌 Ambient Sequenz & Plucks** *(Melodisch & Step-Sequenz)*
+    - **Klangwelt:** Melodischer Step-Sequencer trifft auf perkussiven Pluck-Synth, Bass-Begleitung, Ping-Pong Echos und weite Hallfahnen.
+    - **Module:** Master Clock, Clock Divider, Sequencer, Pluck Synth, Analog Bass, Drone Machine, Noise Generator, Chorus, Ping-Pong Delay, Reverb (10 Module, 6 Patchkabel).
+13. **📼 Lo-Fi Tape & Vintage Keys** *(Vintage & Lo-Fi)*
+    - **Klangwelt:** Schwelgerische E-Piano Akkorde mit authentischem Tape-Flutter, sanftem Vinyl-Knistern, FM-Glocken und Tremolo-Vibrato.
+    - **Module:** Master Clock, Random Walk, Scale Quantizer, Poly Keys, FM Voice, White Noise, Lo-Fi Bitcrusher, Tremolo, Stereo Delay, Vintage Reverb (10 Module, 6 Patchkabel).
+14. **⬚ Leeres Board (Tabula Rasa)** *(Eigener Aufbau)*
+    - Freie Arbeitsfläche zum eigenen Rack-Aufbau von Grund auf.
+
+* **Vorlagen-Galerie & Board-Auswahl:**
+  - Klicke oben auf **`🎛️ Galerie`** (oder drücke Taste **`V`**), um die visuelle Board-Galerie mit Modul-Übersicht, Genres und 1-Klick-Ladefunktion zu öffnen.
+  - Alternativ steht im Dropdown-Menü **`BOARD`** jedes Board zur Schnellauswahl bereit.
 * **Speichern & Teilen:**
   - Eigene Boards speichern (`💾 Speichern`) oder duplizieren (`⧉ Kopie`).
   - **Export / Import:** Board als `.json`-Datei herunterladen (`⇩`) oder von der Festplatte einlesen (`⇧`).
@@ -457,13 +557,16 @@ Alle Instrumente unterstützen dynamische Noten-Anschläge (0 bis 127):
 
 | Taste | Funktion |
 | :--- | :--- |
+| **`V`** | **Beispiel-Boards Galerie öffnen** (14 spielfertige Racks mit 1 Klick laden) |
+| **`T`** | **Modul-Tutorials öffnen** (Schritt-für-Schritt-Guides zu allen neuen Modulen) |
+| **`G`** | **Grüne Buchsen Guide öffnen** (Spickzettel & One-Click-Verbindungen) |
+| **`H`** oder **`?`** | **Studio-Handbuch öffnen / schließen** |
+| **`I`** | **Infoboxen an- / ausschalten** (Hover-Tooltips für Buchsen & Regler) |
+| **`C`** | **Patch-Kabel ein- / ausblenden** |
 | **`+`** / **`-`** | **Arbeitsbereich vergrößern / verkleinern** (Zoom In / Out) |
 | **`0`** | **Zoom auf 100 % zurücksetzen** |
 | **`F`** | **Ganzes Rack auf den Bildschirm einpassen** (Fit to Screen) |
 | **`B`** | **Modul-Bibliothek ein-/ausklappen** (Maximale Rack-Breite freigeben) |
-| **`I`** | **Infoboxen an- / ausschalten** (Hover-Tooltips für Buchsen & Regler) |
-| **`H`** oder **`?`** | **Studio-Handbuch öffnen / schließen** |
-| **`C`** | **Patch-Kabel ein- / ausblenden** |
 | **`A` bis `K`** | **Poly Keys Synthesizer** direkt auf der Computertastatur spielen |
 | **`Esc`** | Handbuch oder geöffnete modale Dialoge schließen |
 | **`Ctrl` + Mausrad** | Stufenloser Zoom direkt über dem Rack |
