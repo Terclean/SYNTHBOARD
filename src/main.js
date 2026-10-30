@@ -4,6 +4,8 @@ import { Knob } from './ui/Knob.js';
 import { Oscilloscope } from './ui/Oscilloscope.js';
 import { PatchBay } from './ui/PatchBay.js';
 import { InfoSystem } from './ui/InfoSystem.js';
+import { SnapshotSystem } from './ui/SnapshotSystem.js';
+import { FocusDock } from './ui/FocusDock.js';
 
 const LS_BOARDS = 'synthboard:boards';
 const LS_AUTO = 'synthboard:autosave';
@@ -122,6 +124,23 @@ const infoSystem = new InfoSystem(engine, patchBay, {
   onLoadTemplate: (key) => loadBoard('tpl', key),
 });
 
+const snapshotSystem = new SnapshotSystem(engine, {
+  onToast: (msg) => toast(msg),
+  onModified: changed,
+});
+engine.snapshotSystem = snapshotSystem;
+
+const focusDock = new FocusDock($('#focus-dock'), {
+  onToast: (msg) => toast(msg),
+  onModified: changed,
+  onOpenSidebar: () => {
+    if (workspaceEl?.classList.contains('lib-collapsed')) {
+      toggleLibrary(false);
+    }
+  },
+});
+engine.focusDock = focusDock;
+
 $('#btn-boards-gallery')?.addEventListener('click', () => infoSystem.openGuide('tab-boards'));
 $('#btn-boards-footer')?.addEventListener('click', (e) => {
   e.preventDefault();
@@ -217,6 +236,8 @@ function renderRack(highlightId) {
     const card = document.querySelector(`.module-card[data-id="${highlightId}"]`);
     if (card) { card.classList.add('just-added'); card.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' }); }
   }
+  snapshotSystem?.updateVisuals();
+  focusDock?.updateRackBadges();
   updateStatus();
 }
 
@@ -306,16 +327,68 @@ function createCard(mod, fxIndex = -1) {
   M.params.forEach((p) => {
     const cell = document.createElement('div');
     cell.className = 'knob-cell';
+    cell.dataset.modId = mod.id;
+    cell.dataset.paramId = p.id;
+    cell.title = 'Klicken: Auswählen & mit Pfeiltasten drehen · Shift+Klick: Im Fokus-Dock groß laden';
     cell.innerHTML = `<div class="knob-host" data-knob-color="mod" data-knob-size="med"></div><span class="k-label">${esc(p.label)}</span><span class="k-val"></span>`;
     knobsEl.appendChild(cell);
     const valEl = cell.querySelector('.k-val');
+
+    const knobRefObj = { p, knob: null, valEl };
+
+    const handleShiftClick = () => {
+      focusDock.toggle({
+        id: `${mod.id}:${p.id}`,
+        modId: mod.id,
+        paramId: p.id,
+        modTitle: M.title,
+        modColor: M.color,
+        label: p.label,
+        paramDef: p,
+        modRef: mod,
+        getVal: () => mod.values[p.id],
+        setVal: (v) => mod.setParam(p.id, v),
+        fmtVal: (v) => fmt(p, v),
+        origKnobRef: knobRefObj,
+      });
+    };
+
     const knob = new Knob(cell.querySelector('.knob-host'), {
-      min: p.min, max: p.max, value: mod.values[p.id], logarithmic: !!p.log,
-      onChange: (v) => { mod.setParam(p.id, v); valEl.textContent = fmt(p, v); changed(); },
+      min: p.min,
+      max: p.max,
+      value: mod.values[p.id],
+      defaultValue: p.value,
+      logarithmic: !!p.log,
+      onChange: (v) => {
+        mod.setParam(p.id, v);
+        valEl.textContent = fmt(p, v);
+        focusDock.syncFromRack(mod.id, p.id, v);
+        changed();
+      },
+      onShiftClick: () => handleShiftClick(),
+      onFocus: () => {
+        document.querySelectorAll('.knob-cell.is-focused').forEach((c) => c.classList.remove('is-focused'));
+        cell.classList.add('is-focused');
+      },
+      onBlur: () => {
+        cell.classList.remove('is-focused');
+      },
     });
+
+    knobRefObj.knob = knob;
     valEl.textContent = fmt(p, mod.values[p.id]);
-    cell.addEventListener('dblclick', () => knob.setValue(p.value, true));
-    knobRefs.push({ p, knob, valEl });
+
+    cell.addEventListener('click', (e) => {
+      if (e.shiftKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        handleShiftClick();
+      } else {
+        knob.focus();
+      }
+    });
+
+    knobRefs.push(knobRefObj);
   });
 
   // Regler & Auswahlfelder nachziehen, wenn das Modul sie selbst verändert (z. B. Mutation)
@@ -323,6 +396,7 @@ function createCard(mod, fxIndex = -1) {
     knobRefs.forEach(({ p, knob, valEl }) => {
       knob.setValue(mod.values[p.id]);
       valEl.textContent = fmt(p, mod.values[p.id]);
+      focusDock.syncFromRack(mod.id, p.id, mod.values[p.id]);
     });
     card.querySelectorAll('select[data-opt]').forEach((sel) => { sel.value = String(mod.values[sel.dataset.opt]); });
   };
@@ -373,6 +447,7 @@ function createCard(mod, fxIndex = -1) {
   });
   card.querySelector('.remove').addEventListener('click', () => {
     card.classList.add('removing');
+    focusDock?.onModuleRemoved(mod.id);
     patchBay.unregisterModuleJacks(mod.id);
     setTimeout(() => { engine.remove(mod.id); renderRack(); changed(); }, 180);
   });
@@ -487,10 +562,12 @@ function populateBoards() {
 function loadBoard(kind, key) {
   const state = kind === 'tpl' ? TEMPLATES[key]?.state : loadBoards()[key];
   if (!state) return;
+  focusDock?.clear();
   engine.load(structuredClone(state));
   masterKnob.setValue(engine.masterValue);
   current = { kind, key };
   renderRack();
+  snapshotSystem?.updateVisuals();
   populateBoards();
   setDirty(false);
 }

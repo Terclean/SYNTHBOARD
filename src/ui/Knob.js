@@ -6,13 +6,17 @@ export class Knob {
     this.min = options.min ?? 0;
     this.max = options.max ?? 1;
     this.value = options.value ?? (this.min + this.max) / 2;
-    this.step = options.step ?? 0.01;
+    this.defaultValue = options.defaultValue !== undefined ? options.defaultValue : this.value;
+    this.stepVal = options.step ?? 0.01;
     this.onChange = options.onChange || null;
+    this.onShiftClick = options.onShiftClick || null;
+    this.onFocus = options.onFocus || null;
+    this.onBlur = options.onBlur || null;
     this.unit = options.unit || '';
     this.label = options.label || '';
     this.logarithmic = options.logarithmic || false;
 
-    // Visual angle range: -140 deg to +140 deg (280 deg sweep)
+    // Visual angle range: -135 deg to +135 deg (270 deg sweep)
     this.minAngle = -135;
     this.maxAngle = 135;
 
@@ -46,6 +50,17 @@ export class Knob {
 
   bindEvents() {
     const onMouseDown = (e) => {
+      // Shift + Klick -> Spezialaktion (z. B. im Fokus-Dock laden)
+      if (e.shiftKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (this.onShiftClick) {
+          this.onShiftClick(this, e);
+        }
+        return;
+      }
+
+      this.knobBody.focus();
       this.isDragging = true;
       this.startY = e.clientY;
       this.startVal = this.value;
@@ -73,6 +88,42 @@ export class Knob {
 
     this.knobBody.addEventListener('mousedown', onMouseDown);
 
+    // Tastatur-Steuerung: Pfeiltasten hoch/runter/links/rechts drehen den Regler
+    this.knobBody.addEventListener('keydown', (e) => {
+      const keys = ['ArrowUp', 'ArrowRight', 'ArrowDown', 'ArrowLeft', 'PageUp', 'PageDown', 'Home', 'End'];
+      if (!keys.includes(e.key)) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      let stepRatio = 0.02; // Standard: 2%
+      if (e.shiftKey) stepRatio = 0.005; // Fein: 0.5%
+      if (e.altKey || e.key === 'PageUp' || e.key === 'PageDown') stepRatio = 0.08; // Grob: 8%
+
+      const norm = this.valToNorm(this.value);
+      let nextNorm = norm;
+      if (e.key === 'ArrowUp' || e.key === 'ArrowRight' || e.key === 'PageUp') {
+        nextNorm = Math.min(1, norm + stepRatio);
+      } else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'PageDown') {
+        nextNorm = Math.max(0, norm - stepRatio);
+      } else if (e.key === 'Home') {
+        nextNorm = 0;
+      } else if (e.key === 'End') {
+        nextNorm = 1;
+      }
+      this.setValue(this.normToVal(nextNorm), true);
+    });
+
+    // Fokus-Zustand für visuelle Hervorhebung
+    this.knobBody.addEventListener('focus', () => {
+      this.knobBody.classList.add('is-focused');
+      this.onFocus?.(this);
+    });
+
+    this.knobBody.addEventListener('blur', () => {
+      this.knobBody.classList.remove('is-focused');
+      this.onBlur?.(this);
+    });
+
     // Touch support
     this.knobBody.addEventListener('touchstart', (e) => {
       if (e.touches.length === 1) {
@@ -95,13 +146,31 @@ export class Knob {
       this.isDragging = false;
     });
 
-    // Wheel support
+    // Mausrad-Unterstützung
     this.knobBody.addEventListener('wheel', (e) => {
       e.preventDefault();
-      const delta = -Math.sign(e.deltaY) * 0.04;
+      const delta = -Math.sign(e.deltaY) * 0.03;
       const norm = this.valToNorm(this.value);
       this.setValue(this.normToVal(Math.max(0, Math.min(1, norm + delta))), true);
     }, { passive: false });
+
+    // Doppelklick: Zurücksetzen auf Standardwert
+    this.knobBody.addEventListener('dblclick', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.setValue(this.defaultValue, true);
+    });
+  }
+
+  step(direction = 1, factor = 1) {
+    const stepRatio = 0.02 * factor;
+    const norm = this.valToNorm(this.value);
+    const nextNorm = Math.max(0, Math.min(1, norm + direction * stepRatio));
+    this.setValue(this.normToVal(nextNorm), true);
+  }
+
+  focus() {
+    this.knobBody?.focus();
   }
 
   valToNorm(val) {
@@ -134,7 +203,7 @@ export class Knob {
     }
     if (this.knobBody) {
       this.knobBody.setAttribute('aria-valuenow', this.value.toFixed(2));
-      this.knobBody.title = `${this.label || 'Value'}: ${this.value.toFixed(2)}${this.unit}`;
+      this.knobBody.title = `${this.label || 'Value'}: ${this.value.toFixed(2)}${this.unit} · Pfeiltasten zum Drehen`;
     }
   }
 }

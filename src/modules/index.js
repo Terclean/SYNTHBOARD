@@ -1,6 +1,7 @@
 // Modul-Registry, Rack-Engine & Board-Vorlagen
 import { DroneModule, KeysModule, SequencerModule, NoiseModule } from './sources.js';
 import { PluckModule, FmVoiceModule, BassModule, DrumRackModule } from './instruments.js';
+import { FeltPianoModule } from './piano.js';
 import { MorphVoiceModule, HybridPercModule, ResonatorGardenModule, SpectralSwarmModule } from './voices.js';
 import { GranularCloudModule } from './granular.js';
 import { SceneConductorModule } from './conductor.js';
@@ -21,7 +22,7 @@ export const MODULES = Object.fromEntries(
     SceneConductorModule,
 
     // Instrumente & Klangquellen
-    DroneModule, PluckModule, FmVoiceModule, BassModule,
+    FeltPianoModule, DroneModule, PluckModule, FmVoiceModule, BassModule,
     DrumRackModule, KeysModule, SequencerModule, NoiseModule,
     MorphVoiceModule, HybridPercModule, ResonatorGardenModule, GranularCloudModule, SpectralSwarmModule,
 
@@ -205,6 +206,7 @@ export class RackEngine {
       master: this.masterValue,
       modules: [...this.controls, ...this.sources, ...this.effects].map((m) => m.getState()),
       cables: this.patchSystem.getState(),
+      snapshots: this.snapshotSystem?.getState(),
     };
   }
 
@@ -223,6 +225,9 @@ export class RackEngine {
     this.setMaster(state?.master ?? 0.8);
     if (state?.cables) {
       setTimeout(() => this.patchSystem.loadState(state.cables), 30);
+    }
+    if (state?.snapshots && this.snapshotSystem) {
+      this.snapshotSystem.loadState(state.snapshots);
     }
   }
 
@@ -309,6 +314,66 @@ export const TEMPLATES = {
         { from: 'scene_conductor:padOut', to: 'spectral_swarm:vcaCv', color: '#10b981' },
         { from: 'scene_conductor:changeOut', to: 'spectral_swarm:scatterIn', color: '#fbbf24' },
       ],
+    },
+  },
+
+  felt_piano_ambient: {
+    name: '🎹 Nils Frahm Felt Piano & Melodic Ambient',
+    category: 'Piano & Melodie',
+    description: 'Intimes Filzklavier mit Melodie-Sequenz, analogen Bassnoten, Raum-Hall und fertigen Snapshot-Presets (Tasten 1–5 switchbar, 6–8 Speed).',
+    state: {
+      master: 0.85,
+      modules: [
+        m('master_clock', { tempo: 72, swing: 0.08, running: 1 }),
+        m('clock_divider', {}),
+        m('random_walk', { stepSize: 2, range: 2, repeat: 8, mutation: 0.2, key: 9, scale: 'minorPenta', octave: 48 }),
+        m('quantizer', { key: 9, scale: 'minorPenta', transpose: 0 }),
+        m('slow_random', { rate: 0.08, smooth: 0.85, depth: 0.65, mode: 'smooth' }),
+        m('felt_piano', { level: 0.82, felt: 0.7, decay: 3.2, color: 3200, body: 0.65, hammer: 0.45, chord: 'single' }),
+        m('bass', { level: 0.75, cutoff: 480, reso: 3.8, env: 0.55, decay: 0.45, sub: 0.55 }),
+        m('drone', { level: 0.22, tone: 520, detune: 4, sub: 0.4, fm: 0.01, drift: 0.6, root: 33, chord: 'fifth', wave: 'triangle' }, { voices: [true, false, true, false, false, false] }),
+        m('chorus', { rate: 0.12, depth: 0.4, delay: 0.02, mix: 0.35 }),
+        m('delay', { time: 0.52, feedback: 0.55, tone: 2200, mod: 0.25, mix: 0.38, mode: 'pingpong' }),
+        m('reverb', { decay: 8.5, damp: 0.5, predelay: 0.04, tone: 3200, mix: 0.48 }),
+      ],
+      cables: [
+        { from: 'master_clock:clockOut', to: 'clock_divider:clockIn', color: '#06b6d4' },
+        { from: 'clock_divider:div2Out', to: 'random_walk:clockIn', color: '#06b6d4' },
+        { from: 'random_walk:pitchOut', to: 'quantizer:pitchIn', color: '#a855f7' },
+        { from: 'quantizer:pitchOut', to: 'felt_piano:pitchIn', color: '#a855f7' },
+        { from: 'random_walk:gateOut', to: 'felt_piano:gateIn', color: '#fbbf24' },
+        { from: 'clock_divider:div4Out', to: 'bass:gateIn', color: '#fbbf24' },
+        { from: 'quantizer:pitchOut', to: 'bass:pitchIn', color: '#a855f7' },
+        { from: 'slow_random:cvOut', to: 'felt_piano:feltCv', color: '#10b981' },
+      ],
+      snapshots: {
+        currentSpeed: 7,
+        activeSlot: 1,
+        slots: {
+          1: {
+            savedAt: Date.now(),
+            moduleCount: 4,
+            filter: 'all',
+            snapshot: {
+              felt_piano: { values: { level: 0.85, felt: 0.82, decay: 4.5, color: 2400, body: 0.7, hammer: 0.5 }, enabled: true },
+              bass: { values: { level: 0 }, enabled: false },
+              drone: { values: { level: 0.15 }, enabled: true },
+              reverb: { values: { decay: 10, mix: 0.55 }, enabled: true },
+            }
+          },
+          2: {
+            savedAt: Date.now(),
+            moduleCount: 4,
+            filter: 'all',
+            snapshot: {
+              felt_piano: { values: { level: 0.8, felt: 0.35, decay: 2.4, color: 4500, body: 0.5, hammer: 0.3 }, enabled: true },
+              bass: { values: { level: 0.82, cutoff: 650 }, enabled: true },
+              drone: { values: { level: 0.35 }, enabled: true },
+              reverb: { values: { decay: 6, mix: 0.38 }, enabled: true },
+            }
+          }
+        }
+      }
     },
   },
 
