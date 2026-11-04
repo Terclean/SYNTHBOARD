@@ -223,6 +223,7 @@ export class SnapshotSystem {
         values: { ...m.values },
         enabled: m.enabled,
         channelStrip: m.getChannelStripState ? m.getChannelStripState() : null,
+        extra: m.getExtra ? m.getExtra() : null,
       };
     });
 
@@ -273,7 +274,7 @@ export class SnapshotSystem {
     });
 
     if (duration === 0) {
-      // ── DIREKT (Speed 6): Sofort alle Parameter setzen ──
+      // ── DIREKT (Speed 6): Sofort alle Parameter & Optionen setzen ──
       targetModuleMap.forEach((savedData, mod) => {
         if (typeof savedData.enabled === 'boolean' && savedData.enabled !== mod.enabled) {
           mod.setEnabled(savedData.enabled);
@@ -283,6 +284,15 @@ export class SnapshotSystem {
         });
         if (savedData.channelStrip && mod.setChannelStrip) {
           mod.setChannelStrip(savedData.channelStrip);
+        }
+        if (savedData.extra) {
+          if (mod.setExtra) {
+            mod.setExtra(savedData.extra);
+          } else if (savedData.extra.voices && mod.voicesOn) {
+            mod.voicesOn = [...savedData.extra.voices];
+            mod.updateVoices?.();
+            mod.refreshPads?.();
+          }
         }
         mod.refreshKnobs?.();
       });
@@ -296,22 +306,58 @@ export class SnapshotSystem {
     const startTime = performance.now();
     const durationMs = duration * 1000;
 
-    // Vorbereitung Start- und Zielwerte
+    // Vorbereitung: Diskrete Optionen (Akkorde, Wellenformen, Skalen) sofort schalten,
+    // kontinuierliche Zahlenwerte sanft morphen
     const transitions = [];
+    const discreteParams = [];
+
     targetModuleMap.forEach((savedData, mod) => {
-      // Enabled sofort oder weich setzen
+      // Enabled sofort setzen
       if (typeof savedData.enabled === 'boolean') {
         mod.setEnabled(savedData.enabled);
       }
+      // Extra-State sofort wiederherstellen (z. B. Stimmen-Pads)
+      if (savedData.extra) {
+        if (mod.setExtra) {
+          mod.setExtra(savedData.extra);
+        } else if (savedData.extra.voices && mod.voicesOn) {
+          mod.voicesOn = [...savedData.extra.voices];
+          mod.updateVoices?.();
+          mod.refreshPads?.();
+        }
+      }
+
       Object.entries(savedData.values || {}).forEach(([pId, targetVal]) => {
         const startVal = mod.values[pId] ?? targetVal;
-        transitions.push({
-          mod,
-          pId,
-          startVal,
-          targetVal,
-        });
+        const isDiscrete =
+          typeof targetVal === 'string' ||
+          typeof targetVal === 'boolean' ||
+          typeof startVal === 'string' ||
+          typeof startVal === 'boolean';
+
+        if (isDiscrete) {
+          discreteParams.push({ mod, pId, targetVal });
+        } else {
+          transitions.push({
+            mod,
+            pId,
+            startVal: Number(startVal),
+            targetVal: Number(targetVal),
+          });
+        }
       });
+    });
+
+    // Diskrete Parameter (z. B. Akkord: Quinte ➔ Oktave) sofort anwenden
+    discreteParams.forEach(({ mod, pId, targetVal }) => {
+      mod.setParam(pId, targetVal);
+    });
+
+    targetModuleMap.forEach((savedData, mod) => {
+      if (savedData.channelStrip && mod.setChannelStrip) {
+        mod.setChannelStrip(savedData.channelStrip);
+      }
+      mod.refreshKnobs?.();
     });
 
     // Smoothstep Easing (sanftes Beschleunigen und Abbremsen)
@@ -322,7 +368,7 @@ export class SnapshotSystem {
       const progress = Math.min(1, elapsed / durationMs);
       const eased = easeInOut(progress);
 
-      // Aktualisiere Werte
+      // Aktualisiere numerische Werte
       const touchedModules = new Set();
       transitions.forEach(({ mod, pId, startVal, targetVal }) => {
         const currentVal = startVal + (targetVal - startVal) * eased;

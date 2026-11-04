@@ -150,16 +150,6 @@ export const JACK_HELP = {
   'resonator_garden:panCv': { name: 'Pan CV', desc: 'Stereo-Panorama-Bewegung.' },
   'resonator_garden:mutateIn': { name: 'Mutation Trigger', desc: 'Erzeugt neue Resonanzverhältnisse und Dämpfungskombinationen.' },
 
-  // Granular Cloud
-  'granular_cloud:gateIn': { name: 'Trigger / Gate', desc: 'Im Trigger-Modus startet ein Impuls eine Körnerwolke; im Cloud-Modus springt er zur Position.' },
-  'granular_cloud:jumpIn': { name: 'Jump Trigger', desc: 'Springt sofort zu einer neuen Abspielposition im Sample.' },
-  'granular_cloud:freezeIn': { name: 'Freeze Trigger', desc: 'Friert den aktuellen Audioausschnitt als stehende Klangwolke ein.' },
-  'granular_cloud:pitchIn': { name: 'Pitch CV', desc: 'Transponiert die Granular-Körner in Halbtönen nach oben/unten.' },
-  'granular_cloud:posCv': { name: 'Position CV', desc: 'Verschiebt das Ablesefenster entlang des Audio-Puffers wie ein zeitlicher Scanner.' },
-  'granular_cloud:densityCv': { name: 'Dichte CV', desc: 'Moduliert die Anzahl der Körner pro Sekunde (von Wassertropfen bis Klanggewitter).' },
-  'granular_cloud:vcaCv': { name: 'VCA CV', desc: 'Lautstärkesteuerung der Körnerwolke.' },
-  'granular_cloud:panCv': { name: 'Pan CV', desc: 'Stereoverteilung der Wolke.' },
-
   // Spectral Swarm
   'spectral_swarm:gateIn': { name: 'Gate / Burst', desc: 'Löst im Partikelmodus einen Schwarm kleiner Teiltöne aus; im Dronemodus einen Akzent.' },
   'spectral_swarm:pitchIn': { name: 'Pitch CV', desc: 'Stimmt die gemeinsame Basisfrequenz des Obertontonschwarms.' },
@@ -169,29 +159,6 @@ export const JACK_HELP = {
   'spectral_swarm:vcaCv': { name: 'VCA CV', desc: 'Gesamtlautstärke des Schwarms.' },
   'spectral_swarm:panCv': { name: 'Pan CV', desc: 'Stereo-Panoramabewegung.' },
   'spectral_swarm:mutateIn': { name: 'Mutation Trigger', desc: 'Verändert Unharmonik, Streuung und Helligkeit.' },
-
-  // Scene Conductor
-  'scene_conductor:clockIn': { name: 'Clock Eingang', desc: 'Taktet Rhythmus-Muster und quantisierte Szenenwechsel (Schlag, Takt, Phrase).' },
-  'scene_conductor:nextIn': { name: 'Next Scene Trigger', desc: 'Schaltet zur nächsten Szene weiter (Ambient ➜ Downtempo ➜ Broken Beat ➜ Techno).' },
-  'scene_conductor:returnIn': { name: 'Return Trigger', desc: 'Springt zurück zur vorigen Szene.' },
-  'scene_conductor:fillIn': { name: 'Fill Trigger', desc: 'Startet ein dichtes Drum-Fill bis zum Taktende.' },
-  'scene_conductor:breakIn': { name: 'Break Trigger', desc: 'Nimmt Bass und Kick heraus; Flächen und Hallfahnen wachsen an.' },
-  'scene_conductor:mutateIn': { name: 'Mutation Trigger', desc: 'Würfelt die Rhythmus-Muster der aktuellen Szene neu.' },
-  'scene_conductor:kickOut': { name: 'Kick Gate', desc: 'Rhythmus-Trigger für Kick / Bassdrum der aktuellen Szene.' },
-  'scene_conductor:snareOut': { name: 'Snare Gate', desc: 'Rhythmus-Trigger für Snare / Claps.' },
-  'scene_conductor:hatOut': { name: 'Hi-Hat Gate', desc: 'Rhythmus-Trigger für geschlossene und offene Hi-Hats.' },
-  'scene_conductor:percOut': { name: 'Perc Gate', desc: 'Rhythmus-Trigger für Akzente, Rimshots oder Resonator-Impulse.' },
-  'scene_conductor:bassGate': { name: 'Bass Gate', desc: 'Rhythmisches Gate für Bass-Synthesizer.' },
-  'scene_conductor:bassPitch': { name: 'Bass Pitch CV', desc: 'Musikalisch passende Tonhöhe für die Bassline der Szene.' },
-  'scene_conductor:leadGate': { name: 'Lead Gate', desc: 'Rhythmisches Gate für Melodie- und Zupfstimmen.' },
-  'scene_conductor:leadPitch': { name: 'Lead Pitch CV', desc: 'Skalenreine Melodienotenspannung für Leads oder Keys.' },
-  'scene_conductor:changeOut': { name: 'Change Trigger', desc: 'Sendet einen Impuls bei jedem Szenenwechsel oder Drop nach einem Break.' },
-  'scene_conductor:padOut': { name: 'Pad Mod CV', desc: 'Flächenintensität: hoch im Ambient, sparsam im Techno.' },
-  'scene_conductor:cloudOut': { name: 'Cloud Mod CV', desc: 'Modulationsspannung für Granular Cloud oder Shimmer.' },
-  'scene_conductor:energyOut': { name: 'Energy Mod CV', desc: 'Gesamtenergie und Rhythmusdrang (0.1 Ambient bis 1.0 Techno).' },
-  'scene_conductor:spaceOut': { name: 'Space Mod CV', desc: 'Raumgröße & Nachhallanteil (groß bei Ambient, trocken bei Beats).' },
-  'scene_conductor:timbreOut': { name: 'Timbre Mod CV', desc: 'Klangfarben-Öffnung für Filter und Wavetable-Morphs.' },
-  'scene_conductor:sceneOut': { name: 'Scene Index CV', desc: 'Stufenlose Spannung von 0.0 (Ambient) bis 1.0 (Techno).' },
 
   // Filter Effekt
   'filter:cvCutoff': { name: 'Cutoff CV', desc: 'Moduliert die Filterfrequenz von außen (z. B. durch Slow Random oder LFO).' },
@@ -349,12 +316,12 @@ export const MODULE_EXAMPLES = {
   },
   macro_controller: {
     desc: 'Drei globale Steuerachsen (Dichte, Variation, Bewegung) für händische Performance.',
-    wiring: 'Macro Dichte CV ➔ Granular Cloud (Density CV) & Bewegung CV ➔ Filter Cutoff',
+    wiring: 'Macro Dichte CV ➔ Spectral Swarm (VCA CV) & Bewegung CV ➔ Filter Cutoff',
     recipe: {
       name: 'Macro Performance Steuerung',
-      modules: ['macro_controller', 'granular_cloud', 'filter', 'reverb'],
+      modules: ['macro_controller', 'spectral_swarm', 'filter', 'reverb'],
       cables: [
-        { from: 'macro_controller:densityCv', to: 'granular_cloud:densityCv', color: '#10b981' },
+        { from: 'macro_controller:densityCv', to: 'spectral_swarm:vcaCv', color: '#10b981' },
         { from: 'macro_controller:motionCv', to: 'filter:cvCutoff', color: '#10b981' },
       ],
       params: { macro_controller: { density: 0.7, motion: 0.6 } },
@@ -384,22 +351,6 @@ export const MODULE_EXAMPLES = {
         { from: 'attenuverter:outA', to: 'filter:cvCutoff', color: '#10b981' },
       ],
       params: { attenuverter: { scaleA: 0.22 } },
-    },
-  },
-  scene_conductor: {
-    desc: 'Wechselt nahtlos zwischen Ambient, Downtempo, Broken Beat und Techno mit Rhythmen & 6 Mod-CVs.',
-    wiring: 'Conductor Kick ➔ Hybrid Perc, Timbre ➔ Morph Voice (Morph CV)',
-    recipe: {
-      name: 'Scene Conductor Szenen-Showcase',
-      modules: ['master_clock', 'scene_conductor', 'hybrid_perc', 'morph_voice', 'reverb'],
-      cables: [
-        { from: 'master_clock:clockOut', to: 'scene_conductor:clockIn', color: '#06b6d4' },
-        { from: 'scene_conductor:kickOut', to: 'hybrid_perc:gateIn', color: '#fbbf24' },
-        { from: 'scene_conductor:leadGate', to: 'morph_voice:gateIn', color: '#fbbf24' },
-        { from: 'scene_conductor:leadPitch', to: 'morph_voice:pitchIn', color: '#a855f7' },
-        { from: 'scene_conductor:timbreOut', to: 'morph_voice:morphCv', color: '#10b981' },
-      ],
-      params: { master_clock: { tempo: 96 } },
     },
   },
 
@@ -553,18 +504,6 @@ export const MODULE_EXAMPLES = {
         { from: 'slow_random:cvOut', to: 'resonator_garden:dampCv', color: '#10b981' },
       ],
       params: { resonator_garden: { material: 0.55, modes: 8, decay: 2.6 } },
-    },
-  },
-  granular_cloud: {
-    desc: 'Körnerwolke mit Mikrokörnern, Freeze, Scan und Rückwärtsspiel.',
-    wiring: 'Slow Random CV ➔ Granular Cloud POS CV (Gleitende Zeitreise)',
-    recipe: {
-      name: 'Granular Time-Scanner',
-      modules: ['slow_random', 'granular_cloud', 'delay', 'reverb'],
-      cables: [
-        { from: 'slow_random:cvOut', to: 'granular_cloud:posCv', color: '#10b981' },
-      ],
-      params: { slow_random: { rate: 0.08, depth: 0.8 }, granular_cloud: { density: 18, size: 0.22 } },
     },
   },
   spectral_swarm: {
@@ -842,20 +781,12 @@ export class InfoSystem {
   getGreenJackTips(modType, portId, isOut) {
     if (isOut) {
       switch (`${modType}:${portId}`) {
-        case 'scene_conductor:timbreOut':
-          return '💡 <b>Wohin stecken?</b> In <code>Morph Voice: MORPH CV</code> oder <code>Filter: CUTOFF CV</code>.<br><b>Was verändert sich?</b> Der Klang öffnet sich mit steigender Szenen-Energie von samtig bis schneidend!';
-        case 'scene_conductor:energyOut':
-          return '💡 <b>Wohin stecken?</b> In <code>Hybrid Percussion: TIMBRE CV</code> oder <code>LENGTH CV</code>.<br><b>Was verändert sich?</b> Schläge verwandeln sich von weichem Holz zu hartem, schepperndem Metall!';
-        case 'scene_conductor:padOut':
-          return '💡 <b>Wohin stecken?</b> In <code>Spectral Swarm: VCA CV</code> oder <code>Drone: VCA CV</code>.<br><b>Was verändert sich?</b> Flächen blühen im Ambient voll auf und treten bei den Beats automatisch zurück!';
-        case 'scene_conductor:cloudOut':
-          return '💡 <b>Wohin stecken?</b> In <code>Granular Cloud: POS CV</code> oder <code>DENSITY CV</code>.<br><b>Was verändert sich?</b> Fährt im Takt der Szenen durch den Audiospeicher.';
         case 'slope_generator:envOut':
           return '💡 <b>Wohin stecken?</b> In <code>Drone: VCA CV</code>, <code>Morph Voice: MORPH CV</code> oder <code>Filter: CUTOFF CV</code>.<br><b>Was verändert sich?</b> Bis zu 60s langer, majestätischer Ambient-Swell!';
         case 'slope_generator:invOut':
           return '💡 <b>Wohin stecken?</b> In <code>Pluck: VCA CV</code> oder <code>Drum: VCA CV</code>.<br><b>Was verändert sich?</b> Automatisches Ducking: Begleittöne werden dezent leiser, solange die Klangfläche anschwillt!';
         case 'slow_random:cvOut':
-          return '💡 <b>Wohin stecken?</b> In <code>Filter: CUTOFF CV</code>, <code>Delay: TIME CV</code> oder <code>Granular: POS CV</code>.<br><b>Was verändert sich?</b> Sanfte Meereswellen-Atmung oder analoges Vintage-Bandleiern!';
+          return '💡 <b>Wohin stecken?</b> In <code>Filter: CUTOFF CV</code>, <code>Delay: TIME CV</code> oder <code>Morph Voice: MORPH CV</code>.<br><b>Was verändert sich?</b> Sanfte Meereswellen-Atmung oder analoges Vintage-Bandleiern!';
         case 'attenuverter:outA':
         case 'attenuverter:outB':
         case 'attenuverter:sumOut':
@@ -870,13 +801,9 @@ export class InfoSystem {
         case 'delay:cvTime':
           return '💡 <b>Woher nehmen?</b> Aus <code>Slow Random: CV OUT</code>.<br><b>Was verändert sich?</b> Erzeugt wehmütiges Lo-Fi Band-Leiern (Tape Pitch Flutter) wie eine alte Kassette!';
         case 'morph_voice:morphCv':
-          return '💡 <b>Woher nehmen?</b> Aus <code>Scene Conductor: TIMBRE</code> oder <code>Slope Generator: ENV OUT</code>.<br><b>Was verändert sich?</b> Fährt stufenlos von warmer Sinuswelle über Chöre zu schneidendem Metall!';
-        case 'granular_cloud:posCv':
-          return '💡 <b>Woher nehmen?</b> Aus <code>Slow Random: CV OUT</code> oder <code>Scene Conductor: CLOUD</code>.<br><b>Was verändert sich?</b> Gleitet wie ein Scanner durch das Sample – nie wiederkehrende Texturen!';
-        case 'granular_cloud:densityCv':
-          return '💡 <b>Woher nehmen?</b> Aus <code>Slope Generator: ENV OUT</code>.<br><b>Was verändert sich?</b> Körnerwolke wächst von vereinzelten Regentropfen zu dichtem Klanggewitter an!';
+          return '💡 <b>Woher nehmen?</b> Aus <code>Slope Generator: ENV OUT</code> oder <code>Slow Random: CV OUT</code>.<br><b>Was verändert sich?</b> Fährt stufenlos von warmer Sinuswelle über Chöre zu schneidendem Metall!';
         case 'hybrid_perc:timbreCv':
-          return '💡 <b>Woher nehmen?</b> Aus <code>Scene Conductor: ENERGY</code> oder <code>Slow Random: CV OUT</code>.<br><b>Was verändert sich?</b> Trommel schlägt mal wie Holz und mal wie eine schwere Metallglocke!';
+          return '💡 <b>Woher nehmen?</b> Aus <code>Slow Random: CV OUT</code> oder <code>Slope Generator: ENV OUT</code>.<br><b>Was verändert sich?</b> Trommel schlägt mal wie Holz und mal wie eine schwere Metallglocke!';
         case 'resonator_garden:materialCv':
           return '💡 <b>Woher nehmen?</b> Aus <code>Slow Random: CV OUT</code> oder <code>Slope Generator: ENV OUT</code>.<br><b>Was verändert sich?</b> Schwingt zwischen weichen Cellosaiten, Marimbastäben und Glockenspiel!';
         case 'resonator_garden:dampCv':
@@ -1335,77 +1262,6 @@ export class InfoSystem {
   getTutorialData() {
     return [
       {
-        id: 'tut-conductor',
-        title: 'Scene Conductor: Szenen-Orchester & 6 Mod-CVs',
-        icon: '🎬',
-        color: '#f43f5e',
-        badge: 'Steuerung & Komposition',
-        desc: 'Der <b>Scene Conductor</b> steuert deine musikalische Reise durch 4 Stilwelten: <b>Ambient</b> (zeitlos schwebend) ➜ <b>Downtempo</b> (gechillter Groove) ➜ <b>Broken Beat</b> (verspielte Polyrhythmen) ➜ <b>Techno</b> (treibender Club-Puls). Er sendet Rhythmus-Gates, Bass- und Lead-Melodien sowie 6 kontinuierliche Modulationsspannungen.',
-        greenJacks: [
-          { id: 'timbreOut', type: 'out', label: 'TIMBRE', desc: 'Steigt mit Szenen-Energie an. Perfekt für Filter & Wavetable-Morphing.' },
-          { id: 'energyOut', type: 'out', label: 'ENERGY', desc: 'Dynamik & Rhythmusdrang (0.1 im Ambient bis 1.0 im Techno).' },
-          { id: 'padOut', type: 'out', label: 'PAD', desc: 'Flächen-Intensität: voll im Ambient, duckt sich automatisch im Techno weg.' },
-          { id: 'cloudOut', type: 'out', label: 'CLOUD', desc: 'Granular-Scanning-Spannung für Texturen.' },
-          { id: 'spaceOut', type: 'out', label: 'SPACE', desc: 'Raumgröße & Nachhall (groß bei Ambient, trocken bei Beats).' },
-          { id: 'sceneOut', type: 'out', label: 'SCENE', desc: 'Stufenloser Szenen-Index von 0.0 bis 1.0.' },
-        ],
-        scheme: {
-          fromMod: 'scene_conductor',
-          fromPort: 'timbreOut',
-          fromLbl: 'Scene Conductor: TIMBRE',
-          toMod: 'morph_voice',
-          toPort: 'morphCv',
-          toLbl: 'Morph Voice: MORPH CV',
-          sonicEffect: '<b>Hörbare Auswirkung:</b> Mit jedem Szenenwechsel morpht die Wellenform der Morph Voice automatisch: In ruhigen Szenen warme Sinus- und Chorklänge, bei Techno aggressiver Sägezahn und schneidendes Digitalmetall!',
-        },
-        recipe: {
-          name: 'Scene Conductor & Morph Voice Demo',
-          modules: ['master_clock', 'scene_conductor', 'morph_voice', 'filter', 'delay', 'reverb'],
-          cables: [
-            { from: 'master_clock:clockOut', to: 'scene_conductor:clockIn', color: '#06b6d4' },
-            { from: 'scene_conductor:leadGate', to: 'morph_voice:gateIn', color: '#fbbf24' },
-            { from: 'scene_conductor:leadPitch', to: 'morph_voice:pitchIn', color: '#a855f7' },
-            { from: 'scene_conductor:timbreOut', to: 'morph_voice:morphCv', color: '#10b981' },
-            { from: 'scene_conductor:padOut', to: 'filter:cvCutoff', color: '#10b981' },
-          ],
-          params: { master_clock: { tempo: 94 }, scene_conductor: { amount: 1 } },
-        },
-      },
-      {
-        id: 'tut-granular',
-        title: 'Granular Cloud: Körnerwolke, Freeze & Zeitreise',
-        icon: '🌫️',
-        color: '#06b6d4',
-        badge: 'Texturgenerator & Sampler',
-        desc: 'Die <b>Granular Cloud</b> zerschneidet Audio in hunderte winzige Klangkörner (Grains). Sie erzeugt schwebende Texturen, kann Klänge mit <i>FREEZE</i> in der Zeit anhalten, rückwärts abspielen oder mit <i>SCAN</i> kontinuierlich durch den Audiospeicher wandern.',
-        greenJacks: [
-          { id: 'posCv', type: 'in', label: 'POS CV', desc: 'Verschiebt das Ablesefenster entlang des Sample-Puffers (Gleitender Scan).' },
-          { id: 'densityCv', type: 'in', label: 'DENSITY CV', desc: 'Moduliert die Anzahl der Körner pro Sekunde (von Wassertropfen bis dichte Wolke).' },
-          { id: 'vcaCv', type: 'in', label: 'VCA CV', desc: 'Lautstärkesteuerung für Swells und dynamische Texturen.' },
-          { id: 'panCv', type: 'in', label: 'PAN CV', desc: 'Stereo-Verteilung der Körnerwolke im Raum.' },
-        ],
-        scheme: {
-          fromMod: 'slow_random',
-          fromPort: 'cvOut',
-          fromLbl: 'Slow Random: CV OUT',
-          toMod: 'granular_cloud',
-          toPort: 'posCv',
-          toLbl: 'Granular Cloud: POS CV',
-          sonicEffect: '<b>Hörbare Auswirkung:</b> Das Ablesefenster gleitet wie eine Lupe organisch durch den Klangspeicher. Kein Korn wiederholt sich exakt – endlose, lebendige Wandlung!',
-        },
-        recipe: {
-          name: 'Granular Scanning Cloud',
-          modules: ['slow_random', 'granular_cloud', 'delay', 'reverb'],
-          cables: [
-            { from: 'slow_random:cvOut', to: 'granular_cloud:posCv', color: '#10b981' },
-          ],
-          params: {
-            slow_random: { rate: 0.08, depth: 0.8 },
-            granular_cloud: { density: 18, size: 0.22, scatter: 0.4 },
-          },
-        },
-      },
-      {
         id: 'tut-morph',
         title: 'Morph Voice: 8-facher Wavetable & Analog/Vokal/Metall',
         icon: '🧬',
@@ -1766,42 +1622,6 @@ export class InfoSystem {
         toJack: 'VCA CV',
         effect: '<b>Sidechain-Ducking (Gegenbewegung):</b> Zupftöne treten leise zurück, während die Drone-Fläche anschwillt.',
         params: { slope_generator: { mode: 'loop', rise: 8, fall: 16 } },
-      },
-      {
-        fromMod: 'slow_random',
-        fromPort: 'cvOut',
-        fromName: 'Slow Random LFO',
-        fromJack: 'CV OUT',
-        toMod: 'granular_cloud',
-        toPort: 'posCv',
-        toName: 'Granular Cloud',
-        toJack: 'POS CV',
-        effect: '<b>Granular-Zeitreise:</b> Scannt kontinuierlich durch den Audio-Puffer – kein Akkord klingt jemals wie der vorige.',
-        params: { granular_cloud: { density: 16, scatter: 0.4 } },
-      },
-      {
-        fromMod: 'scene_conductor',
-        fromPort: 'timbreOut',
-        fromName: 'Scene Conductor',
-        fromJack: 'TIMBRE',
-        toMod: 'morph_voice',
-        toPort: 'morphCv',
-        toName: 'Morph Voice',
-        toJack: 'MORPH CV',
-        effect: '<b>Szenen-Wellenform-Morph:</b> Schaltet stufenlos von weichen Sinus-/Vokalen im Ambient zu schneidendem Techno-Metall um.',
-        params: { scene_conductor: { amount: 1 } },
-      },
-      {
-        fromMod: 'scene_conductor',
-        fromPort: 'energyOut',
-        fromName: 'Scene Conductor',
-        fromJack: 'ENERGY',
-        toMod: 'hybrid_perc',
-        toPort: 'timbreCv',
-        toName: 'Hybrid Percussion',
-        toJack: 'MATERIAL CV',
-        effect: '<b>Holz zu Glocke & Amboss:</b> Trommel morpht von tiefem Holz-Tap zu hartem, metallischem Industrie-Schlag.',
-        params: { hybrid_perc: { body: 0.75, drop: 0.55 } },
       },
       {
         fromMod: 'slope_generator',

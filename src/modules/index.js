@@ -3,8 +3,6 @@ import { DroneModule, KeysModule, SequencerModule, NoiseModule } from './sources
 import { PluckModule, FmVoiceModule, BassModule, DrumRackModule } from './instruments.js';
 import { FeltPianoModule } from './piano.js';
 import { MorphVoiceModule, HybridPercModule, ResonatorGardenModule, SpectralSwarmModule } from './voices.js';
-import { GranularCloudModule } from './granular.js';
-import { SceneConductorModule } from './conductor.js';
 import {
   MasterClockModule, ClockDividerModule, EuclideanModule,
   ProbabilityGateModule, RandomWalkModule, ScaleQuantizerModule,
@@ -19,12 +17,11 @@ export const MODULES = Object.fromEntries(
     MasterClockModule, ClockDividerModule, EuclideanModule,
     ProbabilityGateModule, RandomWalkModule, ScaleQuantizerModule,
     SlowRandomModule, MacroControllerModule, SlopeGeneratorModule, AttenuverterModule,
-    SceneConductorModule,
 
     // Instrumente & Klangquellen
     FeltPianoModule, DroneModule, PluckModule, FmVoiceModule, BassModule,
     DrumRackModule, KeysModule, SequencerModule, NoiseModule,
-    MorphVoiceModule, HybridPercModule, ResonatorGardenModule, GranularCloudModule, SpectralSwarmModule,
+    MorphVoiceModule, HybridPercModule, ResonatorGardenModule, SpectralSwarmModule,
 
     // Effekte
     FilterModule, ChorusModule, TremoloModule, LoFiModule, DelayModule, ReverbModule
@@ -278,41 +275,33 @@ const m = (type, values = {}, extra) => ({ type, values, ...(extra ? { extra } :
 
 export const TEMPLATES = {
   scenes: {
-    name: '🎬 Szenen-Wechsel (Ambient ↔ Beats)',
+    name: '🎛️ Hypnotic Live Beat & Ambient Rack',
     category: 'Showcase & Performance',
-    description: 'Vollständiges Live-Setup mit automatischem Morphing zwischen sphärischem Ambient und druckvollen Minimal-Beats.',
+    description: 'Vollständiges Live-Setup mit Euklidischen Rhythmen, Clock-Divider, hybriden Drums, Resonator-Glocken und Raum-Hall.',
     state: {
       master: 0.8,
       modules: [
         m('master_clock', { tempo: 92, swing: 0.1, running: 1 }),
-        m('scene_conductor', { amount: 1, density: 1, vary: 0.15, mutation: 0.35, quant: 'bar', xfade: '2', scope: 'all', auto: '8', brk: '1', fx: 'on', key: 9, scale: 'minorPenta' }),
+        m('clock_divider', {}),
+        m('euclidean', { steps: 16, pulses: 4, rotation: 0 }),
         m('hybrid_perc', { level: 0.85, tune: 58, body: 0.85, material: 0.1, drop: 0.6, noise: 0.1, snap: 0.35, length: 0.38, drive: 0.2 }),
         m('drum_rack', { level: 0.7, kDecay: 0.4, sSnap: 0.6, hDecay: 0.09, pTune: 420 }),
         m('bass', { level: 0.7, cutoff: 480, reso: 4.2, env: 0.55, decay: 0.5, sub: 0.5 }),
         m('morph_voice', { level: 0.6, morph: 0.35, bright: 2200, formant: 0.15, rough: 0.1, detune: 12, attack: 0.25, release: 1.8, voices: 3, jump: 0.2 }),
         m('resonator_garden', { level: 0.6, material: 0.55, size: 0.45, damp: 0.4, pos: 0.3, spread: 0.4, decay: 2.2, modes: 8 }),
-        m('granular_cloud', { level: 0.6, pos: 0.3, size: 0.18, density: 16, pitch: 0, reverse: 0.2, scatter: 0.35, width: 0.7, scan: 0.1, jump: 0.5 }),
         m('spectral_swarm', { level: 0.55, count: 14, inharm: 0.2, scatter: 0.3, motion: 0.2, depth: 0.5, bright: 0.45, cohesion: 0.5 }),
         m('filter', { cutoff: 5200, reso: 1.2, drive: 0.05, lfoDepth: 0.05 }),
         m('delay', { time: 0.42, feedback: 0.42, tone: 2600, mod: 0.15, mix: 0.3, mode: 'pingpong' }),
         m('reverb', { decay: 7, damp: 0.5, tone: 3600, mix: 0.4 }),
       ],
       cables: [
-        { from: 'master_clock:clockOut', to: 'scene_conductor:clockIn', color: '#06b6d4' },
-        { from: 'scene_conductor:kickOut', to: 'hybrid_perc:gateIn', color: '#fbbf24' },
-        { from: 'scene_conductor:snareOut', to: 'drum_rack:trigSnare', color: '#fbbf24' },
-        { from: 'scene_conductor:hatOut', to: 'drum_rack:trigHat', color: '#fbbf24' },
-        { from: 'scene_conductor:percOut', to: 'resonator_garden:gateIn', color: '#fbbf24' },
-        { from: 'scene_conductor:bassGate', to: 'bass:gateIn', color: '#fbbf24' },
-        { from: 'scene_conductor:bassPitch', to: 'bass:pitchIn', color: '#a855f7' },
-        { from: 'scene_conductor:leadGate', to: 'morph_voice:gateIn', color: '#fbbf24' },
-        { from: 'scene_conductor:leadPitch', to: 'morph_voice:pitchIn', color: '#a855f7' },
-        { from: 'scene_conductor:leadPitch', to: 'resonator_garden:pitchIn', color: '#a855f7' },
-        { from: 'scene_conductor:timbreOut', to: 'morph_voice:morphCv', color: '#10b981' },
-        { from: 'scene_conductor:cloudOut', to: 'granular_cloud:vcaCv', color: '#10b981' },
-        { from: 'scene_conductor:energyOut', to: 'granular_cloud:densityCv', color: '#10b981' },
-        { from: 'scene_conductor:padOut', to: 'spectral_swarm:vcaCv', color: '#10b981' },
-        { from: 'scene_conductor:changeOut', to: 'spectral_swarm:scatterIn', color: '#fbbf24' },
+        { from: 'master_clock:clockOut', to: 'clock_divider:clockIn', color: '#06b6d4' },
+        { from: 'clock_divider:div1Out', to: 'hybrid_perc:gateIn', color: '#fbbf24' },
+        { from: 'clock_divider:div2Out', to: 'drum_rack:trigSnare', color: '#fbbf24' },
+        { from: 'clock_divider:div4Out', to: 'drum_rack:trigHat', color: '#fbbf24' },
+        { from: 'euclidean:gateOut', to: 'resonator_garden:gateIn', color: '#fbbf24' },
+        { from: 'clock_divider:div1Out', to: 'bass:gateIn', color: '#fbbf24' },
+        { from: 'euclidean:gateOut', to: 'morph_voice:gateIn', color: '#fbbf24' },
       ],
     },
   },
@@ -480,9 +469,9 @@ export const TEMPLATES = {
   },
 
   deep_space: {
-    name: '🪐 Deep Space & Granular-Cluster',
+    name: '🪐 Deep Space & Harmonic Cluster',
     category: 'Cinematic & Sci-Fi',
-    description: 'Interstellare Klangreise mit schwebenden Granular-Wolken, 18-fachem Sinus-Schwarm, dunklem Sub-Drone und Attenuverter-Modulation.',
+    description: 'Interstellare Klangreise mit schwebendem 18-fachem Sinus-Schwarm, Zupfnoten, dunklem Sub-Drone und Attenuverter-Modulation.',
     state: {
       master: 0.8,
       modules: [
@@ -490,7 +479,7 @@ export const TEMPLATES = {
         m('random_walk', { stepSize: 1, range: 3, repeat: 12, mutation: 0.3, key: 9, scale: 'dorian', octave: 36 }),
         m('slope_generator', { rise: 2.5, fall: 4.0, curve: 0.5, cycle: 1, mode: 'loop' }),
         m('attenuverter', { ch1Scale: 0.65, ch1Offset: 0.2, ch2Scale: -0.5, ch2Offset: 0.3 }),
-        m('granular_cloud', { level: 0.72, pos: 0.42, size: 0.28, density: 22, pitch: -12, reverse: 0.35, scatter: 0.4, width: 0.88, scan: 0.12, jump: 0.4 }),
+        m('pluck', { level: 0.65, tone: 2400, damp: 1.5, bright: 0.7, body: 0.5 }),
         m('spectral_swarm', { level: 0.65, count: 18, inharm: 0.28, scatter: 0.42, motion: 0.25, depth: 0.6, bright: 0.52, cohesion: 0.55 }),
         m('drone', {
           level: 0.45,
@@ -511,12 +500,11 @@ export const TEMPLATES = {
       ],
       cables: [
         { from: 'slow_random:cvOut', to: 'attenuverter:in1', color: '#10b981' },
-        { from: 'attenuverter:out1', to: 'granular_cloud:posCv', color: '#10b981' },
+        { from: 'attenuverter:out1', to: 'pluck:pitchIn', color: '#a855f7' },
         { from: 'slow_random:invOut', to: 'spectral_swarm:scatterIn', color: '#10b981' },
         { from: 'slope_generator:envOut', to: 'filter:cvCutoff', color: '#10b981' },
-        { from: 'slope_generator:eorOut', to: 'spectral_swarm:vcaCv', color: '#fbbf24' },
+        { from: 'slope_generator:eorOut', to: 'pluck:gateIn', color: '#fbbf24' },
         { from: 'random_walk:pitchOut', to: 'drone:pitchIn', color: '#a855f7' },
-        { from: 'slow_random:cvOut', to: 'granular_cloud:densityCv', color: '#10b981' },
       ],
     },
   },
@@ -621,9 +609,9 @@ export const TEMPLATES = {
   },
 
   dreampop: {
-    name: '☁️ Ethereal Dream-Pop & Shimmer Cloud',
+    name: '☁️ Ethereal Dream-Pop & Shimmer Soundscape',
     category: 'Dream Pop & Shimmer',
-    description: 'Sphärische Granular-Partikel in Dur-Penta, zarte Harfen-Plucks, sanfter Chor-Swarm, Vintage Chorus und 12 Sekunden Shimmer-Hall.',
+    description: 'Zarte Harfen-Plucks in Dur-Penta, sanfter Chor-Swarm, Vintage Chorus und 12 Sekunden Shimmer-Hall.',
     state: {
       master: 0.82,
       modules: [
@@ -631,7 +619,6 @@ export const TEMPLATES = {
         m('clock_divider', {}),
         m('random_walk', { stepSize: 2, range: 2, repeat: 8, mutation: 0.25, key: 6, scale: 'majorPenta', octave: 54 }),
         m('quantizer', { key: 6, scale: 'majorPenta', transpose: 0 }),
-        m('granular_cloud', { level: 0.68, pos: 0.32, size: 0.22, density: 24, pitch: 12, reverse: 0.3, scatter: 0.35, width: 0.85, scan: 0.15, jump: 0.4 }),
         m('pluck', { level: 0.72, tone: 4200, damp: 1.1, bright: 0.88, body: 0.4 }),
         m('spectral_swarm', { level: 0.6, count: 16, inharm: 0.12, scatter: 0.32, motion: 0.2, depth: 0.5, bright: 0.65, cohesion: 0.6 }),
         m('keys', { level: 0.55, cutoff: 1800, reso: 1.4, attack: 1.1, release: 3.2, detune: 8, wave: 'saw', key: 6, scale: 'majorPenta', octave: 48 }),

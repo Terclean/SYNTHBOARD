@@ -13,6 +13,7 @@ function cleanupOnEnd(osc, nodes) {
 // ───────────────────────────────────────────── DRONE ──
 const CHORDS = {
   fifths: { name: 'Quinten', iv: [0, 7, 12, 19, 24, 31] },
+  octaves: { name: 'Oktaven', iv: [0, 12, 24, 36, 12, 24] },
   minor9: { name: 'Moll 9', iv: [0, 7, 12, 15, 19, 26] },
   major: { name: 'Dur maj7', iv: [0, 7, 12, 16, 19, 23] },
   sus: { name: 'Sus', iv: [0, 5, 7, 12, 17, 19] },
@@ -156,6 +157,13 @@ export class DroneModule extends SourceBase {
   }
 
   getExtra() { return { voices: [...this.voicesOn] }; }
+  setExtra(extra) {
+    if (Array.isArray(extra?.voices)) {
+      this.voicesOn = [...extra.voices];
+      this.updateVoices();
+      if (this.refreshPads) this.refreshPads();
+    }
+  }
 
   renderExtra(el, { changed }) {
     el.innerHTML = `<div class="pad-row pad-row-6">${this.voices.map((_, i) => `
