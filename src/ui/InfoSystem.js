@@ -969,7 +969,7 @@ export class InfoSystem {
         </header>
 
         <nav class="guide-tabs">
-          <button class="guide-tab-btn active" data-tab="tab-boards">🎛️ Beispiel-Boards (14 Racks)</button>
+          <button class="guide-tab-btn active" data-tab="tab-boards">🎛️ Vorlagen &amp; Boards</button>
           <button class="guide-tab-btn" data-tab="tab-tutorials">🎓 Modul-Tutorials (Mit Beispielen)</button>
           <button class="guide-tab-btn" data-tab="tab-green-guide">🟢 Grüne Buchsen &amp; Modulation</button>
           <button class="guide-tab-btn" data-tab="tab-cables">🔌 Patch-Kabel Basics</button>
@@ -982,7 +982,7 @@ export class InfoSystem {
           <!-- TAB 0: BEISPIEL-BOARDS GALERIE -->
           <section id="tab-boards" class="guide-tab-pane active">
             <div class="green-guide-intro">
-              <h3>🎛️ 14 spielfertige Beispiel-Boards &amp; Vorlagen</h3>
+              <h3>🎛️ Boards &amp; Vorlagen</h3>
               <p>Jedes dieser Boards ist ein <b>vollständig aufgebautes und verdrahtetes modulares Synthesizer-Rack</b> für verschiedene Genres und Klangwelten – von meditativer Zen-Klangkunst über kosmische Granular-Wolken bis zu treibendem Berlin-School-Sequencer und Cyberpunk-Glitch. Klicke auf <i>„⚡ Dieses Board laden &amp; abspielen“</i>, um das gesamte Rack sofort zu starten!</p>
             </div>
 

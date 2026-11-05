@@ -618,13 +618,21 @@ $('#btn-new').addEventListener('click', () => {
   toast('Leeres Board – füge links Module hinzu');
 });
 
-$('#btn-delete').addEventListener('click', () => {
-  if (current.kind !== 'my' || !confirm(`Board „${current.key}“ wirklich löschen?`)) return;
+$('#btn-delete').addEventListener('click', (e) => {
   const boards = loadBoards();
-  delete boards[current.key];
-  storeBoards(boards);
-  toast('Board gelöscht');
-  loadBoard('tpl', 'generative');
+  if (e.shiftKey || confirm('Möchtest du dieses Board (oder mit Shift alle gespeicherten Boards) löschen?')) {
+    if (e.shiftKey) {
+      storeBoards({});
+      toast('Speicher bereinigt: Alle Boards gelöscht');
+      loadBoard('tpl', 'empty');
+      return;
+    }
+    if (current.kind !== 'my') return;
+    delete boards[current.key];
+    storeBoards(boards);
+    toast('Board gelöscht');
+    loadBoard('tpl', 'empty');
+  }
 });
 
 $('#btn-export').addEventListener('click', () => {
@@ -786,6 +794,16 @@ window.addEventListener('blur', () => engine.sources.forEach((m) => m.active && 
 
 // ───────────────────────── Initialisierung ──
 function boot() {
+  // Einmalige Bereinigung des Speichers (löscht alte/duplizierte Importe & setzt auf leeres Board)
+  const LS_PURGE_V1 = 'synthboard:purge_storage_v1';
+  if (!localStorage.getItem(LS_PURGE_V1)) {
+    try {
+      localStorage.removeItem(LS_BOARDS);
+      localStorage.removeItem(LS_AUTO);
+      localStorage.setItem(LS_PURGE_V1, '1');
+    } catch { /* ignore */ }
+  }
+
   renderLibrary();
   setupDropZones();
   let auto = null;
@@ -793,13 +811,13 @@ function boot() {
   if (auto?.state?.modules) {
     engine.load(auto.state);
     masterKnob.setValue(engine.masterValue);
-    current = auto.current || { kind: 'tpl', key: 'generative' };
+    current = auto.current || { kind: 'tpl', key: 'empty' };
     if (current.kind === 'my' && !loadBoards()[current.key]) current = { kind: 'new', key: '' };
     renderRack();
     populateBoards();
     setDirty(!!auto.dirty);
   } else {
-    loadBoard('tpl', 'generative');
+    loadBoard('tpl', 'empty');
   }
   try {
     if (localStorage.getItem(LS_LIB_COLLAPSED) === '1') {

@@ -37,7 +37,6 @@ graph TD
         SR[Slow Random LFO]
         SG[Slope Generator 0.05-60s]
         AT[Dual Attenuverter & Offset]
-        COND[Scene Conductor: Ambient ↔ Downtempo ↔ Broken Beat ↔ Techno]
     end
 
     subgraph Zone2 [Zone 2: Klangquellen & Channel Strips]
@@ -52,8 +51,8 @@ graph TD
         MV[Morph Voice: WT / VA / FM / Noise]
         HP[Hybrid Percussion: Body / Snap / Clang / Click]
         RG[Resonator Garden: 6 Modale Resonatoren]
-        GC[Granular Cloud: Procedural / Live-Rec / Samples]
         SS[Spectral Swarm: 32 Wandernde Partials]
+        FP[Felt Piano: Intimes Filzklavier]
     end
 
     subgraph Zone3 [Zone 3: Audio-Routing & Effektkette]
@@ -249,93 +248,80 @@ Alle Instrumente unterstützen dynamische Noten-Anschläge (0 bis 127):
 * **Buchsen:** `IN A`, `IN B`, `OUT A`, `OUT B`, `SUM OUT` (A + B).
 * **Praxis-Beispiel:** LFO in `IN A` ➔ `Scale A` auf `20%` ➔ `OUT A` an `Filter (CUTOFF CV)` ➔ Bändigt zu wilde Filtersprünge auf ein feines, seidiges Glänzen.
 
-#### 11. Scene Conductor (`🎬`)
-* **Aufgabe:** Zentraler Dirigent für Live-Arrangements und Genre-Wechsel zwischen **Ambient**, **Downtempo**, **Broken Beat** und **Techno**.
-* **Regler & Optionen:** `Stärke`, `Dichte`, `Variation`, `Mutation`, `Wann`, `Wie`.
-* **Buchsen:** `CLOCK IN`, `NEXT SCENE`, `FILL`, `BREAK`, `MUTATE`, `KICK`, `SNARE`, `HAT`, `PERC`, `BASS GATE/PITCH`, `LEAD GATE/PITCH`, `TIMBRE`, `ENERGY`, `PAD`, `CLOUD`, `SPACE`, `SCENE`.
-* **Praxis-Beispiel:** Verbinde `TIMBRE` mit `Morph Voice (MORPH CV)` und `KICK` mit `Hybrid Percussion` ➔ Bei Szenenwechsel öffnet sich der Sound automatisch von sanftem Ambient zu schneidendem Techno.
-
 ---
 
 ### B. Klangquellen & Instrumente
 
-#### 12. Drone Machine (`🪐`)
-* **Aufgabe:** 6-stimmiger additiver Oszillator für kosmische Drones und Akkordcluster.
-* **Regler:** `Level`, `Tone`, `Spread` (Verstimmung), `FM`, `Drift`.
-* **Buchsen:** `GATE IN`, `PITCH IN`, `FILTER CV`, `VCA CV`, `PAN CV`, `FM CV`, `TONE CV`.
+#### 11. Drone Machine (`🪐`)
+* **Aufgabe:** 6-stimmiger additiver Oszillator für kosmische Drones und Akkordcluster mit 6 einzelnen Stummschaltern.
+* **Regler:** `Level`, `Tone`, `Detune`, `Sub`, `FM`, `Drift`.
+* **Buchsen:** `VCA CV`, `PAN CV`, `FM CV`, `TONE CV`.
 * **Praxis-Beispiel:** Verbinde `Slope Generator (ENV OUT)` mit `VCA CV` und drehe `REVERB SEND` auf 80 % ➔ Erzeugt einen epischen 40-Sekunden Weltraum-Flächen-Swell.
 
-#### 13. Pluck Synth (`🪕`)
+#### 12. Pluck Synth (`🪕`)
 * **Aufgabe:** Karplus-Strong Physical Modeling für akustische Harfen, Gitarren, Kalimbas und Glocken.
 * **Regler:** `Level`, `Tone`, `Decay`, `Oberton`, `Body`.
 * **Buchsen:** `GATE IN`, `PITCH IN`, `FILTER CV`, `VCA CV`, `PAN CV`.
-* **Praxis-Beispiel:** `Euclidean (GATE OUT)` ➔ `Pluck (GATE IN)`, `Random Walk (PITCH)` ➔ `Pluck (PITCH IN)` ➔ Traumhafte, nie endende Harfenmelodien.
+* **Praxis-Beispiel:** `Euclidean (TRIG)` ➔ `Pluck (GATE IN)`, `Random Walk (PITCH)` ➔ `Pluck (PITCH IN)` ➔ Traumhafte, nie endende Harfenmelodien.
 
-#### 14. FM Voice (`🔔`)
+#### 13. FM Voice (`🔔`)
 * **Aufgabe:** 2-Operatoren FM-Synthese für kristalline Glocken, metallische Klänge und Rhodes-Sounds.
-* **Regler:** `Level`, `Ratio`, `Index` (FM-Tiefe), `Attack`, `Decay`.
-* **Buchsen:** `GATE IN`, `PITCH IN`, `FM MOD CV`, `VCA CV`, `PAN CV`.
-* **Praxis-Beispiel:** Verbinde `Slow Random (CV OUT)` mit `FM MOD CV` ➔ Die Glockenklänge morpht von reinem Rhodes zu strahlend metallischem Gamelan.
+* **Regler:** `Level`, `Ratio`, `Mod Index`, `Decay`, `Tone`.
+* **Buchsen:** `GATE IN`, `PITCH IN`, `INDEX CV`, `VCA CV`, `PAN CV`.
+* **Praxis-Beispiel:** Verbinde `Slow Random (CV OUT)` mit `INDEX CV` ➔ Die Glockenklänge morpht von reinem Rhodes zu strahlend metallischem Gamelan.
 
-#### 15. Analog Bass (`⚡`)
+#### 14. Analog Bass (`⚡`)
 * **Aufgabe:** Acid- und Sub-Bass Stimme mit transistor-modelliertem 24dB Tiefpassfilter.
-* **Regler:** `Level`, `Cutoff`, `Resonanz`, `Env Mod`, `Decay`, `Glide`.
+* **Regler:** `Level`, `Cutoff`, `Resonanz`, `Env Mod`, `Decay`, `Sub`.
 * **Buchsen:** `GATE IN`, `PITCH IN`, `CUTOFF CV`, `VCA CV`, `PAN CV`.
-* **Praxis-Beispiel:** `Clock Divider (/4)` ➔ `Bass (GATE IN)`, `Slow Random` ➔ `Bass (CUTOFF CV)` ➔ Schnörkelloser, quietschender 303-Acid-Groove.
+* **Praxis-Beispiel:** `Clock Divider (/2)` ➔ `Bass (GATE IN)`, `Slow Random` ➔ `Bass (CUTOFF CV)` ➔ Warmer, drückender Subbass.
 
-#### 16. Drum Rack (`🥁`)
+#### 15. Drum Rack (`🥁`)
 * **Aufgabe:** 4-Kanal analoger Drum-Computer (Kick, Snare, Hi-Hat, Percussion).
-* **Regler:** `Kick Pitch`, `Kick Decay`, `Snare Snap`, `Snare Tune`, `HH Decay`, `Perc Pitch`.
-* **Buchsen:** `KICK IN`, `SNARE IN`, `HH IN`, `PERC IN`, `VCA CV`, `PAN CV`.
-* **Praxis-Beispiel:** Verbinde `Clock Divider /4` mit `KICK`, `/8` mit `SNARE` und `/2` mit `HI-HAT` ➔ Felsenfest getakteter Beat mit warmem analogem Punch.
+* **Regler:** `Master`, `Kick Dec`, `Snare Snappy`, `Hat Dec`, `Perc Tune`.
+* **Buchsen:** `KICK IN`, `SNARE IN`, `HAT IN`, `PERC IN`, `VCA CV`, `PAN CV`.
+* **Praxis-Beispiel:** Verbinde `Master Clock div4Out` mit `KICK IN` und `Clock Divider div2Out` mit `SNARE IN`.
 
-#### 17. Poly Keys (`🎹`)
+#### 16. Touch Keys (`🎹`)
 * **Aufgabe:** Polyphoner Synthesizer für üppige Pads, Chords und Lead-Melodien (auch per Computertastatur **`A`–`K`** spielbar).
-* **Regler:** `Level`, `Cutoff`, `Resonanz`, `Attack`, `Release`, `Detune`.
-* **Buchsen:** `GATE IN`, `PITCH IN`, `FILTER CV`, `VCA CV`, `PAN CV`.
-* **Praxis-Beispiel:** `Keys` ➔ `Chorus` ➔ `Reverb` (mit Attack 0.4s & Release 2.5s) ➔ Schwebende 80er-Jahre Synthesizer-Flächen.
+* **Regler:** `Level`, `Cutoff`, `Reso`, `Attack`, `Release`, `Detune`.
+* **Buchsen:** `GATE IN`, `PITCH IN`, `CUTOFF CV`, `RECORD`, `VCA CV`, `PAN CV`.
 
-#### 18. Step Sequencer (`∿`)
-* **Aufgabe:** 8-Schritt Sequenzer für melodische Loops und Rhythmus-Muster.
-* **Regler:** `Tempo`, `Swing`, `Gate Len`, `Decay` sowie 8 Step-Pitch-Knobs.
+#### 17. Step Sequencer (`∿`)
+* **Aufgabe:** 8-Schritt Sequenzer für melodische Loops mit eigener analoger Synth-Stimme und Gate-/Pitch-Ausgängen.
+* **Step-Pausen (Muting):** Jeder der 8 Steps besitzt unter der Note einen Schalter (`seq-toggle`), mit dem er stummgeschaltet werden kann (Pause ohne Gate/Audio).
+* **Regler:** `Tempo`, `Level`, `Decay`, `Cutoff`, `Reso`, `Env`, `Chance`.
 * **Buchsen:** `CLOCK IN`, `GATE OUT`, `PITCH OUT`, `VCA CV`, `PAN CV`.
-* **Praxis-Beispiel:** Verbinde `PITCH OUT` mit `FM Voice (PITCH IN)` und `GATE OUT` mit `FM Voice (GATE IN)` ➔ Treibende melodische 8-Step Synthwave-Sequenz.
 
-#### 19. Noise Textur (`≋`)
+#### 18. Noise Textur (`≋`)
 * **Aufgabe:** Organischer Rauschgenerator für Meeresbrandung, Windheulen und Vinyl-Knistern.
-* **Regler:** `Level`, `Tone`, `Reso`, `Wind`, `Speed`, `Vinyl`.
-* **Buchsen:** `VCA CV`, `PAN CV`, `TONE CV`.
-* **Praxis-Beispiel:** Verbinde `Slow Random (CV OUT)` mit `Noise (TONE CV)` ➔ Eine sanfte, atmende Meereswelle, die im Hintergrund rauscht.
+* **Regler:** `Level`, `Tone`, `Reso`, `Bewegung`, `Rate`, `Knistern`.
+* **Buchsen:** `FILTER CV`, `VCA CV`, `PAN CV`.
 
-#### 20. Morph Voice (`🌀`)
-* **Aufgabe:** 8-Wellenformen Multiquellen-Synthesizer (Analog, Vokal/Chor, Glocke, Digitalmetall).
-* **Regler:** `Level`, `Morph`, `Helligkeit`, `Formant`, `Rauheit`, `Verstimmung`, `Attack`, `Release`.
-* **Buchsen:** `GATE`, `PITCH`, `JUMP`, `MORPH CV`, `TIMBRE CV`, `ENV CV`, `VCA CV`, `PAN CV`, `MUTATE`.
-* **Praxis-Beispiel:** Verbinde `Slope Generator (ENV OUT)` mit `MORPH CV` ➔ Jeder Ton morpht vom runden Sinus über chorale Vokale zu scharfem Digitalmetall.
+#### 19. Morph Voice (`🌀`)
+* **Aufgabe:** Multiquellen-Synthesizer (Wavetable, Vokal/Chor, Glocke, Digitalmetall).
+* **Regler:** `Level`, `Morph`, `Helligkeit`, `Vokal`, `Reibung`, `Detune`, `Attack`, `Release`, `Stimmen`, `Sprung`, `Velocity`, `Mutation`.
+* **Buchsen:** `GATE`, `PITCH`, `MORPH CV`, `TIMBRE CV`, `ENV CV`, `JUMP`, `MUTATE`, `VCA CV`, `PAN CV`.
 
-#### 21. Hybrid Percussion (`🪘`)
+#### 20. Hybrid Percussion (`🪘`)
 * **Aufgabe:** 4-Schichten Drum-Synthese (Body Sub-Pitch-Drop, Klick-Snap, Material und Rauschen).
-* **Regler:** `Level`, `Tonhöhe`, `Körper`, `Material`, `Tonabfall`, `Rauschen`, `Anschlag`, `Länge`, `Verzerrung`.
-* **Buchsen:** `TRIG 1–4`, `GATE`, `PITCH`, `MATERIAL CV`, `LENGTH CV`, `VCA CV`, `PAN CV`, `MUTATE`.
-* **Praxis-Beispiel:** Verbinde `Slow Random (CV OUT)` mit `MATERIAL CV` ➔ Schläge transformieren sich dynamisch von hohlem Holz zu schepperndem Eisenamboss.
+* **Regler:** `Level`, `Tonhöhe`, `Körper`, `Material`, `Pitch-Drop`, `Rauschen`, `Snap`, `Länge`, `Drive`, `Velocity`, `Mutation`.
+* **Buchsen:** `GATE`, `PITCH`, `TIMBRE CV`, `LENGTH CV`, `MATERIAL CV`, `VCA CV`, `PAN CV`.
 
-#### 22. Resonator Garden (`🔔`)
-* **Aufgabe:** Physikalisch modellierte Resonanzbank aus 6 gestimmten Bandpass-Resonatoren (Saiten, Marimba, Gongs, Klangschalen).
-* **Regler:** `Level`, `Material`, `Größe`, `Dämpfung`, `Anschlagposition`, `Verteilung`, `Ausklang`.
-* **Buchsen:** `IN` (Audio), `GATE`, `PITCH`, `MATERIAL CV`, `DAMP CV`, `VCA CV`, `PAN CV`, `MUTATE`.
-* **Praxis-Beispiel:** Verbinde `Euclidean (GATE OUT)` mit `GATE IN` und `Slow Random` mit `DAMP CV` ➔ Gamelan-Muster, die zwischen kurzen Taps und langen Klangschalen wechseln.
+#### 21. Resonator Garden (`🔔`)
+* **Aufgabe:** Physikalisch modellierte Resonanzbank aus bis zu 8 Bandpass-Resonatoren.
+* **Regler:** `Level`, `Material`, `Raum`, `Dämpfung`, `Anschlagpos.`, `Verteilung`, `Ausklang`, `Resonanzen`, `Velocity`, `Mutation`.
+* **Buchsen:** `GATE`, `PITCH`, `MATERIAL CV`, `DAMP CV`, `MUTATE`, `VCA CV`, `PAN CV`.
 
-#### 23. Granular Cloud (`☁`)
-* **Aufgabe:** Zerlegt Audio in Mikrokörner (Grains) für dichte Ambient-Wolken, Freeze und Lese-Scans.
-* **Regler:** `Level`, `Position`, `Korngröße`, `Dichte`, `Tonhöhe`, `Rückwärts`, `Zeitstreuung`, `Freeze`.
-* **Buchsen:** `GATE`, `JUMP`, `FREEZE`, `PITCH`, `POS CV`, `DENSITY CV`, `VCA CV`, `PAN CV`, `MUTATE`.
-* **Praxis-Beispiel:** Verbinde `Slow Random (CV OUT)` mit `POS CV` ➔ Der Lese-Scanner wandert wie eine Lupe durch das Sample – endlose, organische Variation ohne starren Loop.
+#### 22. Spectral Swarm (`✺`)
+* **Aufgabe:** Additiver Schwarm-Synthesizer aus 32 unabhängigen Sinus-Teiltönen.
+* **Regler:** `Level`, `Teiltöne`, `Unharmonik`, `Streuung`, `Bewegung`, `Tiefe`, `Helligkeit`, `Zusammenhalt`, `Hüllkurve`, `Velocity`, `Mutation`.
+* **Buchsen:** `GATE`, `PITCH`, `SCATTER`, `GATHER`, `COHESION CV`, `MUTATE`, `VCA CV`, `PAN CV`.
 
-#### 24. Spectral Swarm (`✺`)
-* **Aufgabe:** Additiver Schwarm-Synthesizer aus 32 unabhängigen Sinus-Teiltönen mit Schwarm-Intelligenz.
-* **Regler:** `Level`, `Teiltöne`, `Unharmonik`, `Streuung`, `Bewegung`, `Zusammenhalt` (Cohesion).
-* **Buchsen:** `GATE`, `PITCH`, `SCATTER`, `GATHER`, `COHESION CV`, `VCA CV`, `PAN CV`, `MUTATE`.
-* **Praxis-Beispiel:** Verbinde `Slope Generator (ENV OUT)` mit `COHESION CV` ➔ 32 chaotisch flirrende Teiltöne ziehen sich über Sekunden zu einem strahlenden Kirchenorgel-Akkord zusammen.
+#### 23. Felt Piano (`🎹`)
+* **Aufgabe:** Intimes mechanisches Filzklavier mit Holzresonanz und Hammer-Knistern.
+* **Regler:** `Level`, `Anschlag`, `Ausklang`, `Klangfarbe`, `Korpus`, `Hammer`.
+* **Buchsen:** `GATE`, `PITCH`, `VEL CV`, `FILZ CV`, `VCA CV`, `PAN CV`.
 
 ---
 
