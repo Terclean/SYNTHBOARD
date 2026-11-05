@@ -242,6 +242,16 @@ export class KeysModule extends SourceBase {
   }
 
   playExtNote(midi, time, velocity = 1, duration = 0.3) {
+    if (Array.isArray(midi)) {
+      midi.slice(0, 6).forEach((m, idx) => {
+        this.playExtSingleNote(m, time + (idx * 0.008), velocity, duration);
+      });
+      return;
+    }
+    this.playExtSingleNote(midi, time, velocity, duration);
+  }
+
+  playExtSingleNote(midi, time, velocity = 1, duration = 0.3) {
     const ctx = this.ctx;
     const f = midiToFreq(midi);
     const o1 = ctx.createOscillator();

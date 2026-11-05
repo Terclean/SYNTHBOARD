@@ -3,6 +3,7 @@ import { DroneModule, KeysModule, SequencerModule, NoiseModule } from './sources
 import { PluckModule, FmVoiceModule, BassModule, DrumRackModule } from './instruments.js';
 import { FeltPianoModule } from './piano.js';
 import { MorphVoiceModule, HybridPercModule, ResonatorGardenModule, SpectralSwarmModule } from './voices.js';
+import { ChordGlideModule } from './chordGlide.js';
 import {
   MasterClockModule, ClockDividerModule, EuclideanModule,
   ProbabilityGateModule, RandomWalkModule, ScaleQuantizerModule,
@@ -19,7 +20,7 @@ export const MODULES = Object.fromEntries(
     SlowRandomModule, MacroControllerModule, SlopeGeneratorModule, AttenuverterModule,
 
     // Instrumente & Klangquellen
-    FeltPianoModule, DroneModule, PluckModule, FmVoiceModule, BassModule,
+    ChordGlideModule, FeltPianoModule, DroneModule, PluckModule, FmVoiceModule, BassModule,
     DrumRackModule, KeysModule, SequencerModule, NoiseModule,
     MorphVoiceModule, HybridPercModule, ResonatorGardenModule, SpectralSwarmModule,
 

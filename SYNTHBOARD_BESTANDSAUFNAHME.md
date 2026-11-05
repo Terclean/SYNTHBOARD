@@ -550,6 +550,42 @@ Alle Klangquellen besitzen standardmäßig den integrierten Mixer-Kanalzug (`PAN
   - `VCA CV` (`vcaCv`) [IN, Mod]
   - `PAN CV` (`panCv`) [IN, Mod]
 
+#### 14. Chord Glide (`chord_glide`)
+- **Klangcharakter & Zweck:** Harmonischer Akkord-Sequencer mit polyphonem Portamento (Glide) und automatischem Smooth Voice Leading. Jede der 4–6 Stimmen gleitet mit minimalem harmonischem Weg in den Folgeakkord (Common Tone Retention). Integriertes polyphones Dual-Oszillator Ambient-Pad mit Filter, Detune und Hüllkurve. Kann auch externe polyphone Instrumente (Felt Piano, Touch Keys) und monophone Synths ansteuern.
+- **Sequencer-Karten & Editierung:**
+  - 4, 8 oder 16 Akkordschritte (per Button `＋ Schritt` hinzufügbar, duplizierbar, löschbar).
+  - Pro Schritt einstellbar: Grundton (C bis H), Akkordtyp (13 Harmonien: Dur, Moll, sus2, sus4, dim, aug, maj7, m7, dom7, maj9, m9, add9, dom9), Dauer (¼, ½, 1, 2 Takte).
+  - Klick auf eine Akkordkarte triggert direktes Vorhören.
+  - Live-Modus: Tasten 1–8 springen im Live-Betrieb direkt zum jeweiligen Akkord.
+- **Visualisierung:**
+  - Real-time Tonhöhen-Canvas mit horizontalen Oktav-Linien und farbigen Bezier-Kurven für jede Einzelstimme.
+  - Durchlaufender Playhead zeigt stets die exakte Abspiel- und Glide-Position.
+- **Regler:**
+  - `Level` (`level`): 0% bis 100%
+  - `Glide` (`glide`): 0 bis 5.0 s logarithmisch fein regelbar
+  - `Filter` (`filter`): 100 bis 12000 Hz Lowpass-Grenzfrequenz
+  - `Detune` (`detune`): 0 bis 25 Cent Schwebung zwischen Dual-Oszillatoren
+  - `Attack` (`attack`): 0.01 bis 4.0 s Pad-Einschwingzeit
+  - `Release` (`release`): 0.1 bis 8.0 s Ausklingzeit
+- **Erweiterte Einstellungen (Drawer):**
+  - `Strum` (`strum`): 0 bis 90 ms Zeitversatz zwischen den Saiten/Notenanschlägen
+  - `Retrigger` (`retrigger`): An/Aus (neu anschlagen vs. nahtlos gehalten)
+  - `Voice Leading` (`voiceLeading`): An/Aus (intelligente Umkehrung vs. statische Lagen)
+  - `Stimmen` (`voices`): 4, 5 oder 6 Stimmen
+  - `Basis-Oktave` (`octave`): C2, C3 oder C4
+  - `Preset-Auswahl`: „Warm Ambient“, „Night Drift“, „Cinematic“, „Floating“
+- **Buchsen:**
+  - `CLOCK` (`clockIn`) [IN, Clock]: Synchronisiert Schrittwechsel mit der Master Clock
+  - `RESET` (`resetIn`) [IN, Trigger]: Setzt Sequenz auf Schritt 1 zurück
+  - `TRANSPOSE CV` (`transposeCv`) [IN, Mod]: Transponiert alle Stimmen realtime (±24 Halbtöne)
+  - `GLIDE CV` (`glideCv`) [IN, Mod]: Moduliert die Gleitzeit pro Schritt
+  - `NEXT TRIG` (`nextTrig`) [IN, Trigger]: Springt sofort zum nächsten Akkord
+  - `VCA CV` (`vcaCv`) [IN, Mod]: Externe Lautstärkemodulation
+  - `PAN CV` (`panCv`) [IN, Mod]: Stereoposition
+  - `POLY PITCH` (`pitchOut`) [OUT, Pitch]: Gibt das gesamte polyphone MIDI-Array `[m0, m1, ...]` an Felt Piano oder Keys aus
+  - `ROOT PITCH` (`rootOut`) [OUT, Pitch]: Gibt den tiefsten Grundton als monophones CV für Bass-Synths aus
+  - `CHORD TRIG` (`gateOut`) [OUT, Gate]: Trigger-Puls bei jedem Akkordwechsel für Envelopes
+
 ---
 
 ### 5.3 Effektkette (6 Module)

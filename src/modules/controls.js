@@ -517,13 +517,13 @@ export class ScaleQuantizerModule extends ModuleBase {
 
   onPitch(portId, time, midiNote, velocity, duration) {
     if (portId !== 'pitchIn' || !this.enabled) return;
-    const quant = this.quantize(midiNote);
-    this.lastMidi = quant;
+    const quant = Array.isArray(midiNote) ? midiNote.map((m) => this.quantize(m)) : this.quantize(midiNote);
+    this.lastMidi = Array.isArray(quant) ? quant[0] : quant;
     this.emitPitch('pitchOut', time, quant, velocity, duration);
     this.emitTrigger('gateOut', time, velocity, duration);
 
     const delayMs = Math.max(0, (time - this.ctx.currentTime) * 1000);
-    setTimeout(() => this.showUi?.(quant), delayMs);
+    setTimeout(() => this.showUi?.(this.lastMidi), delayMs);
   }
 
   onTrigger(portId, time, velocity, duration) {

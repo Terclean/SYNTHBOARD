@@ -323,6 +323,12 @@ Alle Instrumente unterstützen dynamische Noten-Anschläge (0 bis 127):
 * **Regler:** `Level`, `Anschlag`, `Ausklang`, `Klangfarbe`, `Korpus`, `Hammer`.
 * **Buchsen:** `GATE`, `PITCH`, `VEL CV`, `FILZ CV`, `VCA CV`, `PAN CV`.
 
+#### 24. Chord Glide (`✨`)
+* **Aufgabe:** Harmonischer Akkord-Sequencer mit polyphonem Glide und automatischem Smooth Voice Leading. Jede Einzelstimme gleitet weich und ohne unnötige Sprünge in den Folgeakkord. Integriertes Ambient-Pad und Steuerausgänge für externe Instrumente.
+* **Regler:** `Level`, `Glide` (0–5 s log), `Filter`, `Detune`, `Attack`, `Release`.
+* **Erweitert:** `Strum` (0–90 ms), `Retrigger`, `Voice Leading` (An/Aus), 4–6 Stimmen, Basis-Oktave, Live-Modus (Tasten 1–8).
+* **Buchsen:** `CLOCK`, `RESET`, `TRANSPOSE CV`, `GLIDE CV`, `NEXT TRIG`, `VCA CV`, `PAN CV` (Eingänge) sowie `POLY PITCH`, `ROOT PITCH`, `CHORD TRIG` (Ausgänge).
+
 ---
 
 ### C. Stereo-Effektkette

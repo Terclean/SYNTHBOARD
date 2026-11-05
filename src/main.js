@@ -554,9 +554,11 @@ function populateBoards() {
   sel.innerHTML = `
     ${current.kind === 'new' ? '<option value="new:" selected>✎ Neues Board (ungespeichert)</option>' : ''}
     <optgroup label="Meine Boards">${mine.length ? mine.map((n) => `<option value="my:${esc(n)}">${esc(n)}</option>`).join('') : '<option disabled>– noch keine gespeichert –</option>'}</optgroup>
+    ${mine.length > 0 ? '<option value="action:clear_all">🧹 Speicher komplett leeren (alle Boards löschen)...</option>' : ''}
     <optgroup label="Vorlagen">${Object.entries(TEMPLATES).map(([k, t]) => `<option value="tpl:${k}">${esc(t.name)}</option>`).join('')}</optgroup>`;
   if (current.kind !== 'new') sel.value = `${current.kind}:${current.key}`;
-  $('#btn-delete').disabled = current.kind !== 'my';
+  $('#btn-delete').disabled = current.kind !== 'my' && mine.length === 0;
+  $('#btn-delete').title = current.kind === 'my' ? `Board „${current.key}“ löschen` : mine.length > 0 ? 'Gespeicherte Boards löschen' : 'Board löschen';
 }
 
 function loadBoard(kind, key) {
@@ -579,6 +581,17 @@ function confirmDiscard() {
 $('#board-select').addEventListener('change', (e) => {
   const [kind, ...rest] = e.target.value.split(':');
   if (kind === 'new') return;
+  if (kind === 'action' && rest[0] === 'clear_all') {
+    if (confirm('Möchtest du wirklich alle gespeicherten Boards aus deinem Speicher löschen?')) {
+      storeBoards({});
+      try { localStorage.removeItem(LS_AUTO); } catch { /* ignore */ }
+      toast('🧹 Speicher bereinigt: Alle Boards gelöscht');
+      loadBoard('tpl', 'empty');
+    } else {
+      populateBoards();
+    }
+    return;
+  }
   if (!confirmDiscard()) { populateBoards(); return; }
   loadBoard(kind, rest.join(':'));
 });
@@ -620,18 +633,30 @@ $('#btn-new').addEventListener('click', () => {
 
 $('#btn-delete').addEventListener('click', (e) => {
   const boards = loadBoards();
-  if (e.shiftKey || confirm('Möchtest du dieses Board (oder mit Shift alle gespeicherten Boards) löschen?')) {
-    if (e.shiftKey) {
+  const mine = Object.keys(boards);
+  if (e.shiftKey) {
+    if (confirm('Möchtest du wirklich ALLE gespeicherten Boards löschen und den Speicher leeren?')) {
       storeBoards({});
-      toast('Speicher bereinigt: Alle Boards gelöscht');
+      try { localStorage.removeItem(LS_AUTO); } catch { /* ignore */ }
+      toast('🧹 Speicher bereinigt: Alle Boards gelöscht');
       loadBoard('tpl', 'empty');
-      return;
     }
-    if (current.kind !== 'my') return;
-    delete boards[current.key];
-    storeBoards(boards);
-    toast('Board gelöscht');
-    loadBoard('tpl', 'empty');
+    return;
+  }
+  if (current.kind === 'my') {
+    if (confirm(`Möchtest du das Board „${current.key}“ löschen?`)) {
+      delete boards[current.key];
+      storeBoards(boards);
+      toast(`Board „${current.key}“ gelöscht`);
+      loadBoard('tpl', 'empty');
+    }
+  } else if (mine.length > 0) {
+    if (confirm(`Kein eigenes Board ausgewählt. Möchtest du alle ${mine.length} gespeicherten Boards aus deinem Speicher löschen?`)) {
+      storeBoards({});
+      try { localStorage.removeItem(LS_AUTO); } catch { /* ignore */ }
+      toast('🧹 Speicher bereinigt: Alle Boards gelöscht');
+      loadBoard('tpl', 'empty');
+    }
   }
 });
 
@@ -795,12 +820,12 @@ window.addEventListener('blur', () => engine.sources.forEach((m) => m.active && 
 // ───────────────────────── Initialisierung ──
 function boot() {
   // Einmalige Bereinigung des Speichers (löscht alte/duplizierte Importe & setzt auf leeres Board)
-  const LS_PURGE_V1 = 'synthboard:purge_storage_v1';
-  if (!localStorage.getItem(LS_PURGE_V1)) {
+  const LS_PURGE_KEY = 'synthboard:purge_storage_v5';
+  if (!localStorage.getItem(LS_PURGE_KEY)) {
     try {
       localStorage.removeItem(LS_BOARDS);
       localStorage.removeItem(LS_AUTO);
-      localStorage.setItem(LS_PURGE_V1, '1');
+      localStorage.setItem(LS_PURGE_KEY, '1');
     } catch { /* ignore */ }
   }
 

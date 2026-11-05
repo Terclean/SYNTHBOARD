@@ -165,6 +165,18 @@ export const JACK_HELP = {
 
   // Delay Effekt
   'delay:cvTime': { name: 'Time CV', desc: 'Moduliert die Verzögerungszeit des Tape Delays für echtes Tonband-Leiern & Pitch Warble.' },
+
+  // Chord Glide
+  'chord_glide:clockIn': { name: 'Clock Eingang', desc: 'Taktimpuls für das automatische Fortschreiten der Akkordfolge im Rhythmus.' },
+  'chord_glide:resetIn': { name: 'Reset Eingang', desc: 'Setzt die Akkordfolge sofort auf Schritt 1 zurück.' },
+  'chord_glide:nextTrig': { name: 'Nächster Akkord Trigger', desc: 'Schaltet bei jedem Trigger-Impuls sofort zum nächsten Akkordschritt.' },
+  'chord_glide:transposeCv': { name: 'Transponierungs CV', desc: 'Transponiert die gesamte Akkordfolge nach der 1V/Okt Notenkonvention.' },
+  'chord_glide:glideCv': { name: 'Glide CV Modulation', desc: 'Moduliert die Übergangszeit dynamisch (z. B. durch LFO oder Hüllkurve).' },
+  'chord_glide:vcaCv': { name: 'VCA CV', desc: 'Lautstärkesteuerung für das integrierte Pad (z. B. für Schwellklänge).' },
+  'chord_glide:panCv': { name: 'Pan CV', desc: 'Stereo-Panoramamodulation für das Pad.' },
+  'chord_glide:pitchOut': { name: 'Polyphone Pitch CV', desc: 'Sendet die berechneten polyphonen Noten an kompatible Instrumente (Felt Piano, Keys).' },
+  'chord_glide:rootOut': { name: 'Grundton Pitch CV', desc: 'Sendet den tiefen Grundton der Akkorde an Bass oder monophone Lead-Synths.' },
+  'chord_glide:gateOut': { name: 'Akkord-Wechsel Trigger', desc: 'Gibt bei jedem Akkordwechsel einen Gate-Impuls aus (z. B. für Drums oder Hüllkurven).' },
 };
 
 // Beschreibungen für Regler

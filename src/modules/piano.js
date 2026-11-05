@@ -112,7 +112,7 @@ export class FeltPianoModule extends SourceBase {
   onPitch(portId, _time, midiNote) {
     if (portId === 'pitchIn') {
       this.currentMidi = midiNote;
-      this.highlightKey?.(midiNote);
+      this.highlightKey?.(Array.isArray(midiNote) ? midiNote[0] : midiNote);
     }
   }
 
@@ -128,6 +128,15 @@ export class FeltPianoModule extends SourceBase {
 
   /** Spielt eine einzelne Note oder Akkord mit authentischer Klavier-Synthese */
   playChord(rootMidi, time = this.ctx.currentTime, velocity = 0.85, duration = 0.4) {
+    if (Array.isArray(rootMidi)) {
+      rootMidi.forEach((m, idx) => {
+        const noteTime = time + (idx > 0 ? idx * 0.014 : 0);
+        const noteVel = velocity * (idx === 0 ? 1 : 0.85);
+        this.playPianoNote(m, noteTime, noteVel, duration);
+      });
+      return;
+    }
+
     const voicing = this.values.chord || 'single';
     let intervals = [0];
 

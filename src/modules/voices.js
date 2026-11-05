@@ -143,7 +143,7 @@ export class MorphVoiceModule extends VoiceBase {
 
   onPitch(portId, _time, midiNote) {
     if (portId !== 'pitchIn') return;
-    this.currentMidi = midiNote;
+    this.currentMidi = Array.isArray(midiNote) ? midiNote[0] : midiNote;
     this.updateNoteUi?.();
   }
 
@@ -473,7 +473,7 @@ export class HybridPercModule extends VoiceBase {
 
   onPitch(portId, _time, midiNote) {
     if (portId !== 'pitchIn') return;
-    this.currentMidi = midiNote;
+    this.currentMidi = Array.isArray(midiNote) ? midiNote[0] : midiNote;
     this.updateNoteUi?.();
   }
 
@@ -948,7 +948,7 @@ export class SpectralSwarmModule extends VoiceBase {
 
   onPitch(portId, _time, midiNote) {
     if (portId !== 'pitchIn') return;
-    this.currentMidi = midiNote;
+    this.currentMidi = Array.isArray(midiNote) ? midiNote[0] : midiNote;
     this.updateNoteUi?.();
   }
 

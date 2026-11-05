@@ -44,8 +44,9 @@ export class PluckModule extends SourceBase {
 
   onPitch(portId, _time, midiNote) {
     if (portId === 'pitchIn') {
-      this.currentMidi = midiNote;
-      this.updateNoteUi?.(midiNote);
+      const m = Array.isArray(midiNote) ? midiNote[0] : midiNote;
+      this.currentMidi = m;
+      this.updateNoteUi?.(m);
     }
   }
 
@@ -173,8 +174,9 @@ export class FmVoiceModule extends SourceBase {
 
   onPitch(portId, _time, midiNote) {
     if (portId === 'pitchIn') {
-      this.currentMidi = midiNote;
-      this.updateNoteUi?.(midiNote);
+      const m = Array.isArray(midiNote) ? midiNote[0] : midiNote;
+      this.currentMidi = m;
+      this.updateNoteUi?.(m);
     }
   }
 
@@ -295,8 +297,9 @@ export class BassModule extends SourceBase {
 
   onPitch(portId, _time, midiNote) {
     if (portId === 'pitchIn') {
-      this.currentMidi = midiNote;
-      this.updateNoteUi?.(midiNote);
+      const m = Array.isArray(midiNote) ? midiNote[0] : midiNote;
+      this.currentMidi = m;
+      this.updateNoteUi?.(m);
     }
   }
 
