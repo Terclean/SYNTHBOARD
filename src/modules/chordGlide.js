@@ -487,7 +487,21 @@ export class ChordGlideModule extends SourceBase {
 
   destroy() {
     clearInterval(this.internalTimer);
+    if (this.animPlayhead) {
+      cancelAnimationFrame(this.animPlayhead);
+      this.animPlayhead = null;
+    }
     this.stopVoices();
+    this.voices.forEach((v) => {
+      try {
+        v.osc1.stop(); v.osc1.disconnect();
+        v.osc2.stop(); v.osc2.disconnect();
+        v.filter.disconnect();
+        v.gain.disconnect();
+      } catch { /* ignore */ }
+    });
+    this.voices = [];
+    try { this.masterGain.disconnect(); this.output.disconnect(); } catch { /* ignore */ }
     super.destroy();
   }
 
@@ -795,21 +809,29 @@ export class ChordGlideModule extends SourceBase {
       }
     };
 
-    // Playhead-Animation (animierte Abspielpositions-Nadel)
-    let animId = null;
-    const updatePlayhead = () => {
-      if (this.running && this.steps.length) {
-        const now = this.ctx.currentTime;
-        const progress = Math.max(0, Math.min(1, (now - this.stepStartTime) / Math.max(0.1, this.stepDurationSec)));
+    // Playhead-Animation (animierte Abspielpositions-Nadel mit 30 FPS Throttling & Cleanup)
+    if (this.animPlayhead) {
+      cancelAnimationFrame(this.animPlayhead);
+      this.animPlayhead = null;
+    }
+    let lastPlayheadUpdate = 0;
+    const updatePlayhead = (now) => {
+      this.animPlayhead = requestAnimationFrame(updatePlayhead);
+      if (now - lastPlayheadUpdate < 33) return; // 30 FPS Limit
+      lastPlayheadUpdate = now;
+
+      if (this.running && this.steps.length && !document.hidden && this.ctx.state === 'running') {
+        const t = this.ctx.currentTime;
+        const progress = Math.max(0, Math.min(1, (t - this.stepStartTime) / Math.max(0.1, this.stepDurationSec)));
         const colW = 100 / this.steps.length;
         const leftPct = this.currentStep * colW + progress * colW;
-        playhead.style.left = `${leftPct}%`;
+        playhead.style.left = `${leftPct.toFixed(1)}%`;
         playhead.style.opacity = '1';
       } else {
         playhead.style.opacity = '0';
       }
-      animId = requestAnimationFrame(updatePlayhead);
     };
+    this.animPlayhead = requestAnimationFrame(updatePlayhead);
 
     // Callback zur Markierung der aktiven Karte bei Taktwechsel
     this.updateActiveCardUi = (activeIdx) => {

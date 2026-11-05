@@ -257,6 +257,16 @@ export class ReverbModule extends EffectBase {
 
   destroy() {
     clearTimeout(this.irTimer);
+    try {
+      if (this.conv) { this.pre.disconnect(this.conv); this.conv.disconnect(); }
+      if (this.convGain) this.convGain.disconnect();
+      if (this.dryMix) this.dryMix.disconnect();
+      if (this.wetMix) this.wetMix.disconnect();
+      if (this.toneF) this.toneF.disconnect();
+      if (this.pre) this.pre.disconnect();
+    } catch { /* ignore */ }
+    this.conv = null;
+    this.convGain = null;
     super.destroy();
   }
 }

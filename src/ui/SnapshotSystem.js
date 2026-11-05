@@ -362,6 +362,7 @@ export class SnapshotSystem {
 
     // Smoothstep Easing (sanftes Beschleunigen und Abbremsen)
     const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+    let lastKnobRefresh = 0;
 
     const step = (now) => {
       const elapsed = now - startTime;
@@ -376,8 +377,11 @@ export class SnapshotSystem {
         touchedModules.add(mod);
       });
 
-      // Knobs im UI synchron mitdrehen
-      touchedModules.forEach((mod) => mod.refreshKnobs?.());
+      // Knobs im UI synchron mitdrehen (gedrosselt auf 30 FPS zur Entlastung des Frontends)
+      if (progress >= 1 || now - lastKnobRefresh >= 33) {
+        lastKnobRefresh = now;
+        touchedModules.forEach((mod) => mod.refreshKnobs?.());
+      }
 
       if (progress < 1) {
         this.activeMorphAnim = requestAnimationFrame(step);

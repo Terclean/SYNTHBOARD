@@ -1092,6 +1092,17 @@ export class SpectralSwarmModule extends VoiceBase {
 
   destroy() {
     clearInterval(this.timer);
+    this.parts.forEach((p) => {
+      try {
+        p.osc.stop();
+        p.osc.disconnect();
+        p.amp.disconnect();
+        p.env.disconnect();
+        if (p.pan) p.pan.disconnect();
+      } catch { /* ignore */ }
+    });
+    this.parts = [];
+    try { this.accent.disconnect(); this.levelGain.disconnect(); } catch { /* ignore */ }
     super.destroy();
   }
 }

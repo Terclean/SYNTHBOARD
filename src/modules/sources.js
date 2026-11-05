@@ -181,6 +181,18 @@ export class DroneModule extends SourceBase {
     }));
     this.refreshPads();
   }
+
+  destroy() {
+    this.voices.forEach((v) => {
+      try {
+        [v.osc1, v.osc2, v.sub, v.fm, v.lfo].forEach((o) => { o.stop(); o.disconnect(); });
+        [v.subGain, v.fmGain, v.mix, v.drift, v.lfoGain, v.amp].forEach((g) => g.disconnect());
+      } catch { /* ignore */ }
+    });
+    this.voices = [];
+    try { this.filter.disconnect(); this.levelGain.disconnect(); } catch { /* ignore */ }
+    super.destroy();
+  }
 }
 
 // ───────────────────────────────────────────── KEYS ──

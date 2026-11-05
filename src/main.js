@@ -200,6 +200,7 @@ function renderRack(highlightId) {
   const srcEl = $('#rack-sources');
   const fxEl = $('#rack-effects');
 
+  patchBay?.clearJacks();
   ctrlEl.innerHTML = '';
   srcEl.innerHTML = '';
   fxEl.innerHTML = '';

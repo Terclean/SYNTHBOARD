@@ -28,7 +28,8 @@ export class PatchBay {
 
     const updateSize = () => {
       if (!this.appEl) return;
-      const dpr = window.devicePixelRatio || 1;
+      // DPR auf 1.5 deckeln: spart 50–70 % VRAM auf Retina, Kabel bleiben perfekt scharf
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
       const w = Math.max(window.innerWidth, this.appEl.scrollWidth || this.appEl.offsetWidth || 1200);
       const h = Math.max(window.innerHeight, this.appEl.scrollHeight || this.appEl.offsetHeight || 800);
 
@@ -108,9 +109,23 @@ export class PatchBay {
     this.requestDraw();
   }
 
+  clearJacks() {
+    for (const [, j] of this.jacks.entries()) {
+      if (j.el) {
+        j.el.onmousedown = null;
+        j.el.oncontextmenu = null;
+      }
+    }
+    this.jacks.clear();
+  }
+
   unregisterModuleJacks(moduleId) {
     for (const [key, j] of this.jacks.entries()) {
       if (j.moduleId === moduleId) {
+        if (j.el) {
+          j.el.onmousedown = null;
+          j.el.oncontextmenu = null;
+        }
         this.jacks.delete(key);
       }
     }
