@@ -586,6 +586,38 @@ Alle Klangquellen besitzen standardmäßig den integrierten Mixer-Kanalzug (`PAN
   - `ROOT PITCH` (`rootOut`) [OUT, Pitch]: Gibt den tiefsten Grundton als monophones CV für Bass-Synths aus
   - `CHORD TRIG` (`gateOut`) [OUT, Gate]: Trigger-Puls bei jedem Akkordwechsel für Envelopes
 
+#### 15. Solo Violin (`violin`)
+- **Klangcharakter & Zweck:** Akustische Solo-Violine mit Physical Modeling. Simuliert die Bogenreibung auf der Saite (*Slip-Stick* mit Kolophonium-Kratzgeräusch), den akustischen Fichtenholz-Resonanzkörper (3-stufiges Formant-Netzwerk mit Helmholtz-Luftmode bei 285 Hz, Deckenholz bei 475 Hz und *Bridge Hill* bei 3.100 Hz), natürliches verzögertes Vibrato, bundloses Portamento (Finger-Glide) und umschaltbare Artikulationen.
+- **Artikulationen (Dropdown):**
+  - `Arco` (`arco`): Klassischer, weich schwellender Bogenstrich mit vollem Gesangston.
+  - `Pizzicato` (`pizz`): Holziges, gezupftes Saitengeräusch mit perkussivem Attack und schnellem Ausklingen.
+  - `Sul Tasto` (`sultasto`): Sanft am Griffbrett gestrichen – flötenartig, intim und obertonarm.
+  - `Tremolo` (`tremolo`): Schneller, zitternder Bogenwechsel (7.8 Hz) für cinematische Spannung.
+- **Stimmung / Oktavlage (Dropdown):**
+  - `Bratsche / Cello (-1 Okt)`
+  - `Violine Original (C3–A6)`
+  - `Flageolett / Hoch (+1 Okt)`
+- **Regler:**
+  - `Level` (`level`): 0% bis 100%
+  - `Bogendruck` (`bow`): 10% bis 100% (steuert Reibungsgeräusch, Biss und Obertongehalt)
+  - `Vibrato` (`vibrato`): 0% bis 100% (verzögert einsetzendes 5.3 Hz Fingervibrato)
+  - `Finger-Glide` (`glide`): 0 bis 1.2 s log (Portamento-Zeit beim Lagewechsel auf dem Griffbrett)
+  - `Holzkorpus` (`tone`): 800 bis 12000 Hz log (Korpusbrillanz & Kolophonium-Dämpfung)
+  - `Bogenstrich` (`attack`): 0.02 bis 2.0 s log (Einschwingzeit des Bogens)
+  - `Ausklang` (`release`): 0.1 bis 6.0 s log (Saiten-Ausschwingzeit)
+- **Interaktives UI:**
+  - Echtes 4-Saiten-Griffbrett (G3, D4, A4, E5) mit dynamischer Fingerpositions-Anzeige in Echtzeit.
+  - Schnell-Trigger: `▶ Bogen` und `▶ Pizz`.
+  - Tastaturunterstützung: Tasten `A` bis `#` spielen Noten live auf der Geige.
+- **Buchsen:**
+  - `BOW GATE` (`gateIn`) [IN, Gate]: Startet den Bogenstrich oder triggert Pizzicato.
+  - `PITCH` (`pitchIn`) [IN, Pitch]: 1V/Okt Notensteuerung.
+  - `BOW CV` (`bowCv`) [IN, Mod]: Moduliert den Bogendruck dynamisch (z. B. via Slope Generator).
+  - `VIB CV` (`vibratoCv`) [IN, Mod]: Externe Vibratosteuerung.
+  - `GLIDE CV` (`glideCv`) [IN, Mod]: Moduliert die Gleitzeit zwischen Tönen.
+  - `VCA CV` (`vcaCv`) [IN, Mod]: Lautstärkemodulation.
+  - `PAN CV` (`panCv`) [IN, Mod]: Stereoposition.
+
 ---
 
 ### 5.3 Effektkette (6 Module)

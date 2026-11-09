@@ -177,6 +177,15 @@ export const JACK_HELP = {
   'chord_glide:pitchOut': { name: 'Polyphone Pitch CV', desc: 'Sendet die berechneten polyphonen Noten an kompatible Instrumente (Felt Piano, Keys).' },
   'chord_glide:rootOut': { name: 'Grundton Pitch CV', desc: 'Sendet den tiefen Grundton der Akkorde an Bass oder monophone Lead-Synths.' },
   'chord_glide:gateOut': { name: 'Akkord-Wechsel Trigger', desc: 'Gibt bei jedem Akkordwechsel einen Gate-Impuls aus (z. B. für Drums oder Hüllkurven).' },
+
+  // Solo Violin
+  'violin:gateIn': { name: 'Bogenstrich Gate', desc: 'Startet den Bogenstrich (Arco) oder regt das Pizzicato-Zupfen an.' },
+  'violin:pitchIn': { name: 'Pitch CV', desc: 'Steuert die Tonhöhe der Violine (1V/Okt oder MIDI-Noten). Gleitet bei Legato stufenlos.' },
+  'violin:bowCv': { name: 'Bogendruck CV', desc: 'Moduliert den Anpressdruck des Bogens: mehr Druck = mehr Kolophonium-Kratzen & Obertöne.' },
+  'violin:vibratoCv': { name: 'Vibrato-Tiefe CV', desc: 'Steuert die Intensität des Fingervibratos über einen externen LFO oder Hüllkurve.' },
+  'violin:glideCv': { name: 'Finger-Glide CV', desc: 'Moduliert die Portamento-Zeit beim Lagewechsel auf dem Griffbrett.' },
+  'violin:vcaCv': { name: 'VCA CV', desc: 'Lautstärkesteuerung für dynamisches Anschwellen und Expressivität.' },
+  'violin:panCv': { name: 'Pan CV', desc: 'Stereo-Panoramamodulation für räumliche Bewegung.' },
 };
 
 // Beschreibungen für Regler
@@ -637,6 +646,10 @@ export class InfoSystem {
     this.updateToggleState();
     this.hideTooltip();
     return this.enabled;
+  }
+
+  toggleTooltips() {
+    return this.toggle();
   }
 
   updateToggleState() {

@@ -134,6 +134,7 @@ export class ModuleBase {
     this.id = state.id || uid();
     this.values = {};
     this.enabled = state.enabled ?? true;
+    this.collapsed = !!state.collapsed;
     this.stoppables = [];
     this.patchSystem = null; // wird von der Engine injiziert
     // "output" ist bei allen Audio-Modulen der Ausgang
@@ -216,6 +217,7 @@ export class ModuleBase {
       type: this.meta.type,
       id: this.id,
       enabled: this.enabled,
+      collapsed: !!this.collapsed,
       values: { ...this.values },
       extra: { ...this.getExtra(), ...(this.getChannelStripState ? this.getChannelStripState() : {}) },
     };

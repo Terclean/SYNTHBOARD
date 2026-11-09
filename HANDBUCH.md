@@ -329,11 +329,17 @@ Alle Instrumente unterstützen dynamische Noten-Anschläge (0 bis 127):
 * **Erweitert:** `Strum` (0–90 ms), `Retrigger`, `Voice Leading` (An/Aus), 4–6 Stimmen, Basis-Oktave, Live-Modus (Tasten 1–8).
 * **Buchsen:** `CLOCK`, `RESET`, `TRANSPOSE CV`, `GLIDE CV`, `NEXT TRIG`, `VCA CV`, `PAN CV` (Eingänge) sowie `POLY PITCH`, `ROOT PITCH`, `CHORD TRIG` (Ausgänge).
 
+#### 25. Solo Violin (`🎻`)
+* **Aufgabe:** Intime akustische Solo-Violine mit Physical Modeling (Bogenreibung, Kolophonium-Kratzen, Holzkorpus-Formanten, natürliches verzögertes Vibrato und Finger-Glide).
+* **Artikulationen:** `Arco` (Gestrichen), `Pizzicato` (Gezupft), `Sul Tasto` (Sanft & Flötig), `Tremolo` (Zitternd).
+* **Regler:** `Level`, `Bogendruck`, `Vibrato`, `Finger-Glide`, `Holzkorpus`, `Bogenstrich`, `Ausklang`.
+* **Buchsen:** `BOW GATE`, `PITCH`, `BOW CV`, `VIB CV`, `GLIDE CV`, `VCA CV`, `PAN CV`.
+
 ---
 
 ### C. Stereo-Effektkette
 
-#### 25. Analog Filter (`⌇`)
+#### 26. Analog Filter (`⌇`)
 * **Aufgabe:** 24dB-Multimode-Filter mit transistor-modellierter Sättigung (`Drive`) und internem LFO.
 * **Regler:** `Cutoff`, `Resonanz`, `Drive`, `LFO Rate`, `LFO Tiefe`.
 * **Optionen:** Typ (`Lowpass`, `Highpass`, `Bandpass`).

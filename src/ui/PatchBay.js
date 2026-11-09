@@ -9,6 +9,7 @@ export class PatchBay {
     this.appEl = document.querySelector('.app');
     this.onModified = options.onModified || null;
     this.visible = true;
+    this.selectedModuleId = null;
 
     this.jacks = new Map(); // key `${moduleId}:${portId}` -> { el, moduleId, portId, type, signal, label }
     this.activeDrag = null; // { fromKey, currentX, currentY, color, signal }
@@ -309,14 +310,14 @@ export class PatchBay {
       this.clearHoverTarget();
     });
 
-    window.addEventListener('scroll', () => {
+    document.addEventListener('scroll', () => {
       if (this.activeDrag && this.lastDragPoint && this.appEl) {
         const appRect = this.appEl.getBoundingClientRect();
         this.activeDrag.currentX = this.lastDragPoint.clientX - appRect.left;
         this.activeDrag.currentY = this.lastDragPoint.clientY - appRect.top;
-        this.requestDraw();
       }
-    }, { passive: true });
+      this.requestDraw();
+    }, { passive: true, capture: true });
 
     window.addEventListener('mouseup', (e) => {
       if (!this.activeDrag) return;
@@ -430,6 +431,12 @@ export class PatchBay {
     });
   }
 
+  setSelectedModule(moduleId) {
+    if (this.selectedModuleId === moduleId) return;
+    this.selectedModuleId = moduleId;
+    this.requestDraw();
+  }
+
   drawCables() {
     if (!this.appEl) this.appEl = document.querySelector('.app');
     const w = this.appEl ? (this.appEl.scrollWidth || this.appEl.offsetWidth) : window.innerWidth;
@@ -439,6 +446,7 @@ export class PatchBay {
     if (!this.visible && !this.activeDrag) return;
 
     const conns = this.engine.patchSystem.getConnections();
+    const selId = this.selectedModuleId;
 
     // 1. Bereits gesteckte Kabel zeichnen (starr verankert)
     this.badges = [];
@@ -447,11 +455,19 @@ export class PatchBay {
         const p1 = this.getJackCenter(`${c.fromModuleId}:${c.fromPortId}`);
         const p2 = this.getJackCenter(`${c.toModuleId}:${c.toPortId}`);
         if (p1 && p2) {
-          this.drawDroopingCord(p1.x, p1.y, p2.x, p2.y, c.color);
+          const isConnectedToSelected = !selId || (c.fromModuleId === selId || c.toModuleId === selId);
+          this.drawDroopingCord(p1.x, p1.y, p2.x, p2.y, c.color, false, isConnectedToSelected);
           if (c.signal === 'mod') {
             const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
             const sag = Math.min(80, 10 + dist * 0.12);
-            this.badges.push({ id: c.id, x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 + sag * 0.5, depth: c.depth ?? 1, color: c.color });
+            this.badges.push({
+              id: c.id,
+              x: (p1.x + p2.x) / 2,
+              y: (p1.y + p2.y) / 2 + sag * 0.5,
+              depth: c.depth ?? 1,
+              color: c.color,
+              isFocus: isConnectedToSelected
+            });
           }
         }
       });
@@ -468,6 +484,7 @@ export class PatchBay {
           this.activeDrag.currentX,
           this.activeDrag.currentY,
           this.activeDrag.color,
+          true,
           true
         );
       }
@@ -476,94 +493,96 @@ export class PatchBay {
 
   drawDepthBadge(b) {
     const ctx = this.ctx;
-    const w = 40, h = 17;
+    const w = 38, h = 16;
     const active = this.depthDrag?.id === b.id;
     ctx.save();
+    if (!b.isFocus) ctx.globalAlpha = 0.22;
     ctx.beginPath();
-    ctx.roundRect(b.x - w / 2, b.y - h / 2, w, h, 8);
-    ctx.fillStyle = active ? '#0b0d12' : 'rgba(12, 14, 20, 0.88)';
+    ctx.roundRect(b.x - w / 2, b.y - h / 2, w, h, 6);
+    ctx.fillStyle = active ? '#0b0d12' : 'rgba(18, 20, 26, 0.92)';
     ctx.fill();
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 1.2;
     ctx.strokeStyle = b.color;
     ctx.stroke();
     // Füllstand-Balken (0–200 %)
-    ctx.fillStyle = b.color + '55';
+    ctx.fillStyle = b.color + '66';
     ctx.beginPath();
-    ctx.roundRect(b.x - w / 2 + 2, b.y + h / 2 - 5, (w - 4) * (b.depth / 2), 3, 1.5);
+    ctx.roundRect(b.x - w / 2 + 2, b.y + h / 2 - 4.5, (w - 4) * (b.depth / 2), 2.5, 1.2);
     ctx.fill();
-    ctx.fillStyle = '#e9ebf0';
-    ctx.font = '600 9.5px "JetBrains Mono", monospace';
+    ctx.fillStyle = '#e5e7eb';
+    ctx.font = '600 9px "JetBrains Mono", monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(`${Math.round(b.depth * 100)}%`, b.x, b.y - 1.5);
+    ctx.fillText(`${Math.round(b.depth * 100)}%`, b.x, b.y - 1);
     ctx.restore();
   }
 
-  drawDroopingCord(x1, y1, x2, y2, color, isDragging = false) {
+  drawDroopingCord(x1, y1, x2, y2, color, isDragging = false, isFocus = true) {
     const ctx = this.ctx;
     const dx = x2 - x1;
     const dy = y2 - y1;
     const dist = Math.sqrt(dx * dx + dy * dy);
 
-    // Straffe, formstabile Kurve ("starr" ohne extremes Durchhängen)
-    const sag = Math.min(80, 10 + dist * 0.12);
+    // Formstabile Studio-Kurve
+    const sag = Math.min(75, 8 + dist * 0.11);
     const midX = (x1 + x2) / 2;
     const midY = (y1 + y2) / 2 + sag;
 
-    // Weicher Schattenwurf
+    ctx.save();
+
+    // Dimmung: nicht-ausgewählte Kabel werden dezent abgeblendet
+    if (!isFocus) {
+      ctx.globalAlpha = 0.20;
+    }
+
+    // Weicher, dezenter Schattenwurf
     ctx.beginPath();
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
-    ctx.lineWidth = 8;
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
+    ctx.lineWidth = isFocus ? 4.5 : 2.5;
     ctx.lineCap = 'round';
-    ctx.moveTo(x1, y1 + 8);
-    ctx.quadraticCurveTo(midX, midY + 12, x2, y2 + 8);
+    ctx.moveTo(x1, y1 + 4);
+    ctx.quadraticCurveTo(midX, midY + 6, x2, y2 + 4);
     ctx.stroke();
 
-    // Straffer Kabel-Körper
+    // Matter, technischer Kabel-Körper (Dünner, ohne künstlichen Plastikglanz)
     ctx.beginPath();
     ctx.strokeStyle = color;
-    ctx.lineWidth = isDragging ? 5.5 : 4.5;
+    ctx.lineWidth = isDragging ? 3.4 : isFocus ? 2.6 : 1.8;
     ctx.lineCap = 'round';
     ctx.moveTo(x1, y1);
     ctx.quadraticCurveTo(midX, midY, x2, y2);
     ctx.stroke();
 
-    // Dezente 3D-Glanzkante
-    ctx.beginPath();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-    ctx.lineWidth = 1.5;
-    ctx.moveTo(x1, y1 - 1);
-    ctx.quadraticCurveTo(midX, midY - 1.5, x2, y2 - 1);
-    ctx.stroke();
-
     // Klinkenstecker
-    this.drawPlugHead(x1, y1, color);
+    this.drawPlugHead(x1, y1, color, isFocus);
     if (!isDragging || this.hoverTargetKey) {
-      this.drawPlugHead(x2, y2, color);
+      this.drawPlugHead(x2, y2, color, isFocus);
     } else {
       this.drawFloatingPlugHead(x2, y2, color);
     }
+
+    ctx.restore();
   }
 
-  drawPlugHead(x, y, color) {
+  drawPlugHead(x, y, color, isFocus = true) {
     const ctx = this.ctx;
-    ctx.fillStyle = '#1c1e24';
+    ctx.fillStyle = '#181b22';
     ctx.beginPath();
-    ctx.arc(x, y, 8.5, 0, Math.PI * 2);
+    ctx.arc(x, y, 6.5, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.strokeStyle = '#4b5563';
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = isFocus ? '#4b5563' : '#2d3340';
+    ctx.lineWidth = 1.2;
     ctx.stroke();
 
     ctx.fillStyle = color;
     ctx.beginPath();
-    ctx.arc(x, y, 5, 0, Math.PI * 2);
+    ctx.arc(x, y, 3.8, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = '#d1d5db';
     ctx.beginPath();
-    ctx.arc(x, y, 2, 0, Math.PI * 2);
+    ctx.arc(x, y, 1.5, 0, Math.PI * 2);
     ctx.fill();
   }
 

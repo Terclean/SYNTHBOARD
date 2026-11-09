@@ -2,6 +2,7 @@
 import { DroneModule, KeysModule, SequencerModule, NoiseModule } from './sources.js';
 import { PluckModule, FmVoiceModule, BassModule, DrumRackModule } from './instruments.js';
 import { FeltPianoModule } from './piano.js';
+import { ViolinModule } from './violin.js';
 import { MorphVoiceModule, HybridPercModule, ResonatorGardenModule, SpectralSwarmModule } from './voices.js';
 import { ChordGlideModule } from './chordGlide.js';
 import {
@@ -20,7 +21,7 @@ export const MODULES = Object.fromEntries(
     SlowRandomModule, MacroControllerModule, SlopeGeneratorModule, AttenuverterModule,
 
     // Instrumente & Klangquellen
-    ChordGlideModule, FeltPianoModule, DroneModule, PluckModule, FmVoiceModule, BassModule,
+    ChordGlideModule, ViolinModule, FeltPianoModule, DroneModule, PluckModule, FmVoiceModule, BassModule,
     DrumRackModule, KeysModule, SequencerModule, NoiseModule,
     MorphVoiceModule, HybridPercModule, ResonatorGardenModule, SpectralSwarmModule,
 
@@ -130,11 +131,33 @@ export class RackEngine {
   }
 
   moveEffect(id, newIndex) {
-    const i = this.effects.findIndex((m) => m.id === id);
-    if (i < 0) return;
-    const [mod] = this.effects.splice(i, 1);
-    this.effects.splice(Math.max(0, Math.min(this.effects.length, newIndex)), 0, mod);
-    this.rewire();
+    this.moveModule(id, 'effect', newIndex);
+  }
+
+  moveModule(id, targetCategory, newIndex) {
+    let fromList = null;
+    let fromIdx = -1;
+    if ((fromIdx = this.controls.findIndex((m) => m.id === id)) >= 0) fromList = this.controls;
+    else if ((fromIdx = this.sources.findIndex((m) => m.id === id)) >= 0) fromList = this.sources;
+    else if ((fromIdx = this.effects.findIndex((m) => m.id === id)) >= 0) fromList = this.effects;
+
+    if (!fromList) return;
+    const [mod] = fromList.splice(fromIdx, 1);
+
+    const toList = targetCategory === 'control' ? this.controls
+                 : targetCategory === 'source' ? this.sources
+                 : targetCategory === 'effect' ? this.effects
+                 : fromList;
+
+    const insertIdx = typeof newIndex === 'number'
+      ? Math.max(0, Math.min(toList.length, newIndex))
+      : toList.length;
+
+    toList.splice(insertIdx, 0, mod);
+
+    if (fromList === this.effects || toList === this.effects) {
+      this.rewire();
+    }
   }
 
   find(id) {
@@ -205,6 +228,7 @@ export class RackEngine {
       modules: [...this.controls, ...this.sources, ...this.effects].map((m) => m.getState()),
       cables: this.patchSystem.getState(),
       snapshots: this.snapshotSystem?.getState(),
+      focusDock: this.focusDock?.getState(),
     };
   }
 
@@ -226,6 +250,9 @@ export class RackEngine {
     }
     if (state?.snapshots && this.snapshotSystem) {
       this.snapshotSystem.loadState(state.snapshots);
+    }
+    if (state?.focusDock && this.focusDock) {
+      setTimeout(() => this.focusDock.loadState(state.focusDock, this), 50);
     }
   }
 

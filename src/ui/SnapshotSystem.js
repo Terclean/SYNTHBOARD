@@ -19,9 +19,9 @@ export class SnapshotSystem {
 
     // Umschalt-Geschwindigkeiten (6 = Direkt, 7 = Glide, 8 = Slow)
     this.SPEEDS = {
-      6: { id: 6, label: '6: Direkt ⚡', duration: 0, text: 'Sofort (0s)' },
-      7: { id: 7, label: '7: Glide 〰', duration: 0.8, text: 'Glide (0.8s)' },
-      8: { id: 8, label: '8: Slow 🌊', duration: 3.5, text: 'Slow Morph (3.5s)' },
+      6: { id: 6, label: '6: Direkt', duration: 0, text: 'Sofort (0s)' },
+      7: { id: 7, label: '7: Glide', duration: 0.8, text: 'Glide (0.8s)' },
+      8: { id: 8, label: '8: Slow', duration: 3.5, text: 'Slow Morph (3.5s)' },
     };
 
     this.currentSpeed = 7; // Standard: geschmeidiges Glätten
@@ -70,10 +70,10 @@ export class SnapshotSystem {
 
         <div class="preset-section actions-section">
           <button id="btn-slot-save" class="btn btn-accent-dim btn-save-slot" title="Aktuelle Reglerstände der gewählten Blöcke in aktiven Slot speichern">
-            💾 Speichern auf <b class="target-slot-lbl">Slot 1</b>
+            Speichern auf <b class="target-slot-lbl">Slot 1</b>
           </button>
           <button id="btn-slot-modules" class="btn btn-slot-modules" title="Auswählen, welche Blöcke in den Preset-Slot gepackt werden">
-            🎛️ Blöcke wählen (<span class="mod-count-lbl">Alle</span>)
+            Blöcke wählen (<span class="mod-count-lbl">Alle</span>)
           </button>
         </div>
 
@@ -95,7 +95,7 @@ export class SnapshotSystem {
       <div id="slot-module-modal" class="slot-module-modal hidden">
         <div class="slot-modal-card">
           <div class="modal-head">
-            <h3>🎛️ Blöcke für Preset-Slots auswählen</h3>
+            <h3>Blöcke für Preset-Slots auswählen</h3>
             <button class="btn-close-modal">✕</button>
           </div>
           <p class="modal-sub">Wähle, von welchen Blöcken die Reglerstände gespeichert und geswitcht werden sollen:</p>
@@ -199,7 +199,7 @@ export class SnapshotSystem {
     if (!this.SPEEDS[speedId]) return;
     this.currentSpeed = speedId;
     this.updateVisuals();
-    this.onToast(`⚡ Switch-Speed: ${this.SPEEDS[speedId].text}`);
+    this.onToast(`Switch-Speed: ${this.SPEEDS[speedId].text}`);
     this.onModified();
   }
 
@@ -211,7 +211,7 @@ export class SnapshotSystem {
       : allModules.filter((m) => this.selectedModulesFilter.has(m.id));
 
     if (!targetModules.length) {
-      this.onToast('⚠️ Keine Blöcke zum Speichern ausgewählt!');
+      this.onToast('Keine Blöcke zum Speichern ausgewählt');
       return;
     }
 
@@ -236,7 +236,7 @@ export class SnapshotSystem {
 
     this.activeSlot = slotNum;
     this.updateVisuals();
-    this.onToast(`💾 In Preset-Slot ${slotNum} gespeichert (${targetModules.length} Blöcke)`);
+    this.onToast(`In Preset-Slot ${slotNum} gespeichert (${targetModules.length} Blöcke)`);
     this.onModified();
   }
 
@@ -246,7 +246,7 @@ export class SnapshotSystem {
     if (!slot || !slot.snapshot) {
       this.activeSlot = slotNum;
       this.updateVisuals();
-      this.onToast(`Slot ${slotNum} ist leer. Drehe Regler und drücke '💾 Speichern'!`);
+      this.onToast(`Slot ${slotNum} ist leer. Drehe Regler und drücke 'Speichern'!`);
       return;
     }
 
@@ -297,7 +297,7 @@ export class SnapshotSystem {
         mod.refreshKnobs?.();
       });
 
-      this.onToast(`⚡ Slot ${slotNum} aktiviert (Direkt)`);
+      this.onToast(`Slot ${slotNum} aktiviert (Direkt)`);
       this.onModified();
       return;
     }

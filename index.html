@@ -1,131 +1,301 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="de">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SYNTHBOARD | Modulares Ambient-Rack</title>
-    <meta name="description" content="Bau dir dein eigenes Synthboard: Drone-Maschine, Keys, Sequencer, Noise und Effekte wie Filter, Delay und Reverb frei kombinieren, sortieren und als Boards speichern." />
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+    <title>SYNTHBOARD · Modulares Musikstudio</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
-    <div class="bg-aurora" aria-hidden="true"></div>
-
-    <!-- Browser erlauben Audio erst nach einer Interaktion -->
-    <div id="start-overlay" class="start-overlay">
-      <div class="start-card">
-        <div class="start-sun" aria-hidden="true"></div>
-        <h2>Bereit zum Spielen</h2>
-        <p>Dein Browser startet Audio erst nach einem Klick.</p>
-        <button id="btn-start" class="btn btn-primary btn-lg">🔊 Sound starten</button>
-      </div>
-    </div>
-
     <div class="app">
-      <!-- Fester Canvas für modulare Patch-Kabel (starr mit dem Rack verankert) -->
+      <!-- Fester Canvas für modulare Patch-Kabel -->
       <canvas id="patch-canvas" class="patch-canvas"></canvas>
 
-      <header class="topbar">
-        <div class="brand">
-          <div class="brand-logo" aria-hidden="true">⚡</div>
-          <div>
-            <h1>SYNTHBOARD <span>STUDIO</span></h1>
-            <p class="brand-sub">MODULARES AMBIENT-RACK</p>
+      <!-- ── Schlanke Studio-Kopfzeile (DAW-Style, 42px) ── -->
+      <header class="studio-topbar">
+        <!-- Links: SYNTHBOARD-Logo, Menüs & Patch-Wähler -->
+        <div class="topbar-left">
+          <div class="studio-brand" title="SYNTHBOARD Modular Studio">
+            <img src="/synthboard-icon.png" alt="SYNTHBOARD" class="studio-logo-icon" />
+            <span class="studio-brand-text">SYNTHBOARD</span>
           </div>
-        </div>
 
-        <div class="board-bar" role="group" aria-label="Boards verwalten">
-          <label for="board-select" class="bar-label">BOARD</label>
-          <select id="board-select" class="select"></select>
-          <button id="btn-boards-gallery" class="btn btn-boards-top" title="Boards durchstöbern [Taste V]">🎛️ Galerie</button>
-          <span id="dirty-dot" class="dirty-dot" title="Ungespeicherte Änderungen"></span>
-          <button id="btn-new" class="btn" title="Neues leeres Board">＋ Neu</button>
-          <button id="btn-save" class="btn btn-accent" title="Board speichern">💾 Speichern</button>
-          <button id="btn-save-as" class="btn" title="Als neues Board speichern">⧉ Kopie</button>
-          <button id="btn-delete" class="btn btn-icon" title="Board löschen">🗑</button>
-          <button id="btn-export" class="btn btn-icon" title="Board als Datei exportieren">⇩</button>
-          <button id="btn-import" class="btn btn-icon" title="Board-Datei importieren">⇧</button>
+          <!-- DAW-Menüleiste -->
+          <nav class="daw-menubar" aria-label="Hauptmenü">
+            <div class="menu-item" data-menu="file">
+              <button class="menu-btn">Datei</button>
+              <div class="menu-dropdown">
+                <button class="menu-action" id="btn-new">Neues Board <span class="m-key">Cmd+N</span></button>
+                <button class="menu-action" id="btn-save">Patch speichern <span class="m-key">Cmd+S</span></button>
+                <button class="menu-action" id="btn-save-as">Als Kopie speichern…</button>
+                <div class="menu-divider"></div>
+                <button class="menu-action" id="btn-boards-gallery">Board-Galerie öffnen <span class="m-key">V</span></button>
+                <div class="menu-divider"></div>
+                <button class="menu-action" id="btn-import">Importieren (JSON)…</button>
+                <button class="menu-action" id="btn-export">Exportieren (JSON)</button>
+                <div class="menu-divider"></div>
+                <button class="menu-action menu-danger" id="btn-delete">Speicher komplett bereinigen…</button>
+              </div>
+            </div>
+
+            <div class="menu-item" data-menu="edit">
+              <button class="menu-btn">Bearbeiten</button>
+              <div class="menu-dropdown">
+                <button class="menu-action" id="menu-disconnect-all">Alle Patchkabel abziehen</button>
+                <button class="menu-action" id="menu-clear-focus">Live-Controls leeren</button>
+              </div>
+            </div>
+
+            <div class="menu-item" data-menu="view">
+              <button class="menu-btn">Ansicht</button>
+              <div class="menu-dropdown">
+                <button class="menu-action" id="btn-toggle-lib">Modul-Bibliothek <span class="m-key">B</span></button>
+                <button class="menu-action" id="btn-toggle-perf">Performance-Board <span class="m-key">P</span></button>
+                <button class="menu-action" id="btn-cables">Patchkabel einblenden <span class="m-key">C</span></button>
+                <div class="menu-divider"></div>
+                <button class="menu-action" id="btn-zoom-in">Vergrößern <span class="m-key">+</span></button>
+                <button class="menu-action" id="btn-zoom-out">Verkleinern <span class="m-key">-</span></button>
+                <button class="menu-action" id="btn-zoom-reset">100% Zoom <span class="m-key">0</span></button>
+                <button class="menu-action" id="btn-zoom-fit">Auf Bildschirm einpassen <span class="m-key">F</span></button>
+              </div>
+            </div>
+
+            <div class="menu-item" data-menu="help">
+              <button class="menu-btn">Hilfe</button>
+              <div class="menu-dropdown">
+                <button class="menu-action" id="btn-guide">Handbuch &amp; Signalfluss <span class="m-key">H</span></button>
+                <button class="menu-action" id="btn-tutorials">Interaktive Tutorials <span class="m-key">T</span></button>
+                <button class="menu-action" id="btn-info">Info-Tooltips umschalten</button>
+              </div>
+            </div>
+          </nav>
+
+          <!-- Aktiver Patch-Name (mit Dirty-Dot & Dropdown-Trigger) -->
+          <div class="patch-selector-wrap" title="Klicken, um Board zu wechseln">
+            <span id="dirty-dot" class="dirty-dot" title="Ungespeicherte Änderungen"></span>
+            <span class="patch-prefix">PATCH:</span>
+            <select id="board-select" class="board-dropdown-select" aria-label="Aktives Board"></select>
+          </div>
           <input id="file-import" type="file" accept="application/json,.json" hidden />
         </div>
 
-        <div class="zoom-bar" role="group" aria-label="Arbeitsbereich zoomen">
-          <button id="btn-toggle-lib" class="btn" title="Modul-Bibliothek ein-/ausklappen [Taste B]"><span class="lib-icon-symbol">◀</span> <span class="txt">Module</span></button>
-          <div class="zoom-cluster">
-            <button id="btn-zoom-out" class="btn btn-icon" title="Arbeitsbereich verkleinern (Mehr Übersicht) [Taste -]">🔍−</button>
-            <button id="btn-zoom-reset" class="btn btn-zoom-val" title="Zoom auf 100% zurücksetzen [Taste 0]"><span id="zoom-val">100%</span></button>
-            <button id="btn-zoom-in" class="btn btn-icon" title="Arbeitsbereich vergrößern [Taste +]">🔍＋</button>
-            <button id="btn-zoom-fit" class="btn btn-accent-dim" title="Ganzes Rack auf den Bildschirm einpassen [Taste F]">⤢ Fit</button>
+        <!-- Mitte: Transport (Power, BPM, REC) -->
+        <div class="topbar-center">
+          <button id="btn-power" class="transport-btn power-btn on" title="Audio-Engine starten / pausieren [Space]">
+            <span class="t-led"></span>
+            <span class="txt">AN</span>
+          </button>
+
+          <div class="bpm-control-box" title="Master-Tempo in BPM (synchronisiert mit Master Clock)">
+            <span class="bpm-lbl">BPM</span>
+            <input type="number" id="tempo-input" class="bpm-input" min="30" max="240" value="100" />
+            <div class="bpm-steppers">
+              <button id="btn-bpm-up" class="bpm-step" title="Tempo erhöhen">▲</button>
+              <button id="btn-bpm-down" class="bpm-step" title="Tempo verringern">▼</button>
+            </div>
           </div>
+
+          <button id="btn-record" class="transport-btn rec-btn" title="Session als Audio aufnehmen">
+            <span class="rec-dot"></span>
+            <span class="txt">REC</span>
+          </button>
         </div>
 
-        <div class="master-bar">
-          <canvas id="scope" class="scope" width="180" height="46" aria-label="Oszilloskop"></canvas>
-          <button id="btn-tutorials" class="btn btn-tutorials" title="Interaktive Modul-Tutorials &amp; Grüne Buchsen verstehen [Taste T]"><span class="tut-icon">🎓</span><span class="txt">TUTORIALS</span></button>
-          <button id="btn-guide" class="btn btn-guide" title="Erklärungsseite &amp; Patch-Handbuch öffnen [Taste H]"><span class="guide-icon">📖</span><span class="txt">HANDBUCH</span></button>
-          <button id="btn-info" class="btn btn-info on" title="Infoboxen &amp; Erklärungen ein-/ausblenden [Taste I]"><span class="info-dot"></span><span class="txt">INFO: AN</span></button>
-          <button id="btn-cables" class="btn btn-cables on" title="Patch-Kabel ein-/ausblenden [Taste C]"><span class="cable-dot"></span><span class="txt">KABEL</span></button>
-          <button id="btn-power" class="btn btn-power" title="Audio pausieren / fortsetzen"><span class="led"></span><span class="txt">AUS</span></button>
-          <button id="btn-record" class="btn btn-record" title="Aufnehmen & als Datei speichern"><span class="rec-dot"></span><span class="txt">REC</span></button>
-          <div class="master-knob">
+        <!-- Rechts: Scope, Master-Knob & Sidebar-Toggles -->
+        <div class="topbar-right">
+          <canvas id="scope" class="scope-compact" width="110" height="30" aria-label="Oszilloskop"></canvas>
+
+          <div class="master-fader-cell" title="Master-Lautstärke">
+            <span class="master-lbl">MASTER</span>
             <div id="knob-master" data-knob-color="white" data-knob-size="sm"></div>
-            <span>MASTER</span>
+          </div>
+
+          <div class="panel-toggles">
+            <button id="btn-side-lib" class="icon-toggle active" title="Bibliothek schließen [Taste B]">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            </button>
+            <button id="btn-toggle-perf-board" class="perf-board-toggle-btn active" title="Performance-Board schließen [Taste P]">
+              <span class="perf-dot"></span>
+              <span class="perf-txt">PERFORMANCE</span>
+            </button>
           </div>
         </div>
       </header>
 
-      <div class="workspace">
-        <aside class="library" aria-label="Modul-Bibliothek">
-          <section id="focus-dock" class="focus-dock" aria-label="Fokus-Regler"></section>
+      <!-- ── Haupt-Arbeitsbereich ── -->
+      <div class="workspace" id="workspace">
+        <!-- Ausklapp-Griffleiste für Bibliothek bei eingeklapptem Zustand -->
+        <button id="btn-open-lib-edge" class="lib-edge-tab hidden" title="Bibliothek öffnen [Taste B]">
+          <span>BIBLIOTHEK</span>
+        </button>
 
-          <h2>Module</h2>
-          <p class="lib-hint">Klicken oder ins Rack ziehen</p>
-          <h3>Steuerung &amp; Rhythmus</h3>
-          <div id="lib-controls" class="lib-list"></div>
-          <h3>Klangquellen &amp; Stimmen</h3>
-          <div id="lib-sources" class="lib-list"></div>
-          <h3>Effekte</h3>
-          <div id="lib-effects" class="lib-list"></div>
+        <!-- Linke Seitenleiste: Modulbibliothek -->
+        <aside class="library" id="library-panel" aria-label="Modul-Bibliothek">
+          <div class="lib-header">
+            <div class="lib-header-title-box">
+              <span class="lib-title">BIBLIOTHEK</span>
+              <span class="lib-count" id="lib-count-badge">23</span>
+            </div>
+            <button id="btn-close-lib" class="lib-close-btn" title="Bibliothek schließen [Taste B]">✕</button>
+          </div>
+
+          <!-- Suchfeld mit Sofortfilter -->
+          <div class="lib-search-box">
+            <input type="search" id="lib-search" placeholder="Module suchen… [ESC]" autocomplete="off" />
+          </div>
+
+          <!-- Filter-Pills -->
+          <div class="lib-filter-tabs">
+            <button class="filter-tab active" data-filter="all">Alle</button>
+            <button class="filter-tab" data-filter="control">Steuerung</button>
+            <button class="filter-tab" data-filter="source">Klänge</button>
+            <button class="filter-tab" data-filter="effect">Effekte</button>
+          </div>
+
+          <!-- Modulliste -->
+          <div class="lib-scroll-area">
+            <div id="lib-unified-list" class="lib-unified-list"></div>
+          </div>
         </aside>
 
-        <main class="rack">
-          <section class="zone" id="zone-controls">
-            <div class="zone-head">
-              <h2><span class="zone-dot ctrl"></span>Steuerung &amp; Generatoren</h2>
-              <span class="zone-sub">Clock, Rhythmus, Noten &amp; Modulation · über Kabel frei patchbar</span>
-            </div>
-            <div class="zone-body" id="rack-controls"></div>
-          </section>
+        <!-- Zentraler modularer Rack-Bereich -->
+        <main class="rack-workspace" id="rack-workspace">
+          <div class="rack" id="rack-main">
+            <!-- Reihe 1: STEUERUNG & TAKT -->
+            <section class="rack-row row-controls" id="row-controls" data-category="control">
+              <header class="rack-row-header">
+                <div class="rack-row-title-box">
+                  <span class="rack-row-led led-control"></span>
+                  <h2 class="rack-row-title">STEUERUNG &amp; TAKT</h2>
+                  <span class="rack-row-count" id="count-controls">0</span>
+                </div>
+                <div class="rack-row-right-actions">
+                  <span class="rack-row-sub">Clock · Divider · Euclidean · Quantizer · LFO · Macro</span>
+                  <button class="row-fold-btn" data-row-cat="control" title="Alle Module in dieser Reihe ein-/ausklappen">▢ Kompakt</button>
+                </div>
+              </header>
+              <div class="rack-rails top-rail"></div>
+              <div class="rack-row-body" id="rack-controls" data-category="control"></div>
+              <div class="rack-rails bottom-rail"></div>
+            </section>
 
-          <section class="zone" id="zone-sources">
-            <div class="zone-head">
-              <h2><span class="zone-dot src"></span>Klangquellen &amp; Instrumente</h2>
-              <span class="zone-sub">laufen parallel und empfangen Steuerimpulse per Kabel</span>
-            </div>
-            <div class="zone-body" id="rack-sources"></div>
-          </section>
+            <!-- Reihe 2: KLANGQUELLEN & INSTRUMENTE -->
+            <section class="rack-row row-sources" id="row-sources" data-category="source">
+              <header class="rack-row-header">
+                <div class="rack-row-title-box">
+                  <span class="rack-row-led led-source"></span>
+                  <h2 class="rack-row-title">KLANGQUELLEN &amp; INSTRUMENTE</h2>
+                  <span class="rack-row-count" id="count-sources">0</span>
+                </div>
+                <div class="rack-row-right-actions">
+                  <span class="rack-row-sub">Chord Glide · Solo Violin · Felt Piano · Pluck · Synth · Drums</span>
+                  <button class="row-fold-btn" data-row-cat="source" title="Alle Module in dieser Reihe ein-/ausklappen">▢ Kompakt</button>
+                </div>
+              </header>
+              <div class="rack-rails top-rail"></div>
+              <div class="rack-row-body" id="rack-sources" data-category="source"></div>
+              <div class="rack-rails bottom-rail"></div>
+            </section>
 
-          <section class="zone" id="zone-effects">
-            <div class="zone-head">
-              <h2><span class="zone-dot fx"></span>Effektkette</h2>
-              <span class="zone-sub">Signal fließt von links nach rechts · Reihenfolge per Drag &amp; Drop oder ◀ ▶</span>
-            </div>
-            <div class="zone-body chain" id="rack-effects"></div>
-          </section>
+            <!-- Reihe 3: EFFEKTE & ROUTING -->
+            <section class="rack-row row-effects" id="row-effects" data-category="effect">
+              <header class="rack-row-header">
+                <div class="rack-row-title-box">
+                  <span class="rack-row-led led-effect"></span>
+                  <h2 class="rack-row-title">EFFEKTE &amp; ROUTING</h2>
+                  <span class="rack-row-count" id="count-effects">0</span>
+                </div>
+                <div class="rack-row-right-actions">
+                  <span class="rack-row-sub">Filter · Reverb · Delay · Chorus · Tremolo · LoFi · Master</span>
+                  <button class="row-fold-btn" data-row-cat="effect" title="Alle Module in dieser Reihe ein-/ausklappen">▢ Kompakt</button>
+                </div>
+              </header>
+              <div class="rack-rails top-rail"></div>
+              <div class="rack-row-body" id="rack-effects" data-category="effect"></div>
+              <div class="rack-rails bottom-rail"></div>
+            </section>
+          </div>
+
+          <!-- Schwebendes minimales Zoom-Tool im Rack -->
+          <div class="rack-floating-zoom">
+            <button id="btn-zoom-out" class="zoom-btn" title="Verkleinern [-]">−</button>
+            <button id="btn-zoom-reset" class="zoom-btn zoom-val-btn" title="100% Zoom [0]"><span id="zoom-val">100%</span></button>
+            <button id="btn-zoom-in" class="zoom-btn" title="Vergrößern [+]">＋</button>
+            <button id="btn-zoom-fit" class="zoom-btn" title="Einpassen [F]">⤢</button>
+          </div>
         </main>
-      </div>
 
-      <footer class="statusbar">
-        <div class="status-hints">
-          <span>🔌 Ziehe Kabel von Buchse zu Buchse · Rechtsklick trennt Kabel · ⌨️ Tastatur <kbd>A</kbd>–<kbd>#</kbd> spielt Keys</span>
-          <button id="btn-boards-footer" class="footer-guide-link tut-link">🎛️ 14 Beispiel-Boards</button>
-          <button id="btn-tutorials-footer" class="footer-guide-link tut-link">🎓 Tutorials &amp; Grüne Buchsen</button>
-          <button id="btn-guide-footer" class="footer-guide-link">📖 Handbuch &amp; Lexikon</button>
-        </div>
-        <span class="status"><span id="status-led" class="status-led"></span><span id="status-text">Audio wartet…</span></span>
-      </footer>
+        <!-- ── Rechter Bereich: PERFORMANCE-BOARD ── -->
+        <aside class="performance-board" id="performance-board" aria-label="Performance-Board">
+          <!-- Header des Performance-Boards -->
+          <div class="perf-board-header">
+            <div class="perf-board-brand">
+              <span class="perf-board-led"></span>
+              <h3 class="perf-board-heading">PERFORMANCE</h3>
+            </div>
+
+            <button class="perf-close-btn" id="btn-close-perf-board" title="Performance-Board schließen [Taste P]">✕</button>
+          </div>
+
+          <div class="perf-board-scroll">
+            <div id="perf-tab-play" class="perf-tab-content">
+              <!-- Bereich A: 5 frei zuweisbare Live-Controls -->
+              <section class="perf-card-section">
+                <div class="perf-card-head">
+                  <div class="perf-card-title-group">
+                    <span class="perf-dot-orange"></span>
+                    <span class="perf-card-title">LIVE-CONTROLS</span>
+                  </div>
+                  <span class="perf-slot-counter" id="live-controls-counter">0 / 5</span>
+                </div>
+
+                <div class="perf-hint-txt">
+                  <span class="hint-key">Shift + Klick</span> auf beliebige Regler im Rack, um sie hier live zu spielen.
+                </div>
+
+                <!-- Host-Container für FocusDock -->
+                <div id="focus-dock" class="focus-dock-wrap"></div>
+              </section>
+
+              <!-- Bereich B: Performance-Presets (Snapshot System) -->
+              <section class="perf-card-section">
+                <div class="perf-card-head">
+                  <div class="perf-card-title-group">
+                    <span class="perf-dot-blue"></span>
+                    <span class="perf-card-title">PERFORMANCE-PRESETS</span>
+                  </div>
+                </div>
+
+                <div class="perf-hint-txt">
+                  Klick ruft Preset ab · Tasten <span class="hint-key">1–5</span> · Speed <span class="hint-key">6–8</span>
+                </div>
+
+                <!-- Host-Container für SnapshotSystem -->
+                <div id="preset-bar-host" class="preset-bar-host-wrap"></div>
+              </section>
+            </div>
+          </div>
+        </aside>
+
+        <!-- Dezente Griffleiste zum Aufklappen des Performance-Boards bei eingeklapptem Zustand -->
+        <button id="btn-open-perf-edge" class="perf-edge-tab hidden" title="Performance-Board öffnen [Taste P]">
+          <span>PERFORMANCE</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Unsichtbare Fallback-Buttons für Kompatibilität -->
+    <div style="display:none;" aria-hidden="true">
+      <button id="btn-boards-footer"></button>
+      <button id="btn-tutorials-footer"></button>
+      <button id="btn-guide-footer"></button>
+      <span id="status-led"></span>
+      <span id="status-text"></span>
+      <div id="inspector-panel"></div>
+      <div id="performance-bar"></div>
     </div>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
