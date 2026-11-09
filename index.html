@@ -52,6 +52,8 @@
             <div class="menu-item" data-menu="view">
               <button class="menu-btn">Ansicht</button>
               <div class="menu-dropdown">
+                <button class="menu-action" id="btn-toggle-overview">Alles auf einen Blick <span class="m-key">O</span></button>
+                <div class="menu-divider"></div>
                 <button class="menu-action" id="btn-toggle-lib">Modul-Bibliothek <span class="m-key">B</span></button>
                 <button class="menu-action" id="btn-toggle-perf">Performance-Board <span class="m-key">P</span></button>
                 <button class="menu-action" id="btn-cables">Patchkabel einblenden <span class="m-key">C</span></button>
@@ -104,8 +106,13 @@
           </button>
         </div>
 
-        <!-- Rechts: Scope, Master-Knob & Sidebar-Toggles -->
+        <!-- Rechts: Overview-Button, Scope, Master-Knob & Sidebar-Toggles -->
         <div class="topbar-right">
+          <button id="btn-studio-overview" class="overview-topbar-btn" title="Alles auf einen Blick: Passt alle Studio-Geräte optimal in den Bildschirm ein [Taste O]">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>
+            <span>ALLES IM BLICK</span>
+          </button>
+
           <canvas id="scope" class="scope-compact" width="110" height="30" aria-label="Oszilloskop"></canvas>
 
           <div class="master-fader-cell" title="Master-Lautstärke">

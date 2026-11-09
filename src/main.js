@@ -413,6 +413,17 @@ function renderRack(highlightId) {
   focusDock?.updateRackBadges();
   updateStatus();
   syncTransportBpm();
+
+  // Horizontales Scrollen per Mausrad auf den Rack-Schienen
+  document.querySelectorAll('.rack-row-body').forEach((rowBody) => {
+    rowBody.onwheel = (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (rowBody.scrollWidth > rowBody.clientWidth && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        rowBody.scrollLeft += e.deltaY;
+        patchBay.requestDraw?.();
+      }
+    };
+  });
 }
 
 function createCard(mod, index = -1) {
@@ -927,13 +938,40 @@ function populateBoards() {
   const sel = $('#board-select');
   if (!sel) return;
   const mine = Object.keys(boards).sort((a, b) => a.localeCompare(b));
-  sel.innerHTML = `
-    ${current.kind === 'new' ? '<option value="new:" selected>Neues Board (ungespeichert)</option>' : ''}
-    <optgroup label="Meine Boards">${mine.length ? mine.map((n) => `<option value="my:${esc(n)}">${esc(n)}</option>`).join('') : '<option disabled>– noch keine gespeichert –</option>'}</optgroup>
-    ${mine.length > 0 ? '<option value="action:clear_all">Speicher komplett leeren (alle Boards löschen)...</option>' : ''}
-    <optgroup label="Vorlagen">${Object.entries(TEMPLATES).map(([k, t]) => `<option value="tpl:${k}">${esc(t.name)}</option>`).join('')}</optgroup>`;
 
-  if (current.kind !== 'new') sel.value = `${current.kind}:${current.key}`;
+  const options = [];
+  if (current.kind === 'new') {
+    options.push('<option value="new:" selected>Neues Board (ungespeichert)</option>');
+  }
+
+  options.push(`<optgroup label="Meine Patches">${mine.length ? mine.map((n) => `<option value="my:${esc(n)}">${esc(n)}</option>`).join('') : '<option disabled>– noch keine gespeichert –</option>'}</optgroup>`);
+
+  options.push(`<optgroup label="Studio-Vorlagen">${Object.entries(TEMPLATES).map(([k, t]) => `<option value="tpl:${k}">${esc(t.name)}</option>`).join('')}</optgroup>`);
+
+  if (mine.length > 0) {
+    options.push('<option value="action:clear_all">Speicher komplett leeren (alle Boards löschen)...</option>');
+  }
+
+  sel.innerHTML = options.join('');
+
+  const targetVal = current.kind === 'new' ? 'new:' : `${current.kind}:${current.key}`;
+  const exists = Array.from(sel.options).some((o) => o.value === targetVal);
+
+  if (!exists && targetVal) {
+    // Falls Key z. B. durch Autosave oder Import noch nicht existiert, dynamisch hinzufügen damit Dropdown nie leer ist
+    const fallbackLabel = current.key || (current.kind === 'new' ? 'Neues Board (ungespeichert)' : 'Aktueller Patch');
+    const customOpt = document.createElement('option');
+    customOpt.value = targetVal;
+    customOpt.textContent = fallbackLabel;
+    customOpt.selected = true;
+    sel.prepend(customOpt);
+  } else {
+    sel.value = targetVal;
+  }
+
+  const activeLabel = sel.selectedOptions[0]?.textContent || (current.key || 'Patch wählen');
+  const wrap = $('.patch-selector-wrap');
+  if (wrap) wrap.title = `Aktiver Patch: ${activeLabel} (Klicken zum Wechseln)`;
 
   const btnDelete = $('#btn-delete');
   if (btnDelete) {
@@ -941,6 +979,20 @@ function populateBoards() {
     btnDelete.title = current.kind === 'my' ? `Board „${current.key}“ löschen` : mine.length > 0 ? 'Gespeicherte Boards löschen' : 'Speicher leeren';
   }
 }
+
+// Klick auf den gesamten Patch-Badge öffnet zuverlässig die Patch-Auswahl
+$('.patch-selector-wrap')?.addEventListener('click', (e) => {
+  const sel = $('#board-select');
+  if (!sel) return;
+  if (e.target !== sel) {
+    sel.focus();
+    if (typeof sel.showPicker === 'function') {
+      try { sel.showPicker(); } catch (_) { sel.click(); }
+    } else {
+      sel.click();
+    }
+  }
+});
 
 function loadBoard(kind, key) {
   const state = kind === 'tpl' ? TEMPLATES[key]?.state : loadBoards()[key];
@@ -953,6 +1005,9 @@ function loadBoard(kind, key) {
   snapshotSystem?.updateVisuals();
   populateBoards();
   setDirty(false);
+  setTimeout(() => {
+    fitZoomToScreen(false);
+  }, 60);
 }
 
 function confirmDiscard() {
@@ -1174,27 +1229,29 @@ function applyZoom(level, notify = false) {
   if (notify) toast(`Zoom: ${Math.round(currentZoom * 100)}%`);
 }
 
-function fitZoomToScreen() {
+function fitZoomToScreen(notify = true) {
   const rackEl = document.querySelector('.rack');
   const ws = document.getElementById('rack-workspace');
   if (!ws || !rackEl) return;
 
   rackEl.style.zoom = '1';
 
-  const availableH = ws.clientHeight - 40;
+  const availableH = ws.clientHeight - 36;
   const naturalH = rackEl.scrollHeight || 1000;
 
   let targetRatio = availableH / naturalH;
-  targetRatio = Math.max(0.45, Math.min(1.0, Math.round(targetRatio * 100) / 100));
+  targetRatio = Math.max(0.40, Math.min(1.05, Math.round(targetRatio * 100) / 100));
 
   applyZoom(targetRatio, false);
-  toast(`Rack eingepasst (${Math.round(targetRatio * 100)}%)`);
+  if (notify) toast(`Studio-Übersicht: ${Math.round(targetRatio * 100)}% (Alles im Blick)`);
 }
 
 $('#btn-zoom-out')?.addEventListener('click', () => applyZoom(currentZoom - 0.1, true));
 $('#btn-zoom-in')?.addEventListener('click', () => applyZoom(currentZoom + 0.1, true));
 $('#btn-zoom-reset')?.addEventListener('click', () => applyZoom(1.0, true));
-$('#btn-zoom-fit')?.addEventListener('click', () => fitZoomToScreen());
+$('#btn-zoom-fit')?.addEventListener('click', () => fitZoomToScreen(true));
+$('#btn-studio-overview')?.addEventListener('click', () => fitZoomToScreen(true));
+$('#btn-toggle-overview')?.addEventListener('click', () => fitZoomToScreen(true));
 
 // Sofortiges flüssiges Neuzeichnen der Patchkabel beim Scrollen im Rack
 rackWorkspaceEl?.addEventListener('scroll', () => {
@@ -1251,9 +1308,9 @@ window.addEventListener('keydown', (e) => {
   }
 
   if (!e.metaKey && !e.ctrlKey && !e.altKey) {
-    if (e.key.toLowerCase() === 'f') {
+    if (e.key.toLowerCase() === 'f' || e.key.toLowerCase() === 'o') {
       e.preventDefault();
-      fitZoomToScreen();
+      fitZoomToScreen(true);
       return;
     }
     if (e.key.toLowerCase() === 'b') {
@@ -1341,6 +1398,9 @@ function boot() {
   } catch { /* ignore */ }
 
   applyZoom(currentZoom);
+  setTimeout(() => {
+    fitZoomToScreen(false);
+  }, 120);
   updateStatus();
 }
 
