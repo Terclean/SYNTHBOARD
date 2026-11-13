@@ -11,9 +11,6 @@
   </head>
   <body>
     <div class="app">
-      <!-- Fester Canvas für modulare Patch-Kabel -->
-      <canvas id="patch-canvas" class="patch-canvas"></canvas>
-
       <!-- ── Schlanke Studio-Kopfzeile (DAW-Style, 42px) ── -->
       <header class="studio-topbar">
         <!-- Links: SYNTHBOARD-Logo, Menüs & Patch-Wähler -->
@@ -21,6 +18,16 @@
           <div class="studio-brand" title="SYNTHBOARD Modular Studio">
             <img src="/synthboard-icon.png" alt="SYNTHBOARD" class="studio-logo-icon" />
             <span class="studio-brand-text">SYNTHBOARD</span>
+          </div>
+
+          <!-- Hauptnavigation: Studio-Arbeitsfläche vs. Virtuelles Eurorack -->
+          <div class="main-mode-nav" role="navigation" aria-label="Arbeitsbereich wechseln">
+            <button type="button" id="btn-nav-studio" class="main-nav-pill active" title="Klassische SYNTHBOARD-Arbeitsfläche">
+              Studio
+            </button>
+            <button type="button" id="btn-nav-eurorack" class="main-nav-pill" title="Virtuelles Eurorack „Distant Lights“ öffnen">
+              Eurorack
+            </button>
           </div>
 
           <!-- DAW-Menüleiste -->
@@ -52,6 +59,9 @@
             <div class="menu-item" data-menu="view">
               <button class="menu-btn">Ansicht</button>
               <div class="menu-dropdown">
+                <button class="menu-action" id="btn-menu-eurorack">Virtuelles Eurorack öffnen <span class="m-key">E</span></button>
+                <button class="menu-action" id="btn-menu-studio">Klassisches Studio öffnen</button>
+                <div class="menu-divider"></div>
                 <button class="menu-action" id="btn-toggle-overview">Alles auf einen Blick <span class="m-key">O</span></button>
                 <div class="menu-divider"></div>
                 <button class="menu-action" id="btn-toggle-lib">Modul-Bibliothek <span class="m-key">B</span></button>
@@ -168,71 +178,10 @@
           </div>
         </aside>
 
-        <!-- Zentraler modularer Rack-Bereich -->
-        <main class="rack-workspace" id="rack-workspace">
-          <div class="rack" id="rack-main">
-            <!-- Reihe 1: STEUERUNG & TAKT -->
-            <section class="rack-row row-controls" id="row-controls" data-category="control">
-              <header class="rack-row-header">
-                <div class="rack-row-title-box">
-                  <span class="rack-row-led led-control"></span>
-                  <h2 class="rack-row-title">STEUERUNG &amp; TAKT</h2>
-                  <span class="rack-row-count" id="count-controls">0</span>
-                </div>
-                <div class="rack-row-right-actions">
-                  <span class="rack-row-sub">Clock · Divider · Euclidean · Quantizer · LFO · Macro</span>
-                  <button class="row-fold-btn" data-row-cat="control" title="Alle Module in dieser Reihe ein-/ausklappen">▢ Kompakt</button>
-                </div>
-              </header>
-              <div class="rack-rails top-rail"></div>
-              <div class="rack-row-body" id="rack-controls" data-category="control"></div>
-              <div class="rack-rails bottom-rail"></div>
-            </section>
-
-            <!-- Reihe 2: KLANGQUELLEN & INSTRUMENTE -->
-            <section class="rack-row row-sources" id="row-sources" data-category="source">
-              <header class="rack-row-header">
-                <div class="rack-row-title-box">
-                  <span class="rack-row-led led-source"></span>
-                  <h2 class="rack-row-title">KLANGQUELLEN &amp; INSTRUMENTE</h2>
-                  <span class="rack-row-count" id="count-sources">0</span>
-                </div>
-                <div class="rack-row-right-actions">
-                  <span class="rack-row-sub">Chord Glide · Solo Violin · Felt Piano · Pluck · Synth · Drums</span>
-                  <button class="row-fold-btn" data-row-cat="source" title="Alle Module in dieser Reihe ein-/ausklappen">▢ Kompakt</button>
-                </div>
-              </header>
-              <div class="rack-rails top-rail"></div>
-              <div class="rack-row-body" id="rack-sources" data-category="source"></div>
-              <div class="rack-rails bottom-rail"></div>
-            </section>
-
-            <!-- Reihe 3: EFFEKTE & ROUTING -->
-            <section class="rack-row row-effects" id="row-effects" data-category="effect">
-              <header class="rack-row-header">
-                <div class="rack-row-title-box">
-                  <span class="rack-row-led led-effect"></span>
-                  <h2 class="rack-row-title">EFFEKTE &amp; ROUTING</h2>
-                  <span class="rack-row-count" id="count-effects">0</span>
-                </div>
-                <div class="rack-row-right-actions">
-                  <span class="rack-row-sub">Filter · Reverb · Delay · Chorus · Tremolo · LoFi · Master</span>
-                  <button class="row-fold-btn" data-row-cat="effect" title="Alle Module in dieser Reihe ein-/ausklappen">▢ Kompakt</button>
-                </div>
-              </header>
-              <div class="rack-rails top-rail"></div>
-              <div class="rack-row-body" id="rack-effects" data-category="effect"></div>
-              <div class="rack-rails bottom-rail"></div>
-            </section>
-          </div>
-
-          <!-- Schwebendes minimales Zoom-Tool im Rack -->
-          <div class="rack-floating-zoom">
-            <button id="btn-zoom-out" class="zoom-btn" title="Verkleinern [-]">−</button>
-            <button id="btn-zoom-reset" class="zoom-btn zoom-val-btn" title="100% Zoom [0]"><span id="zoom-val">100%</span></button>
-            <button id="btn-zoom-in" class="zoom-btn" title="Vergrößern [+]">＋</button>
-            <button id="btn-zoom-fit" class="zoom-btn" title="Einpassen [F]">⤢</button>
-          </div>
+        <!-- Zentraler modularer Rack-Bereich (Zoombares Google-Maps-Workspace-System) -->
+        <main class="rack-workspace" id="rack-workspace" tabindex="0" aria-label="Modulare Arbeitsfläche">
+          <canvas id="patch-canvas" class="patch-canvas"></canvas>
+          <div class="workspace-world" id="workspace-world"></div>
         </main>
 
         <!-- ── Rechter Bereich: PERFORMANCE-BOARD ── -->
@@ -292,6 +241,9 @@
           <span>PERFORMANCE</span>
         </button>
       </div>
+
+      <!-- ── Virtuelles Eurorack („Distant Lights“) ── -->
+      <div id="eurorack-view" class="eurorack-view hidden" aria-label="Virtuelles Eurorack Distant Lights"></div>
     </div>
 
     <!-- Unsichtbare Fallback-Buttons für Kompatibilität -->

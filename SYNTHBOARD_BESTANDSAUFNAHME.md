@@ -560,20 +560,24 @@ Alle Klangquellen besitzen standardmäßig den integrierten Mixer-Kanalzug (`PAN
 - **Visualisierung:**
   - Real-time Tonhöhen-Canvas mit horizontalen Oktav-Linien und farbigen Bezier-Kurven für jede Einzelstimme.
   - Durchlaufender Playhead zeigt stets die exakte Abspiel- und Glide-Position.
-- **Regler:**
-  - `Level` (`level`): 0% bis 100%
+- **Regler (`values`):**
+  - `Level` (`level`): 0% bis 100% (0.0 .. 1.0)
   - `Glide` (`glide`): 0 bis 5.0 s logarithmisch fein regelbar
-  - `Filter` (`filter`): 100 bis 12000 Hz Lowpass-Grenzfrequenz
-  - `Detune` (`detune`): 0 bis 25 Cent Schwebung zwischen Dual-Oszillatoren
-  - `Attack` (`attack`): 0.01 bis 4.0 s Pad-Einschwingzeit
+  - `Klangfarbe` (`cutoff`, Alias `filter`): 150 bis 12000 Hz Lowpass-Grenzfrequenz
+  - `Schwebung` (`detune`): 0 bis 30 Cent Schwebung zwischen Dual-Oszillatoren
+  - `Attack` (`attack`): 0.02 bis 4.0 s Pad-Einschwingzeit
   - `Release` (`release`): 0.1 bis 8.0 s Ausklingzeit
-- **Erweiterte Einstellungen (Drawer):**
+  - `Stimmführung` (`voiceLeading`): `1` (Smooth / Minimal) oder `0` (Grundstellung)
+  - `Stimmen` (`voiceCount`, Alias `voices`): `4`, `5` oder `6`
+  - `Raster` (`clockDiv`): `16` (1/16 Clock), `4` (1/4 Clock) oder `1` (1 Bar Clock)
+- **Erweiterte Einstellungen (`extra`):**
+  - `steps`: Array aus Akkordschritten `[{ root: 0..11, type: 'maj'|'min'|'sus2'|'sus4'|'dim'|'aug'|'maj7'|'m7'|'dom7'|'maj9'|'m9'|'add9'|'dom9', bars: 0.25|0.5|1|2 }]`
   - `Strum` (`strum`): 0 bis 90 ms Zeitversatz zwischen den Saiten/Notenanschlägen
-  - `Retrigger` (`retrigger`): An/Aus (neu anschlagen vs. nahtlos gehalten)
-  - `Voice Leading` (`voiceLeading`): An/Aus (intelligente Umkehrung vs. statische Lagen)
-  - `Stimmen` (`voices`): 4, 5 oder 6 Stimmen
-  - `Basis-Oktave` (`octave`): C2, C3 oder C4
-  - `Preset-Auswahl`: „Warm Ambient“, „Night Drift“, „Cinematic“, „Floating“
+  - `Retrigger` (`retrigger`): `false` / `true` (nahtlos gehalten vs. neu anschlagen)
+  - `Voice Leading` (`voiceLeading`): `1` (Smooth) / `0` (Grundstellung) — synchron mit `values.voiceLeading`
+  - `Stimmen` (`voiceCount`): `4`, `5` oder `6` Stimmen
+  - `Basis-Oktave` (`baseOctave`): `2` (C2), `3` (C3) oder `4` (C4)
+  - `Preset-Auswahl` (`presetKey`): `'warm'`, `'night'`, `'cinematic'`, `'floating'`, `'custom'`
 - **Buchsen:**
   - `CLOCK` (`clockIn`) [IN, Clock]: Synchronisiert Schrittwechsel mit der Master Clock
   - `RESET` (`resetIn`) [IN, Trigger]: Setzt Sequenz auf Schritt 1 zurück

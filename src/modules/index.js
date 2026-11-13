@@ -49,18 +49,24 @@ export class RackEngine {
     this.delayToReverb.gain.value = 0.25;
 
     this.chainGate = this.ctx.createGain();
+    this.studioViewGate = this.ctx.createGain();
     this.masterGain = this.ctx.createGain();
     this.masterGain.gain.value = this.masterValue;
     this.analyser = this.ctx.createAnalyser();
     this.analyser.fftSize = 2048;
     this.analyser.smoothingTimeConstant = 0.8;
-    this.chainGate.connect(this.masterGain);
+    this.chainGate.connect(this.studioViewGate);
+    this.studioViewGate.connect(this.masterGain);
     this.buildLimiter();
     this.rewire(true);
 
     // Watchdog
     this.probe = new Float32Array(this.analyser.fftSize);
     this.watchdog = setInterval(() => this.checkHealth(), 1000);
+  }
+
+  setStudioActive(active) {
+    this.studioViewGate.gain.setTargetAtTime(active ? 1 : 0, this.ctx.currentTime, 0.025);
   }
 
   buildLimiter() {
@@ -166,6 +172,31 @@ export class RackEngine {
            this.effects.find((m) => m.id === id);
   }
 
+  get(id) {
+    return this.find(id);
+  }
+
+  get cables() {
+    return this.patchSystem.getConnections().map((c) => ({
+      id: c.id,
+      from: `${c.fromModuleId}:${c.fromPortId}`,
+      to: `${c.toModuleId}:${c.toPortId}`,
+      color: c.color,
+      signal: c.signal,
+    }));
+  }
+
+  set cables(arr) {
+    if (!Array.isArray(arr) || arr.length === 0) {
+      this.patchSystem.clear();
+    }
+  }
+
+  disconnect(fromStr, toStr) {
+    const id = `${fromStr}->${toStr}`;
+    this.patchSystem.disconnect(id);
+  }
+
   findByType(type) {
     return this.controls.find((m) => m.meta.type === type) ||
            this.sources.find((m) => m.meta.type === type) ||
@@ -246,7 +277,8 @@ export class RackEngine {
     this.rewire(true);
     this.setMaster(state?.master ?? 0.8);
     if (state?.cables) {
-      setTimeout(() => this.patchSystem.loadState(state.cables), 30);
+      this.patchSystem.loadState(state.cables);
+      setTimeout(() => this.patchSystem.onConnectionsChanged?.(), 30);
     }
     if (state?.snapshots && this.snapshotSystem) {
       this.snapshotSystem.loadState(state.snapshots);
@@ -303,31 +335,63 @@ const m = (type, values = {}, extra) => ({ type, values, ...(extra ? { extra } :
 
 export const TEMPLATES = {
   zwischen_den_sternen: {
-    name: 'Zwischen den Sternen – Chord Glide & Solo Violin',
+    name: 'Zwischen den Sternen – Chord Glide',
     category: 'Harmonisch & Akustisch',
-    description: 'Sphärischer Harmonien-Flow mit Chord Glide Sequencer, Akustik-Solovioline, warmem Felt Piano, Sub-Drone und analogem Tape-Echo.',
+    description: 'Sphärischer Harmonien-Flow (Am7 → Fmaj7 → Cmaj7 → Gadd9, je 2 Takte) mit 1,8 s Glide, 1,5 kHz Klangfarbe, Smooth Voice Leading, wiederholtem Piano-Motiv, Bass und Solo Violin.',
     state: {
       master: 0.85,
       modules: [
-        m('master_clock', { tempo: 76, swing: 0.06, running: 1 }),
+        m('master_clock', { tempo: 74, swing: 0.04, running: 1 }),
         m('clock_divider', {}),
-        m('slow_random', { rate: 0.08, smooth: 0.85, depth: 0.65, mode: 'smooth' }),
-        m('slope_generator', { rise: 2.5, fall: 4.0, curve: 0.5, cycle: 1, mode: 'loop' }),
+        m('random_walk', { stepSize: 1, range: 2, repeat: 8, mutation: 0, seed: 42, key: 9, scale: 'minor', octave: 60 }),
+        m('slow_random', { rate: 0.05, smooth: 2.1, depth: 0.65, mode: 'smooth' }),
+        m('slope_generator', { rise: 4.0, fall: 8.0, curve: 0.6, scale: 1.0, offset: 0, mode: 'loop' }),
         m('chord_glide', {
           level: 0.75,
-          glide: 1.4,
-          filter: 3800,
-          detune: 12,
-          attack: 0.45,
-          release: 3.2,
-          strum: 25,
+          glide: 1.8,
+          cutoff: 1500,
+          detune: 10,
+          attack: 1.0,
+          release: 4.0,
           voiceLeading: 1,
-          retrigger: 0,
-          voices: 4,
+          voiceCount: 5,
+          clockDiv: 16,
+        }, {
+          presetKey: 'custom',
+          running: true,
+          voiceLeading: 1,
+          voiceCount: 5,
+          strum: 20,
+          retrigger: false,
+          baseOctave: 3,
+          steps: [
+            { root: 9, type: 'm7',   bars: 2 },
+            { root: 5, type: 'maj7', bars: 2 },
+            { root: 0, type: 'maj7', bars: 2 },
+            { root: 7, type: 'add9', bars: 2 },
+          ],
+        }),
+        m('felt_piano', {
+          level: 0.72,
+          felt: 0.75,
+          decay: 3.0,
+          color: 2400,
+          body: 0.65,
+          hammer: 0.35,
           octave: 48,
+          chord: 'single',
+          scale: 'minor',
+        }),
+        m('bass', {
+          level: 0.68,
+          cutoff: 480,
+          reso: 3.2,
+          env: 0.45,
+          decay: 1.2,
+          sub: 0.6,
         }),
         m('violin', {
-          level: 0.82,
+          level: 0.65,
           bow: 0.65,
           vibSpeed: 4.8,
           vibDepth: 0.35,
@@ -336,18 +400,9 @@ export const TEMPLATES = {
           pan: 0.2,
           octave: 0,
         }),
-        m('felt_piano', {
-          level: 0.7,
-          felt: 0.75,
-          decay: 2.8,
-          color: 2800,
-          body: 0.65,
-          hammer: 0.4,
-          chord: 'single',
-        }),
         m('drone', {
-          level: 0.3,
-          tone: 440,
+          level: 0.25,
+          tone: 420,
           detune: 4,
           sub: 0.5,
           fm: 0.02,
@@ -356,17 +411,20 @@ export const TEMPLATES = {
           chord: 'fifth',
           wave: 'triangle',
         }, { voices: [true, false, true, false, false, false] }),
-        m('filter', { cutoff: 4600, reso: 1.4, drive: 0.05, lfoDepth: 0.05 }),
-        m('delay', { time: 0.55, feedback: 0.5, tone: 2200, mod: 0.2, mix: 0.36, mode: 'pingpong' }),
-        m('reverb', { decay: 8.5, damp: 0.45, tone: 3200, mix: 0.48 }),
+        m('filter', { cutoff: 4200, reso: 1.2, drive: 0.05, lfoDepth: 0.05 }),
+        m('delay', { time: 0.54, feedback: 0.45, tone: 2200, mod: 0.18, mix: 0.15, mode: 'pingpong' }),
+        m('reverb', { decay: 8.5, damp: 0.45, tone: 3200, mix: 0.50 }),
       ],
       cables: [
+        { from: 'master_clock:clockOut', to: 'chord_glide:clockIn', color: '#06b6d4' },
         { from: 'master_clock:clockOut', to: 'clock_divider:clockIn', color: '#06b6d4' },
-        { from: 'clock_divider:div2Out', to: 'chord_glide:clockIn', color: '#06b6d4' },
-        { from: 'chord_glide:pitchOut', to: 'felt_piano:pitchIn', color: '#a855f7' },
+        { from: 'clock_divider:div2Out', to: 'random_walk:clockIn', color: '#06b6d4' },
+        { from: 'random_walk:pitchOut', to: 'felt_piano:pitchIn', color: '#a855f7' },
+        { from: 'random_walk:gateOut', to: 'felt_piano:gateIn', color: '#fbbf24' },
+        { from: 'chord_glide:rootOut', to: 'bass:pitchIn', color: '#a855f7' },
+        { from: 'chord_glide:gateOut', to: 'bass:gateIn', color: '#fbbf24' },
         { from: 'chord_glide:rootOut', to: 'violin:pitchIn', color: '#a855f7' },
         { from: 'chord_glide:gateOut', to: 'violin:gateIn', color: '#fbbf24' },
-        { from: 'chord_glide:gateOut', to: 'felt_piano:gateIn', color: '#fbbf24' },
         { from: 'slow_random:cvOut', to: 'violin:vibDepthCv', color: '#10b981' },
       ],
     },

@@ -6,10 +6,10 @@
 import { SourceBase, midiToFreq, midiToName, getNoiseBuffers } from './base.js';
 
 const ARTICULATIONS = [
-  ['arco', '🎻 Arco (Gestrichen)'],
-  ['pizz', '🤌 Pizzicato (Gezupft)'],
-  ['sultasto', '🕊️ Sul Tasto (Sanft & Flötig)'],
-  ['tremolo', '〰 Tremolo (Zitternd)'],
+  ['arco', 'Arco (Gestrichen)'],
+  ['pizz', 'Pizzicato (Gezupft)'],
+  ['sultasto', 'Sul Tasto (Sanft)'],
+  ['tremolo', 'Tremolo (Zitternd)'],
 ];
 
 const OCTAVE_CHOICES = [
@@ -73,6 +73,9 @@ export class ViolinModule extends SourceBase {
     this.isLegato = false;
     this.activeNoteCount = 0;
     this.activeVoices = new Map(); // midi -> Voice
+    this.currentVoice = null;
+    this.scheduledTimers = new Set();
+    this.pendingPitchMeta = null;
     this.bowCv = 0;
     this.vibratoCv = 0;
     this.glideCv = 0;
@@ -108,6 +111,7 @@ export class ViolinModule extends SourceBase {
 
     // Master-Voice-Mixer & Ausgänge
     this.voiceBus = ctx.createGain();
+    this.voiceBus.gain.value = 0.75;
     this.voiceBus.connect(this.airRes);
     this.airRes.connect(this.woodRes);
     this.woodRes.connect(this.bridgeHill);
@@ -117,28 +121,54 @@ export class ViolinModule extends SourceBase {
     this.initValues(state);
   }
 
-  // ── Modulations- & CV-Handling ──
-  onPitch(portId, time, midiNote) {
-    if (portId !== 'pitchIn') return;
-    const note = Array.isArray(midiNote) ? midiNote[0] : midiNote;
-    this.currentMidi = typeof note === 'number' ? Math.round(note) : 69;
-    this.targetFreq = midiToFreq(this.currentMidi + (Number(this.values.octave) || 0) * 12);
-    this.updateStringFingerboardUi?.();
+  effectiveBow(extraExpr = null) {
+    const base = extraExpr !== null && Number.isFinite(extraExpr)
+      ? (this.values.bow ?? 0.55) * (0.55 + extraExpr * 0.65)
+      : (this.values.bow ?? 0.55);
+    return Math.max(0.05, Math.min(1.0, base + this.bowCv));
+  }
 
-    // Wenn Gate aktiv ist, portamento gliden
-    if (this.activeVoices.size > 0) {
-      const now = time || this.ctx.currentTime;
-      const glideTime = Math.max(0.005, (this.values.glide ?? 0.14) + this.glideCv * 0.4);
-      for (const [, voice] of this.activeVoices) {
-        voice.setPitch(this.targetFreq, now, glideTime);
-      }
+  effectiveVibrato() {
+    return Math.max(0, Math.min(1.0, (this.values.vibrato ?? 0.55) + this.vibratoCv));
+  }
+
+  syncActiveVoicesExpression(time = null) {
+    const t = time || this.ctx.currentTime;
+    const bow = this.effectiveBow();
+    const vib = this.effectiveVibrato();
+    for (const [, voice] of this.activeVoices) {
+      voice.updateExpression({ bow, vibrato: vib, time: t });
     }
   }
 
-  onTrigger(portId, time, velocity = 1) {
+  // ── Modulations- & CV-Handling ──
+  onPitch(portId, time, midiNote, _velocity = 1, _duration = 0.5, meta = null) {
+    if (portId !== 'pitchIn') return;
+    const note = Array.isArray(midiNote) ? midiNote[0] : midiNote;
+    this.currentMidi = typeof note === 'number' ? Math.round(note) : 69;
+    const actualMidi = this.currentMidi + (Number(this.values.octave) || 0) * 12;
+    this.targetFreq = midiToFreq(actualMidi);
+    this.pendingPitchMeta = meta || null;
+    this.updateStringFingerboardUi?.();
+
+    // Wenn kein separates Gate-Kabel gesteckt ist und bereits ein Ton klingt, sanft portamento gliden
+    const hasGateCable = this.patchSystem?.hasIncoming?.(this.id, 'gateIn');
+    if (this.activeVoices.size > 0 && (!hasGateCable || meta?.legato)) {
+      const now = time || this.ctx.currentTime;
+      const glideTime = Math.max(0.008, (this.values.glide ?? 0.14) + this.glideCv * 0.4);
+      for (const [, voice] of this.activeVoices) {
+        voice.setPitch(this.targetFreq, now, glideTime);
+      }
+      this.lastFreq = this.targetFreq;
+    }
+  }
+
+  onTrigger(portId, time, velocity = 1, duration = 0.6, meta = null) {
     if (portId === 'gateIn') {
       const oct = Number(this.values.octave) || 0;
-      this.noteOn(this.currentMidi + oct * 12, time, velocity);
+      const mergedMeta = meta || this.pendingPitchMeta || null;
+      this.pendingPitchMeta = null;
+      this.noteOn(this.currentMidi + oct * 12, time, velocity, duration, mergedMeta);
     }
   }
 
@@ -146,79 +176,172 @@ export class ViolinModule extends SourceBase {
     if (portId === 'gateIn') {
       const oct = Number(this.values.octave) || 0;
       if (open) {
-        this.noteOn(this.currentMidi + oct * 12, time, 1);
+        this.noteOn(this.currentMidi + oct * 12, time, 1, null);
       } else {
         this.noteOff(this.currentMidi + oct * 12, time);
       }
     }
   }
 
-  onModulation(portId, val) {
+  onModulation(portId, val, time) {
     if (this.handleSourceModulation(portId, val)) return;
-    if (portId === 'bowCv') this.bowCv = (val - 0.5) * 0.8;
-    else if (portId === 'vibratoCv') this.vibratoCv = (val - 0.5) * 0.8;
-    else if (portId === 'glideCv') this.glideCv = val;
+    if (portId === 'bowCv') {
+      this.bowCv = (val - 0.5) * 0.8;
+      this.syncActiveVoicesExpression(time);
+    } else if (portId === 'vibratoCv') {
+      this.vibratoCv = (val - 0.5) * 0.8;
+      this.syncActiveVoicesExpression(time);
+    } else if (portId === 'glideCv') {
+      this.glideCv = val;
+    }
   }
 
   applyParam(id, val) {
-    if (id === 'tone' && this.bodyTone) {
-      this.ramp(this.bodyTone.frequency, val);
+    if (id === 'level' && this.voiceBus) {
+      this.ramp(this.voiceBus.gain, val, 0.03);
+    } else if (id === 'tone' && this.bodyTone) {
+      this.ramp(this.bodyTone.frequency, val, 0.04);
+    } else if (id === 'bow' || id === 'vibrato') {
+      this.syncActiveVoicesExpression();
     }
   }
 
-  // ── Noten-Logik ──
-  noteOn(midi, time = null, velocity = 1) {
-    if (!this.enabled) return;
-    const t = Math.max(time || this.ctx.currentTime, this.ctx.currentTime);
-    const mode = this.values.articulation || 'arco';
+  clearScheduledTimers() {
+    for (const timerId of this.scheduledTimers) {
+      clearTimeout(timerId);
+    }
+    this.scheduledTimers.clear();
+  }
 
-    // Bestehende Stimme beenden, falls vorhanden
-    if (this.activeVoices.has(midi)) {
-      this.activeVoices.get(midi).stop(t);
-      this.activeVoices.delete(midi);
+  allNotesOff(time = null) {
+    this.clearScheduledTimers();
+    const t = Math.max(time || this.ctx.currentTime, this.ctx.currentTime);
+    for (const [, voice] of this.activeVoices) {
+      voice.releaseNote(t, Math.min(0.25, this.values.release ?? 0.5));
+    }
+    this.activeVoices.clear();
+    this.currentVoice = null;
+    this.updateStringFingerboardUi?.();
+  }
+
+  // ── Noten-Logik (Monophones Solo-Instrument mit Legato vs. Neuansatz) ──
+  noteOn(midi, time = null, velocity = 1, duration = 0.7, meta = null) {
+    if (!this.enabled) return;
+    const now = this.ctx.currentTime;
+    const t = Math.max(time || now, now);
+    const mode = meta?.articulation || this.values.articulation || 'arco';
+    const isLegato = !!(meta?.legato) && mode !== 'pizz';
+    const expr = meta?.expression !== undefined ? meta.expression : null;
+    const bowVal = this.effectiveBow(expr);
+    const vibVal = this.effectiveVibrato();
+    const targetFreq = midiToFreq(midi);
+
+    // 1. FALL: Gebundenes Legato auf bereits klingender Saite (kein Bogen-Neuansatz!)
+    if (isLegato && this.currentVoice && !this.currentVoice.released && this.activeVoices.size > 0) {
+      this.clearScheduledTimers();
+      const glideTime = Math.max(0.025, (this.values.glide ?? 0.14) + this.glideCv * 0.4);
+      this.currentVoice.midi = midi;
+      this.currentVoice.setPitch(targetFreq, t, glideTime);
+      this.currentVoice.updateExpression({
+        bow: bowVal,
+        vibrato: vibVal,
+        velocity,
+        time: t,
+      });
+      this.lastFreq = targetFreq;
+      this.currentMidi = midi;
+
+      const delayStartMs = Math.max(0, (t - now) * 1000);
+      setTimeout(() => this.updateStringFingerboardUi?.(), delayStartMs);
+
+      if (Number.isFinite(duration) && duration > 0) {
+        const activeVoice = this.currentVoice;
+        const offTime = t + duration;
+        const offDelayMs = Math.max(20, (offTime - now) * 1000);
+        const timerId = setTimeout(() => {
+          this.scheduledTimers.delete(timerId);
+          if (this.currentVoice === activeVoice && !activeVoice.released) {
+            activeVoice.releaseNote(this.ctx.currentTime, this.values.release ?? 1.2);
+            this.activeVoices.delete(activeVoice.midi);
+            if (this.currentVoice === activeVoice) this.currentVoice = null;
+            this.updateStringFingerboardUi?.();
+          }
+        }, offDelayMs);
+        this.scheduledTimers.add(timerId);
+      }
+      return;
     }
 
-    // Monophones Solo-Verhalten mit Legato-Glide wenn schon Töne gehalten werden
-    const glideTime = (this.activeVoices.size > 0) ? Math.max(0.01, (this.values.glide ?? 0.14) + this.glideCv * 0.4) : 0.004;
+    // 2. FALL: Bogen-Neuansatz (beendet vorherige Solo-Stimme sanft, verhindert hängende Noten)
+    this.clearScheduledTimers();
+    const hadActiveVoice = this.activeVoices.size > 0;
+    for (const [oldMidi, oldVoice] of this.activeVoices) {
+      oldVoice.releaseNote(t, Math.min(0.16, this.values.release ?? 0.8));
+      this.activeVoices.delete(oldMidi);
+    }
+
+    const glideTime = hadActiveVoice
+      ? Math.max(0.008, (this.values.glide ?? 0.14) * 0.65 + this.glideCv * 0.3)
+      : 0.004;
 
     const voice = new ViolinVoice(this.ctx, this.voiceBus, {
       midi,
       velocity,
       startTime: t,
       mode,
-      bow: Math.max(0.05, Math.min(1.0, (this.values.bow ?? 0.55) + this.bowCv)),
-      vibrato: Math.max(0, Math.min(1.0, (this.values.vibrato ?? 0.55) + this.vibratoCv)),
-      attack: this.values.attack ?? 0.18,
+      bow: bowVal,
+      vibrato: vibVal,
+      attack: meta?.attack ?? this.values.attack ?? 0.18,
       release: this.values.release ?? 1.2,
       glide: glideTime,
-      fromFreq: this.lastFreq || midiToFreq(midi),
+      fromFreq: this.lastFreq || targetFreq,
     });
 
     this.activeVoices.set(midi, voice);
-    this.lastFreq = midiToFreq(midi);
+    this.currentVoice = voice;
+    this.lastFreq = targetFreq;
     this.currentMidi = midi;
-    this.updateStringFingerboardUi?.();
+
+    const delayStartMs = Math.max(0, (t - now) * 1000);
+    setTimeout(() => this.updateStringFingerboardUi?.(), delayStartMs);
 
     if (mode === 'pizz') {
-      // Pizzicato klingt automatisch nach Decay aus
       const dur = Math.max(0.2, (this.values.release ?? 1.2) * 0.6);
-      setTimeout(() => {
+      const timerId = setTimeout(() => {
+        this.scheduledTimers.delete(timerId);
         if (this.activeVoices.get(midi) === voice) {
           voice.stop(this.ctx.currentTime);
           this.activeVoices.delete(midi);
+          if (this.currentVoice === voice) this.currentVoice = null;
           this.updateStringFingerboardUi?.();
         }
-      }, dur * 1000);
+      }, (t - now + dur) * 1000);
+      this.scheduledTimers.add(timerId);
+    } else if (Number.isFinite(duration) && duration > 0) {
+      // Geplantes Notenende (Note-Off nach Notendauer)
+      const offTime = t + duration;
+      const offDelayMs = Math.max(25, (offTime - now) * 1000);
+      const timerId = setTimeout(() => {
+        this.scheduledTimers.delete(timerId);
+        if (this.activeVoices.get(midi) === voice && !voice.released) {
+          voice.releaseNote(this.ctx.currentTime, this.values.release ?? 1.2);
+          this.activeVoices.delete(midi);
+          if (this.currentVoice === voice) this.currentVoice = null;
+          this.updateStringFingerboardUi?.();
+        }
+      }, offDelayMs);
+      this.scheduledTimers.add(timerId);
     }
   }
 
   noteOff(midi, time = null) {
     const t = Math.max(time || this.ctx.currentTime, this.ctx.currentTime);
-    const voice = this.activeVoices.get(midi);
+    const voice = this.activeVoices.get(midi) || this.currentVoice;
     if (voice) {
       const mode = this.values.articulation || 'arco';
       voice.releaseNote(t, mode === 'pizz' ? 0.3 : (this.values.release ?? 1.2));
-      this.activeVoices.delete(midi);
+      this.activeVoices.delete(voice.midi);
+      if (this.currentVoice === voice) this.currentVoice = null;
       this.updateStringFingerboardUi?.();
     }
   }
@@ -307,7 +430,7 @@ export class ViolinModule extends SourceBase {
     const btnPizz = el.querySelector('.btn-pizz');
 
     btnArco?.addEventListener('mousedown', () => {
-      this.noteOn(this.currentMidi, this.ctx.currentTime, 0.95);
+      this.noteOn(this.currentMidi, this.ctx.currentTime, 0.95, null);
     });
     btnArco?.addEventListener('mouseup', () => {
       this.noteOff(this.currentMidi, this.ctx.currentTime);
@@ -319,7 +442,7 @@ export class ViolinModule extends SourceBase {
     btnPizz?.addEventListener('click', () => {
       const oldMode = this.values.articulation;
       this.values.articulation = 'pizz';
-      this.noteOn(this.currentMidi, this.ctx.currentTime, 1.0);
+      this.noteOn(this.currentMidi, this.ctx.currentTime, 1.0, 0.4);
       setTimeout(() => { this.values.articulation = oldMode; }, 200);
     });
 
@@ -327,10 +450,12 @@ export class ViolinModule extends SourceBase {
   }
 
   destroy() {
+    this.clearScheduledTimers();
     for (const [, voice] of this.activeVoices) {
       voice.destroy();
     }
     this.activeVoices.clear();
+    this.currentVoice = null;
 
     try {
       this.airRes.disconnect();
@@ -356,10 +481,12 @@ class ViolinVoice {
     this.vibrato = params.vibrato || 0.55;
     this.attack = params.attack || 0.18;
     this.release = params.release || 1.2;
+    this.released = false;
 
     const t = params.startTime;
     const targetFreq = midiToFreq(this.midi);
     const startFreq = params.fromFreq || targetFreq;
+    this.currentFreq = targetFreq;
 
     // 1. Saiten-Oszillator (Asymmetrischer Helmholtz-Bogen-Sägezahn)
     this.oscSaw = ctx.createOscillator();
@@ -391,11 +518,11 @@ class ViolinVoice {
     this.noiseFilter.Q.setValueAtTime(3.0, t);
 
     this.noiseGain = ctx.createGain();
-    const bowFriction = (this.mode === 'sultasto') ? 0.03 : (0.08 + this.bow * 0.12) * this.velocity;
+    const bowFriction = (this.mode === 'sultasto') ? 0.025 : (0.06 + this.bow * 0.10) * this.velocity;
     this.noiseGain.gain.setValueAtTime(0.0001, t);
     this.noiseGain.gain.linearRampToValueAtTime(bowFriction, t + Math.min(0.06, this.attack * 0.4));
     // Reibungsgeräusch lässt nach dem ersten Anstrich minimal nach
-    this.noiseGain.gain.setTargetAtTime(bowFriction * 0.45, t + Math.min(0.12, this.attack), 0.1);
+    this.noiseGain.gain.setTargetAtTime(bowFriction * 0.42, t + Math.min(0.12, this.attack), 0.1);
 
     this.noiseSource.connect(this.noiseFilter);
     this.noiseFilter.connect(this.noiseGain);
@@ -403,22 +530,22 @@ class ViolinVoice {
     // 4. Saiten-Filter (Dynamische Helligkeit abhängig von Bogendruck & Anschlag)
     this.stringFilter = ctx.createBiquadFilter();
     this.stringFilter.type = 'lowpass';
-    const cutoffBase = (this.mode === 'sultasto') ? 2200 : (2800 + this.bow * 4500) * Math.pow(this.velocity, 0.4);
+    const cutoffBase = (this.mode === 'sultasto') ? (1600 + this.bow * 1400) : (2400 + this.bow * 4400) * Math.pow(this.velocity, 0.4);
     this.stringFilter.frequency.setValueAtTime(Math.max(400, cutoffBase * 0.6), t);
     this.stringFilter.frequency.linearRampToValueAtTime(cutoffBase, t + this.attack);
-    this.stringFilter.Q.setValueAtTime(1.8, t);
+    this.stringFilter.Q.setValueAtTime(1.6, t);
 
     // 5. Verzögertes natürliches Geigen-Vibrato (setzt erst nach Bogenaufnahme ein)
     this.vibratoOsc = ctx.createOscillator();
     this.vibratoOsc.frequency.setValueAtTime(5.3, t); // Natürliche 5.3 Hz Vibratofrequenz
 
     this.vibratoGain = ctx.createGain();
-    const vibDepthHz = (targetFreq * 0.018) * this.vibrato; // ca. 20-30 Cents
+    const vibDepthHz = (targetFreq * 0.016) * this.vibrato; // ca. 20-28 Cents
     this.vibratoGain.gain.setValueAtTime(0, t);
-    // Sanftes Einblenden des Vibratos nach 180ms
-    const vibDelay = (this.mode === 'tremolo') ? 0.02 : 0.22;
+    // Sanftes Einblenden des Vibratos nach 240ms
+    const vibDelay = (this.mode === 'tremolo') ? 0.02 : 0.25;
     this.vibratoGain.gain.setValueAtTime(0, t + vibDelay);
-    this.vibratoGain.gain.linearRampToValueAtTime(vibDepthHz, t + vibDelay + 0.35);
+    this.vibratoGain.gain.linearRampToValueAtTime(vibDepthHz, t + vibDelay + 0.42);
 
     this.vibratoOsc.connect(this.vibratoGain);
     this.vibratoGain.connect(this.oscSaw.frequency);
@@ -443,7 +570,7 @@ class ViolinVoice {
       this.voiceVca.gain.exponentialRampToValueAtTime(0.0001, t + Math.max(0.25, this.release * 0.8));
     } else {
       // Arco / Sul Tasto / Tremolo: Ausdrucksstarker Bogen-Swell
-      const peakGain = (this.mode === 'sultasto' ? 0.22 : 0.32) * this.velocity;
+      const peakGain = (this.mode === 'sultasto' ? 0.24 : 0.32) * this.velocity * (0.65 + this.bow * 0.45);
       this.voiceVca.gain.linearRampToValueAtTime(peakGain, t + Math.max(0.02, this.attack));
     }
 
@@ -468,28 +595,62 @@ class ViolinVoice {
   }
 
   setPitch(newFreq, time, glideSec = 0.12) {
-    this.oscSaw.frequency.cancelScheduledValues(time);
-    this.oscSub.frequency.cancelScheduledValues(time);
-    this.oscSaw.frequency.setTargetAtTime(newFreq, time, Math.max(0.02, glideSec * 0.6));
-    this.oscSub.frequency.setTargetAtTime(newFreq, time, Math.max(0.02, glideSec * 0.6));
+    if (this.released) return;
+    const t = Math.max(time, this.ctx.currentTime);
+    this.currentFreq = newFreq;
+    this.oscSaw.frequency.cancelScheduledValues(t);
+    this.oscSub.frequency.cancelScheduledValues(t);
+    this.oscSaw.frequency.setTargetAtTime(newFreq, t, Math.max(0.02, glideSec * 0.55));
+    this.oscSub.frequency.setTargetAtTime(newFreq, t, Math.max(0.02, glideSec * 0.55));
+  }
+
+  /** Dynamischer Ausdruck während einer gehaltenen Note (Bogendruck, Vibrato, Legato-Dynamik) */
+  updateExpression({ bow, vibrato, velocity, time } = {}) {
+    if (this.released || this.mode === 'pizz') return;
+    const t = Math.max(time || this.ctx.currentTime, this.ctx.currentTime);
+    if (bow !== undefined) this.bow = bow;
+    if (vibrato !== undefined) this.vibrato = vibrato;
+    if (velocity !== undefined) this.velocity = velocity;
+
+    const cutoffTarget = (this.mode === 'sultasto')
+      ? (1500 + this.bow * 1500)
+      : (2300 + this.bow * 4500) * Math.pow(this.velocity, 0.4);
+    this.stringFilter.frequency.setTargetAtTime(Math.max(400, cutoffTarget), t, 0.06);
+
+    const bowFriction = (this.mode === 'sultasto') ? 0.018 : (0.035 + this.bow * 0.06) * this.velocity;
+    this.noiseGain.gain.setTargetAtTime(bowFriction, t, 0.08);
+
+    const vibDepthHz = ((this.currentFreq || 440) * 0.016) * this.vibrato;
+    this.vibratoGain.gain.setTargetAtTime(vibDepthHz, t, 0.08);
+
+    const peakGain = (this.mode === 'sultasto' ? 0.24 : 0.32) * this.velocity * (0.65 + this.bow * 0.45);
+    this.voiceVca.gain.setTargetAtTime(peakGain, t, 0.08);
   }
 
   releaseNote(time, relSec = 1.2) {
+    if (this.released) return;
+    this.released = true;
     const t = Math.max(time, this.ctx.currentTime);
-    this.voiceVca.gain.cancelScheduledValues(t);
-    this.voiceVca.gain.setValueAtTime(this.voiceVca.gain.value, t);
-    this.voiceVca.gain.exponentialRampToValueAtTime(0.0001, t + Math.max(0.08, relSec));
+    const g = this.voiceVca.gain;
+    if (g.cancelAndHoldAtTime) g.cancelAndHoldAtTime(t);
+    else {
+      g.cancelScheduledValues(t);
+      g.setValueAtTime(Math.max(0.0001, g.value), t);
+    }
+    g.setTargetAtTime(0.0001, t, Math.max(0.04, relSec * 0.28));
 
-    const stopTime = t + Math.max(0.1, relSec) + 0.05;
+    const stopTime = t + Math.max(0.15, relSec * 1.35) + 0.05;
     setTimeout(() => {
       this.destroy();
-    }, (stopTime - this.ctx.currentTime) * 1000 + 50);
+    }, Math.max(50, (stopTime - this.ctx.currentTime) * 1000 + 50));
   }
 
   stop(time) {
+    if (this.released) return;
+    this.released = true;
     const t = Math.max(time, this.ctx.currentTime);
     this.voiceVca.gain.cancelScheduledValues(t);
-    this.voiceVca.gain.setTargetAtTime(0, t, 0.04);
+    this.voiceVca.gain.setTargetAtTime(0, t, 0.03);
     setTimeout(() => this.destroy(), 80);
   }
 

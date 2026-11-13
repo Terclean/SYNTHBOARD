@@ -106,24 +106,29 @@ export class PatchSystem {
   }
 
   // ── Signalweiterleitung in Audio-Echtzeit ──
-  routeTrigger(fromModuleId, fromPortId, time, velocity = 1, duration = 0.1) {
+  routeTrigger(fromModuleId, fromPortId, time, velocity = 1, duration = 0.1, meta = null) {
     for (const c of this.connections.values()) {
       if (c.fromModuleId === fromModuleId && c.fromPortId === fromPortId) {
         const target = this.engine.find(c.toModuleId);
         if (target && target.enabled) {
-          target.receiveTrigger(c.toPortId, time, velocity, duration);
+          const toJack = target.meta.jacks?.find((j) => j.id === c.toPortId);
+          if (toJack?.signal === 'clock') {
+            target.receiveClock(c.toPortId, time, 0);
+          } else {
+            target.receiveTrigger(c.toPortId, time, velocity, duration, meta);
+          }
         }
         this.notifyActivity(c.fromModuleId, c.fromPortId, c.toModuleId, c.toPortId, time, 'gate');
       }
     }
   }
 
-  routePitch(fromModuleId, fromPortId, time, midiNote, velocity = 1, duration = 0.1) {
+  routePitch(fromModuleId, fromPortId, time, midiNote, velocity = 1, duration = 0.1, meta = null) {
     for (const c of this.connections.values()) {
       if (c.fromModuleId === fromModuleId && c.fromPortId === fromPortId) {
         const target = this.engine.find(c.toModuleId);
         if (target && target.enabled) {
-          target.receivePitch(c.toPortId, time, midiNote, velocity, duration);
+          target.receivePitch(c.toPortId, time, midiNote, velocity, duration, meta);
         }
         this.notifyActivity(c.fromModuleId, c.fromPortId, c.toModuleId, c.toPortId, time, 'pitch');
       }
@@ -152,7 +157,12 @@ export class PatchSystem {
       if (c.fromModuleId === fromModuleId && c.fromPortId === fromPortId) {
         const target = this.engine.find(c.toModuleId);
         if (target && target.enabled) {
-          target.receiveClock(c.toPortId, time, tick);
+          const toJack = target.meta.jacks?.find((j) => j.id === c.toPortId);
+          if (toJack?.signal === 'gate') {
+            target.receiveTrigger(c.toPortId, time, 0.9, 0.15);
+          } else {
+            target.receiveClock(c.toPortId, time, tick);
+          }
         }
         this.notifyActivity(c.fromModuleId, c.fromPortId, c.toModuleId, c.toPortId, time, 'clock');
       }

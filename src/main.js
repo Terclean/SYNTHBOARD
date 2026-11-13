@@ -7,6 +7,8 @@ import { InfoSystem } from './ui/InfoSystem.js';
 import { SnapshotSystem } from './ui/SnapshotSystem.js';
 import { FocusDock } from './ui/FocusDock.js';
 import { getModuleIcon, ICONS } from './ui/icons.js';
+import { EurorackUI } from './eurorack/ui.js';
+import { StudioWorkspace } from './ui/StudioWorkspace.js';
 
 const LS_BOARDS = 'synthboard:boards';
 const LS_AUTO = 'synthboard:autosave';
@@ -183,6 +185,18 @@ const focusDock = new FocusDock($('#focus-dock'), {
 });
 engine.focusDock = focusDock;
 
+const workspace = new StudioWorkspace({
+  viewportEl: $('#rack-workspace'),
+  worldEl: $('#workspace-world'),
+  engine,
+  patchBay,
+  onToast: (msg) => toast(msg),
+  onModified: () => changed(),
+  onSelectModule: (id) => selectModule(id),
+  onAddModuleAt: (type, pos) => addModule(type, pos),
+});
+engine.workspace = workspace;
+
 $('#btn-boards-gallery')?.addEventListener('click', () => infoSystem.openGuide('tab-boards'));
 $('#btn-tutorials')?.addEventListener('click', () => infoSystem.openGuide('tab-tutorials'));
 $('#btn-guide')?.addEventListener('click', () => infoSystem.openGuide('tab-guide'));
@@ -303,22 +317,25 @@ document.querySelectorAll('.lib-filter-tabs .filter-tab').forEach((tab) => {
   });
 });
 
-function addModule(type, index = -1) {
-  const mod = engine.add(type, {}, index);
+function addModule(type, posOrIndex = -1) {
+  const isPos = posOrIndex && typeof posOrIndex === 'object' && posOrIndex.x !== undefined;
+  const initData = isPos ? { pos: { x: posOrIndex.x, y: posOrIndex.y } } : {};
+  const idx = isPos ? -1 : (typeof posOrIndex === 'number' ? posOrIndex : -1);
+  const mod = engine.add(type, initData, idx);
   if (!mod) return;
+  if (isPos) {
+    mod.pos = { x: posOrIndex.x, y: posOrIndex.y };
+  }
   renderRack(mod.id);
   selectModule(mod.id);
   changed();
   toast(`${mod.meta.title} hinzugefügt`);
 }
 
-// ───────────────────────── Rack Rendering & Drag and Drop ──
+// ───────────────────────── Rack Rendering & Workspace Integration ──
 function renderRack(highlightId) {
   patchBay?.clearJacks();
-
-  const rowControls = $('#rack-controls');
-  const rowSources = $('#rack-sources');
-  const rowEffects = $('#rack-effects');
+  workspace?.clear();
 
   const countControls = $('#count-controls');
   const countSources = $('#count-sources');
@@ -330,44 +347,10 @@ function renderRack(highlightId) {
 
   const allMods = [...engine.controls, ...engine.sources, ...engine.effects];
 
-  // 1. Controls
-  if (rowControls) {
-    rowControls.innerHTML = '';
-    if (!engine.controls.length) {
-      rowControls.innerHTML = `
-        <div class="rack-row-empty" data-category="control">
-          <span class="row-empty-text">Keine Steuermodule im Rack – ziehe Clock, LFO oder Quantizer hierher</span>
-        </div>`;
-    } else {
-      engine.controls.forEach((m, i) => rowControls.appendChild(createCard(m, i)));
-    }
-  }
-
-  // 2. Sources
-  if (rowSources) {
-    rowSources.innerHTML = '';
-    if (!engine.sources.length) {
-      rowSources.innerHTML = `
-        <div class="rack-row-empty" data-category="source">
-          <span class="row-empty-text">Keine Instrumente im Rack – ziehe Chord Glide, Felt Piano oder Solo Violin hierher</span>
-        </div>`;
-    } else {
-      engine.sources.forEach((m, i) => rowSources.appendChild(createCard(m, i)));
-    }
-  }
-
-  // 3. Effects
-  if (rowEffects) {
-    rowEffects.innerHTML = '';
-    if (!engine.effects.length) {
-      rowEffects.innerHTML = `
-        <div class="rack-row-empty" data-category="effect">
-          <span class="row-empty-text">Keine Effekte im Rack – ziehe Filter, Reverb oder Delay hierher</span>
-        </div>`;
-    } else {
-      engine.effects.forEach((m, i) => rowEffects.appendChild(createCard(m, i)));
-    }
-  }
+  allMods.forEach((m, i) => {
+    const card = createCard(m, i);
+    workspace?.registerCard(m, card, m.pos);
+  });
 
   // Modulauswahl wiederherstellen oder erstes Modul wählen
   if (highlightId) {
@@ -375,7 +358,6 @@ function renderRack(highlightId) {
     const card = document.querySelector(`.module-card[data-id="${highlightId}"]`);
     if (card) {
       card.classList.add('just-added');
-      card.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
     }
   } else if (selectedModuleId && allMods.some((m) => m.id === selectedModuleId)) {
     selectModule(selectedModuleId);
@@ -387,43 +369,14 @@ function renderRack(highlightId) {
 
   // Kabel synchronisieren & neu zeichnen
   setTimeout(() => {
-    patchBay.syncPatchedClasses?.();
-    patchBay.render?.();
+    patchBay?.syncPatchedClasses?.();
+    patchBay?.requestDraw?.();
   }, 25);
-
-  // Buttons zum Minimieren / Erweitern einer ganzen Reihe
-  document.querySelectorAll('.row-fold-btn').forEach((btn) => {
-    const cat = btn.dataset.rowCat;
-    const list = cat === 'control' ? engine.controls
-               : cat === 'source' ? engine.sources
-               : engine.effects;
-    const allCollapsed = list.length > 0 && list.every((m) => m.collapsed);
-    btn.textContent = allCollapsed ? '▢ Erweitern' : '― Kompakt';
-    btn.title = allCollapsed ? 'Alle Module in voller Größe anzeigen' : 'Alle Module zu kompakten Kacheln minimieren';
-    btn.onclick = (e) => {
-      e.stopPropagation();
-      const shouldCollapse = !allCollapsed;
-      list.forEach((m) => { m.collapsed = shouldCollapse; });
-      renderRack();
-      changed();
-    };
-  });
 
   snapshotSystem?.updateVisuals();
   focusDock?.updateRackBadges();
   updateStatus();
   syncTransportBpm();
-
-  // Horizontales Scrollen per Mausrad auf den Rack-Schienen
-  document.querySelectorAll('.rack-row-body').forEach((rowBody) => {
-    rowBody.onwheel = (e) => {
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
-      if (rowBody.scrollWidth > rowBody.clientWidth && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-        rowBody.scrollLeft += e.deltaY;
-        patchBay.requestDraw?.();
-      }
-    };
-  });
 }
 
 function createCard(mod, index = -1) {
@@ -440,7 +393,7 @@ function createCard(mod, index = -1) {
   const subTitle = isFx ? `FX ${index + 1}` : isCtrl ? 'Steuerung' : 'Stimme';
 
   card.innerHTML = `
-    <header class="mod-head" draggable="true" title="Doppelklick: Modul ein-/ausklappen">
+    <header class="mod-head" title="Modul anfassen zum Verschieben · Doppelklick: Ein-/ausklappen">
       <span class="mod-grip" title="Modul anfassen zum Verschieben">${ICONS.grip}</span>
       <span class="mod-icon">${getModuleIcon(M.type)}</span>
       <div class="mod-titles">
@@ -684,72 +637,6 @@ function createCard(mod, index = -1) {
     engine.moveEffect(mod.id, index + 1);
     renderRack();
     changed();
-  });
-
-  // ── Drag & Drop Anfasser (Grip) ──
-  head?.addEventListener('dragstart', (e) => {
-    e.dataTransfer.setData('application/x-module-id', mod.id);
-    e.dataTransfer.setData('application/x-source-category', M.category);
-    e.dataTransfer.effectAllowed = 'move';
-    card.classList.add('drag-src');
-    document.body.classList.add('dragging-mod');
-  });
-  head.addEventListener('dragend', () => {
-    card.classList.remove('drag-src');
-    clearDragState();
-  });
-
-  // Dragover auf Modulkarte
-  card.addEventListener('dragover', (e) => {
-    const isMove = e.dataTransfer.types.includes('application/x-module-id');
-    const isNew = e.dataTransfer.types.includes('application/x-module-type');
-    if (!isMove && !isNew) return;
-
-    e.preventDefault();
-    e.stopPropagation();
-
-    const rect = card.getBoundingClientRect();
-    const isBefore = e.clientX < (rect.left + rect.width / 2);
-
-    document.querySelectorAll('.module-card').forEach((c) => {
-      if (c !== card) c.classList.remove('drop-before', 'drop-after');
-    });
-
-    card.classList.toggle('drop-before', isBefore);
-    card.classList.toggle('drop-after', !isBefore);
-  });
-
-  card.addEventListener('dragleave', (e) => {
-    if (!card.contains(e.relatedTarget)) {
-      card.classList.remove('drop-before', 'drop-after');
-    }
-  });
-
-  card.addEventListener('drop', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const isBefore = card.classList.contains('drop-before');
-    card.classList.remove('drop-before', 'drop-after');
-    clearDragState();
-
-    const targetCategory = M.category;
-    const rowList = targetCategory === 'control' ? engine.controls
-                  : targetCategory === 'source' ? engine.sources
-                  : engine.effects;
-    const cardIdx = rowList.findIndex((m) => m.id === mod.id);
-    let targetIdx = isBefore ? cardIdx : cardIdx + 1;
-
-    const draggedModId = e.dataTransfer.getData('application/x-module-id');
-    const newModType = e.dataTransfer.getData('application/x-module-type');
-
-    if (draggedModId) {
-      if (draggedModId === mod.id) return;
-      engine.moveModule(draggedModId, targetCategory, targetIdx);
-      renderRack(draggedModId);
-      changed();
-    } else if (newModType) {
-      addModule(newModType, targetIdx);
-    }
   });
 
   return card;
@@ -998,7 +885,9 @@ function loadBoard(kind, key) {
   const state = kind === 'tpl' ? TEMPLATES[key]?.state : loadBoards()[key];
   if (!state) return;
   focusDock?.clear();
-  engine.load(structuredClone(state));
+  const cloned = structuredClone(state);
+  normalizePatchState(cloned);
+  engine.load(cloned);
   masterKnob.setValue(engine.masterValue);
   current = { kind, key };
   renderRack();
@@ -1104,6 +993,7 @@ $('#file-import')?.addEventListener('change', async (e) => {
     const data = JSON.parse(await file.text());
     const state = data.state || data;
     if (!Array.isArray(state.modules)) throw new Error('Kein gültiges Board');
+    normalizePatchState(state);
     const boards = loadBoards();
     const baseName = (data.name || file.name.replace(/\..*$/, '')).trim();
     let name = baseName;
@@ -1207,50 +1097,44 @@ $('#menu-clear-focus')?.addEventListener('click', () => {
 
 // ───────────────────────── Zoom & Arbeitsbereich ──
 const LS_ZOOM = 'synthboard:zoom_v2';
-let currentZoom = 0.78; // Standard: 78% Übersicht, damit alle 3 Reihen & Module sofort sichtbar sind
+let currentZoom = 0.85;
 try {
   const savedZoom = parseFloat(localStorage.getItem(LS_ZOOM));
-  if (!isNaN(savedZoom) && savedZoom >= 0.45 && savedZoom <= 1.3) currentZoom = savedZoom;
+  if (!isNaN(savedZoom) && savedZoom >= 0.25 && savedZoom <= 2.4) currentZoom = savedZoom;
 } catch { /* ignore */ }
 
 const rackWorkspaceEl = document.getElementById('rack-workspace');
 
 function applyZoom(level, notify = false) {
-  currentZoom = Math.max(0.45, Math.min(1.3, Math.round(level * 100) / 100));
-  const rackMain = document.getElementById('rack-main');
-  if (rackMain) {
-    rackMain.style.zoom = currentZoom;
+  if (workspace) {
+    workspace.zoom = Math.max(workspace.minZoom, Math.min(workspace.maxZoom, Math.round(level * 100) / 100));
+    workspace.updateWorldTransform();
+    currentZoom = workspace.zoom;
+  } else {
+    currentZoom = Math.max(0.25, Math.min(2.4, Math.round(level * 100) / 100));
   }
   const valEl = document.getElementById('zoom-val');
   if (valEl) valEl.textContent = `${Math.round(currentZoom * 100)}%`;
   try { localStorage.setItem(LS_ZOOM, currentZoom); } catch { /* ignore */ }
-  patchBay.updateSize?.();
-  patchBay.render?.();
+  patchBay?.requestDraw?.();
   if (notify) toast(`Zoom: ${Math.round(currentZoom * 100)}%`);
 }
 
 function fitZoomToScreen(notify = true) {
-  const rackEl = document.querySelector('.rack');
-  const ws = document.getElementById('rack-workspace');
-  if (!ws || !rackEl) return;
-
-  rackEl.style.zoom = '1';
-
-  const availableH = ws.clientHeight - 36;
-  const naturalH = rackEl.scrollHeight || 1000;
-
-  let targetRatio = availableH / naturalH;
-  targetRatio = Math.max(0.40, Math.min(1.05, Math.round(targetRatio * 100) / 100));
-
-  applyZoom(targetRatio, false);
-  if (notify) toast(`Studio-Übersicht: ${Math.round(targetRatio * 100)}% (Alles im Blick)`);
+  if (activeMainView === 'eurorack') {
+    eurorackUI?.fitToScreen?.();
+    return;
+  }
+  workspace?.fitAll(true);
+  if (notify) toast('Studio-Übersicht: Alles im Blick');
 }
 
-$('#btn-zoom-out')?.addEventListener('click', () => applyZoom(currentZoom - 0.1, true));
-$('#btn-zoom-in')?.addEventListener('click', () => applyZoom(currentZoom + 0.1, true));
-$('#btn-zoom-reset')?.addEventListener('click', () => applyZoom(1.0, true));
+$('#btn-zoom-out')?.addEventListener('click', () => workspace?.zoomRelative(-0.15));
+$('#btn-zoom-in')?.addEventListener('click', () => workspace?.zoomRelative(0.15));
+$('#btn-zoom-reset')?.addEventListener('click', () => workspace?.resetZoom());
 $('#btn-zoom-fit')?.addEventListener('click', () => fitZoomToScreen(true));
 $('#btn-studio-overview')?.addEventListener('click', () => fitZoomToScreen(true));
+$('#btn-overview')?.addEventListener('click', () => fitZoomToScreen(true));
 $('#btn-toggle-overview')?.addEventListener('click', () => fitZoomToScreen(true));
 
 // Sofortiges flüssiges Neuzeichnen der Patchkabel beim Scrollen im Rack
@@ -1308,9 +1192,19 @@ window.addEventListener('keydown', (e) => {
   }
 
   if (!e.metaKey && !e.ctrlKey && !e.altKey) {
+    if (e.key.toLowerCase() === 'e') {
+      e.preventDefault();
+      switchMainView(activeMainView === 'eurorack' ? 'studio' : 'eurorack');
+      return;
+    }
     if (e.key.toLowerCase() === 'f' || e.key.toLowerCase() === 'o') {
       e.preventDefault();
       fitZoomToScreen(true);
+      return;
+    }
+    if (e.key.toLowerCase() === 'z') {
+      e.preventDefault();
+      workspace?.focusSelected();
       return;
     }
     if (e.key.toLowerCase() === 'b') {
@@ -1361,6 +1255,176 @@ window.addEventListener('keyup', (e) => engine.sources.forEach((m) => m.handleKe
 window.addEventListener('blur', () => engine.sources.forEach((m) => m.active && [...m.active.keys()].forEach((d) => m.noteOff(d))));
 
 // ───────────────────────── Initialisierung ──
+function normalizePatchState(state) {
+  if (!state || !Array.isArray(state.modules)) return state;
+  for (const mod of state.modules) {
+    if (mod.type === 'chord_glide') {
+      mod.values = mod.values || {};
+      mod.extra = mod.extra || {};
+
+      if (mod.values.filter !== undefined) {
+        mod.values.cutoff = Number(mod.values.filter);
+        delete mod.values.filter;
+      }
+
+      if (Array.isArray(mod.extra.steps) && mod.extra.steps.length === 4) {
+        const s = mod.extra.steps;
+        const isTargetProg =
+          s[0]?.root === 9 && s[0]?.type === 'm7' &&
+          s[1]?.root === 5 && s[1]?.type === 'maj7' &&
+          s[2]?.root === 0 && s[2]?.type === 'maj7' &&
+          s[3]?.root === 7 && (s[3]?.type === 'add9' || s[3]?.type === 'sus4');
+
+        if (isTargetProg) {
+          s.forEach((step) => { step.bars = 2; });
+          mod.values.cutoff = 1500;
+          mod.values.voiceLeading = 1;
+          mod.extra.voiceLeading = 1;
+        }
+      }
+    }
+  }
+  return state;
+}
+
+// ── Virtuelles Eurorack („Distant Lights“) & Hauptnavigation (Top-Level) ──
+const LS_ACTIVE_VIEW = 'synthboard:active_main_view';
+let eurorackUI = null;
+let activeMainView = 'studio';
+
+function ensureEurorackUI() {
+  const eurorackHost = $('#eurorack-view');
+  if (!eurorackHost) return null;
+  if (!eurorackUI) {
+    try {
+      eurorackUI = new EurorackUI(eurorackHost, engine.ctx, engine.masterGain, {
+        toast,
+        ensureAudio: startAudio,
+      });
+    } catch (err) {
+      console.error('Fehler bei EurorackUI-Initialisierung:', err);
+    }
+  }
+  return eurorackUI;
+}
+
+function switchMainView(view) {
+  try {
+    activeMainView = view === 'eurorack' ? 'eurorack' : 'studio';
+    const isEuro = activeMainView === 'eurorack';
+    const eurorackHost = $('#eurorack-view');
+    const ws = $('#workspace');
+    const pc = $('#patch-canvas');
+
+    try { localStorage.setItem(LS_ACTIVE_VIEW, activeMainView); } catch { /* ignore */ }
+    if (window.history?.replaceState) {
+      const targetHash = isEuro ? '#eurorack' : '';
+      if (window.location.hash !== targetHash) {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search + targetHash);
+      }
+    }
+
+    if (isEuro) {
+      ensureEurorackUI();
+    }
+
+    window.scrollTo(0, 0);
+    document.body.classList.toggle('view-eurorack', isEuro);
+
+    $('#btn-nav-studio')?.classList.toggle('active', !isEuro);
+    $('#btn-nav-eurorack')?.classList.toggle('active', isEuro);
+
+    if (ws) {
+      ws.classList.toggle('hidden', isEuro);
+      ws.style.display = isEuro ? 'none' : '';
+    }
+    if (pc) {
+      pc.classList.toggle('hidden', isEuro);
+      pc.style.display = isEuro ? 'none' : '';
+    }
+    if (eurorackHost) {
+      eurorackHost.classList.toggle('hidden', !isEuro);
+      eurorackHost.style.display = isEuro ? 'flex' : 'none';
+    }
+
+    // Offene Dropdown-Menüs schließen
+    document.querySelectorAll('.menu-item.is-open').forEach((m) => m.classList.remove('is-open'));
+
+    // Doppelte Audioausgabe verhindern, ohne den AudioContext oder das Rack neu zu starten
+    try { engine.setStudioActive(!isEuro); } catch { /* ignore */ }
+    try { eurorackUI?.setActiveView(isEuro); } catch (e) { console.warn(e); }
+
+    if (!isEuro) {
+      requestAnimationFrame(() => patchBay?.draw());
+    } else {
+      requestAnimationFrame(() => eurorackUI?.drawCables());
+    }
+  } catch (err) {
+    console.error('Fehler beim Ansichtswechsel:', err);
+  }
+}
+
+// Navigation & DAW-Menüleiste sofort und ausfallsicher binden
+$('#btn-nav-studio')?.addEventListener('click', () => switchMainView('studio'));
+$('#btn-nav-eurorack')?.addEventListener('click', () => switchMainView('eurorack'));
+$('#btn-menu-eurorack')?.addEventListener('click', () => switchMainView('eurorack'));
+$('#btn-menu-studio')?.addEventListener('click', () => switchMainView('studio'));
+
+// DAW-Dropdown-Menüs stabil machen (bleiben bei Hover & Klick zuverlässig offen, schließen erst mit Verzögerung)
+document.querySelectorAll('.daw-menubar .menu-item').forEach((item) => {
+  let closeTimer = null;
+  const openMenu = () => {
+    clearTimeout(closeTimer);
+    document.querySelectorAll('.daw-menubar .menu-item').forEach((other) => {
+      if (other !== item) other.classList.remove('is-open');
+    });
+    item.classList.add('is-open');
+  };
+  const scheduleClose = () => {
+    clearTimeout(closeTimer);
+    closeTimer = setTimeout(() => {
+      if (!item.dataset.pinned) {
+        item.classList.remove('is-open');
+      }
+    }, 320);
+  };
+
+  item.addEventListener('mouseenter', openMenu);
+  item.addEventListener('mouseleave', scheduleClose);
+
+  const btn = item.querySelector('.menu-btn');
+  btn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    clearTimeout(closeTimer);
+    const wasPinned = item.dataset.pinned === '1';
+    document.querySelectorAll('.daw-menubar .menu-item').forEach((other) => {
+      delete other.dataset.pinned;
+      other.classList.remove('is-open');
+    });
+    if (!wasPinned) {
+      item.dataset.pinned = '1';
+      item.classList.add('is-open');
+    }
+  });
+
+  item.querySelectorAll('.menu-action').forEach((act) => {
+    act.addEventListener('click', () => {
+      clearTimeout(closeTimer);
+      delete item.dataset.pinned;
+      item.classList.remove('is-open');
+    });
+  });
+});
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.daw-menubar')) {
+    document.querySelectorAll('.daw-menubar .menu-item').forEach((item) => {
+      delete item.dataset.pinned;
+      item.classList.remove('is-open');
+    });
+  }
+});
+
 function boot() {
   // Einmalige automatische Bereinigung alter Import-Ketten & Reset auf sauberes System
   if (!localStorage.getItem(LS_PURGE_KEY)) {
@@ -1371,6 +1435,19 @@ function boot() {
     } catch { /* ignore */ }
   }
 
+  // Gespeicherte Boards in localStorage normalisieren (2 Takte, 1,5 kHz, Stimmführung aktiv)
+  try {
+    const savedBoards = loadBoards();
+    let boardsUpdated = false;
+    for (const [k, bState] of Object.entries(savedBoards)) {
+      if (bState?.modules) {
+        normalizePatchState(bState);
+        boardsUpdated = true;
+      }
+    }
+    if (boardsUpdated) storeBoards(savedBoards);
+  } catch { /* ignore */ }
+
   renderLibrary();
   setupDropZones();
 
@@ -1378,6 +1455,7 @@ function boot() {
   try { auto = JSON.parse(localStorage.getItem(LS_AUTO)); } catch { /* ignore */ }
 
   if (auto?.state?.modules) {
+    normalizePatchState(auto.state);
     engine.load(auto.state);
     masterKnob.setValue(engine.masterValue);
     current = auto.current || { kind: 'tpl', key: 'empty' };
@@ -1385,8 +1463,24 @@ function boot() {
     renderRack();
     populateBoards();
     setDirty(!!auto.dirty);
+    // Aktualisierten Zustand zurückschreiben, damit Export & Reload konsistent sind
+    try {
+      localStorage.setItem(LS_AUTO, JSON.stringify({ state: engine.getState(), current, dirty: !!auto.dirty }));
+      if (current.kind === 'my' && current.key) {
+        const b = loadBoards();
+        if (b[current.key]) {
+          b[current.key] = engine.getState();
+          storeBoards(b);
+        }
+      }
+    } catch { /* ignore */ }
   } else {
-    loadBoard('tpl', 'empty');
+    // 1. LEERE ARBEITSFLÄCHE: Ein neues Studio startet als leere, großzügige Fläche
+    engine.clear();
+    current = { kind: 'new', key: '' };
+    renderRack();
+    populateBoards();
+    setDirty(false);
   }
 
   try {
@@ -1402,6 +1496,21 @@ function boot() {
     fitZoomToScreen(false);
   }, 120);
   updateStatus();
+
+  // EurorackUI vorab initialisieren & zuletzt geöffnete Ansicht (Eurorack oder Studio) wiederherstellen
+  const ui = ensureEurorackUI();
+  let savedView = 'studio';
+  try {
+    if (window.location?.hash === '#eurorack' || localStorage.getItem(LS_ACTIVE_VIEW) === 'eurorack') {
+      savedView = 'eurorack';
+    }
+  } catch { /* ignore */ }
+
+  if (savedView === 'eurorack') {
+    switchMainView('eurorack');
+  } else {
+    ui?.setActiveView(false);
+  }
 }
 
 boot();

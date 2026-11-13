@@ -266,10 +266,10 @@ export class BassModule extends SourceBase {
   static params = [
     { id: 'level', label: 'Level', min: 0, max: 1, value: 0.75, fmt: 'pct' },
     { id: 'cutoff', label: 'Cutoff', min: 60, max: 3500, value: 550, log: true, fmt: 'hz' },
-    { id: 'reso', label: 'Reso', min: 0.5, max: 16, value: 4.8, fmt: 'num' },
-    { id: 'env', label: 'Env Amt', min: 0, max: 1, value: 0.6, fmt: 'pct' },
-    { id: 'decay', label: 'Decay', min: 0.08, max: 2.2, value: 0.55, log: true, fmt: 's' },
-    { id: 'sub', label: 'Sub Bass', min: 0, max: 1, value: 0.45, fmt: 'pct' },
+    { id: 'reso', label: 'Reso', min: 0.5, max: 16, value: 3.2, fmt: 'num' },
+    { id: 'env', label: 'Env Amt', min: 0, max: 1, value: 0.45, fmt: 'pct' },
+    { id: 'decay', label: 'Decay', min: 0.08, max: 8.0, value: 1.8, log: true, fmt: 's' },
+    { id: 'sub', label: 'Sub Bass', min: 0, max: 1, value: 0.55, fmt: 'pct' },
   ];
   static options = [];
   static jacks = [
@@ -282,54 +282,136 @@ export class BassModule extends SourceBase {
 
   constructor(ctx, state = {}) {
     super(ctx, state);
-    this.currentMidi = 33; // A1
+    // Wenig Hall im Subbass als Standard, sofern nicht explizit gespeichert
+    if (state?.extra?.chReverb === undefined) {
+      this.chReverb = 0.08;
+      this.chDelay = state?.extra?.chDelay ?? 0.04;
+      this.updateChannelStrip();
+    }
+    this.currentMidi = 35; // B1
+    this.pendingDuration = 0.6;
     this.modCv = 0.5;
+    this.activeVoices = [];
 
+    // Dezenter Sub-Lowcut bei 26 Hz gegen DC-Offset, erhält das volle tiefe Fundament
+    this.subHp = ctx.createBiquadFilter();
+    this.subHp.type = 'highpass';
+    this.subHp.frequency.value = 26;
     this.levelGain = ctx.createGain();
+    this.subHp.connect(this.levelGain);
     this.levelGain.connect(this.output);
-    this.satCurve = makeSaturationCurve(1.5, 1024);
+    this.satCurve = makeSaturationCurve(1.35, 1024);
     this.initValues(state);
   }
 
   applyParam(id, val) {
-    if (id === 'level') this.ramp(this.levelGain.gain, val);
+    if (id === 'level') {
+      this.ramp(this.levelGain.gain, val, 0.04);
+    } else if (id === 'cutoff' || id === 'reso' || id === 'sub') {
+      this.updateLiveVoices();
+    }
   }
 
-  onPitch(portId, _time, midiNote) {
+  updateLiveVoices(time = null) {
+    const t = time || this.ctx.currentTime;
+    this.pruneVoices(t);
+    const effCutoff = Math.max(45, Math.min(8000, (this.values.cutoff || 450) * (0.5 + this.modCv * 1.5)));
+    const q = Math.max(0.5, (this.values.reso || 2.5) * 0.6);
+    const subLvl = (this.values.sub ?? 0.55) * 0.85;
+    for (const v of this.activeVoices) {
+      v.flt1.frequency.setTargetAtTime(effCutoff, t, 0.06);
+      v.flt2.frequency.setTargetAtTime(effCutoff, t, 0.06);
+      v.flt1.Q.setTargetAtTime(q, t, 0.06);
+      v.flt2.Q.setTargetAtTime(q, t, 0.06);
+      v.subGain.gain.setTargetAtTime(subLvl, t, 0.06);
+    }
+  }
+
+  pruneVoices(now) {
+    this.activeVoices = this.activeVoices.filter((v) => v.end > now && !v.stopped);
+  }
+
+  allNotesOff(time = null) {
+    const t = Math.max(time || this.ctx.currentTime, this.ctx.currentTime);
+    for (const v of this.activeVoices) {
+      if (v.stopped) continue;
+      v.stopped = true;
+      try {
+        v.vca.gain.cancelScheduledValues(t);
+        v.vca.gain.setTargetAtTime(0, t, 0.04);
+        v.o1.stop(t + 0.18);
+        v.o2.stop(t + 0.18);
+      } catch { /* ignore */ }
+    }
+    this.activeVoices = [];
+  }
+
+  onPitch(portId, _time, midiNote, _velocity = 1, duration = 0.6) {
     if (portId === 'pitchIn') {
-      const m = Array.isArray(midiNote) ? midiNote[0] : midiNote;
+      const raw = Array.isArray(midiNote) ? midiNote[0] : midiNote;
+      // Halte Bass zuverlässig in der tiefen Bass-Oktavlage (MIDI 28..47, E1..B2)
+      let m = typeof raw === 'number' ? Math.round(raw) : 35;
+      while (m > 47) m -= 12;
+      while (m < 28) m += 12;
       this.currentMidi = m;
+      if (Number.isFinite(duration) && duration > 0) this.pendingDuration = duration;
       this.updateNoteUi?.(m);
     }
   }
 
-  onModulation(portId, value) {
+  onModulation(portId, value, time) {
     if (this.handleSourceModulation(portId, value)) return;
-    if (portId === 'modCutoff') this.modCv = value;
+    if (portId === 'modCutoff') {
+      this.modCv = value;
+      this.updateLiveVoices(time);
+    }
   }
 
-  onTrigger(portId, time, velocity = 1) {
+  onTrigger(portId, time, velocity = 1, duration = 0.15) {
     if (portId !== 'gateIn' || !this.enabled) return;
-    this.playBass(this.currentMidi, time, velocity);
+    const effDur = (duration && duration > 0.2) ? duration : (this.pendingDuration || 0.6);
+    this.playBass(this.currentMidi, time, velocity, effDur);
     this.flashUi?.();
   }
 
-  playBass(midi, time, velocity = 1) {
+  playBass(midi, time, velocity = 1, duration = 0.8) {
     const ctx = this.ctx;
+    const now = ctx.currentTime;
+    const t = Math.max(time || now, now);
+    this.pruneVoices(now);
+
+    // Bestehende Bass-Stimmen weich ausblenden (verhindert Stimmen-Ansammlung & Phasen-Matsch im Subbass)
+    while (this.activeVoices.length >= 1) {
+      const old = this.activeVoices.shift();
+      if (old && !old.stopped) {
+        old.stopped = true;
+        try {
+          if (old.vca.gain.cancelAndHoldAtTime) old.vca.gain.cancelAndHoldAtTime(t);
+          else {
+            old.vca.gain.cancelScheduledValues(t);
+            old.vca.gain.setValueAtTime(Math.max(0.0001, old.vca.gain.value), t);
+          }
+          old.vca.gain.setTargetAtTime(0.0001, t, 0.045);
+          old.o1.stop(t + 0.22);
+          old.o2.stop(t + 0.22);
+        } catch { /* ignore */ }
+      }
+    }
+
     const f = midiToFreq(midi);
     const { cutoff, reso, env, decay, sub } = this.values;
 
-    // Oszillatoren: Hauptoszillator (Saw) + Sub-Oszillator (Square, eine Oktave tiefer)
+    // Oszillatoren: Hauptoszillator (Saw) + Sub-Oszillator (Sine/Triangle, Warm & Kontrolliert)
     const o1 = ctx.createOscillator();
     const o2 = ctx.createOscillator();
     o1.type = 'sawtooth';
-    o2.type = 'square';
-    o1.frequency.setValueAtTime(f, time);
-    o2.frequency.setValueAtTime(f * 0.5, time); // -1 Oktave
+    o2.type = 'sine';
+    o1.frequency.setValueAtTime(f, t);
+    o2.frequency.setValueAtTime(f * 0.5, t); // Subbass -1 Oktave
 
     const mix = ctx.createGain();
     const subGain = ctx.createGain();
-    subGain.gain.value = sub * 0.8;
+    subGain.gain.value = (sub ?? 0.55) * 0.85;
     o1.connect(mix);
     o2.connect(subGain);
     subGain.connect(mix);
@@ -338,34 +420,44 @@ export class BassModule extends SourceBase {
     const flt1 = ctx.createBiquadFilter();
     const flt2 = ctx.createBiquadFilter();
     flt1.type = flt2.type = 'lowpass';
-    flt1.Q.value = flt2.Q.value = reso * 0.7;
+    flt1.Q.value = flt2.Q.value = Math.max(0.5, (reso ?? 3.2) * 0.6);
 
-    const effCutoff = Math.max(50, Math.min(14000, cutoff * (0.5 + this.modCv * 1.5)));
-    const peakCutoff = Math.min(14000, effCutoff * (1 + env * 12 * velocity));
+    const effCutoff = Math.max(45, Math.min(8000, (cutoff ?? 550) * (0.5 + this.modCv * 1.5)));
+    const peakCutoff = Math.min(6500, effCutoff * (1 + (env ?? 0.45) * 5 * velocity));
     [flt1, flt2].forEach((flt) => {
-      flt.frequency.setValueAtTime(peakCutoff, time);
-      flt.frequency.setTargetAtTime(effCutoff, time + 0.005, decay * 0.35);
+      flt.frequency.setValueAtTime(peakCutoff, t);
+      flt.frequency.setTargetAtTime(effCutoff, t + 0.025, Math.max(0.12, decay * 0.35));
     });
 
     // Weiche Sättigung / Overdrive
     const waveShaper = ctx.createWaveShaper();
     waveShaper.curve = this.satCurve;
 
-    // Amplitude VCA
+    // Weiche Amplitude-Hüllkurve (klickfreier Attack + getragener Sustain + kontrollierter Ausklang)
     const vca = ctx.createGain();
-    vca.gain.setValueAtTime(0, time);
-    vca.gain.linearRampToValueAtTime(0.38 * velocity, time + 0.004);
-    vca.gain.exponentialRampToValueAtTime(0.0001, time + decay * 2.2);
+    const holdDur = Math.max(0.15, Math.min(12.0, duration || decay));
+    const relTime = Math.max(0.25, decay * 1.2);
+    const peakAmp = 0.34 * velocity;
+    const sustainAmp = 0.26 * velocity;
+    const attackSec = holdDur > 1.0 ? 0.035 : 0.008;
+
+    vca.gain.setValueAtTime(0.0001, t);
+    vca.gain.linearRampToValueAtTime(peakAmp, t + attackSec);
+    vca.gain.setTargetAtTime(sustainAmp, t + attackSec, Math.max(0.15, holdDur * 0.35));
+    vca.gain.setTargetAtTime(0.0001, t + holdDur, relTime * 0.32);
 
     mix.connect(flt1);
     flt1.connect(flt2);
     flt2.connect(waveShaper);
     waveShaper.connect(vca);
-    vca.connect(this.levelGain);
+    vca.connect(this.subHp);
 
-    const end = time + decay * 2.3 + 0.05;
-    o1.start(time); o2.start(time);
+    const end = t + holdDur + relTime * 1.6 + 0.1;
+    o1.start(t); o2.start(t);
     o1.stop(end); o2.stop(end);
+
+    const voiceObj = { o1, o2, flt1, flt2, subGain, vca, end, stopped: false };
+    this.activeVoices.push(voiceObj);
 
     cleanupOnEnd(o1, [o1, o2, mix, subGain, flt1, flt2, waveShaper, vca]);
   }
@@ -383,7 +475,7 @@ export class BassModule extends SourceBase {
       setTimeout(() => noteEl.classList.remove('flash'), 120);
     };
     el.querySelector('.btn-trig').addEventListener('click', () => {
-      this.playBass(this.currentMidi, this.ctx.currentTime, 1);
+      this.playBass(this.currentMidi, this.ctx.currentTime, 1, 1.2);
       this.flashUi();
     });
   }

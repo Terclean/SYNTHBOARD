@@ -35,7 +35,7 @@ export class DroneModule extends SourceBase {
     { id: 'drift', label: 'Drift', min: 0, max: 1, value: 0.5, fmt: 'pct' },
   ];
   static options = [
-    { id: 'root', label: 'Grundton', choices: [[28, 'E1'], [33, 'A1'], [36, 'C2'], [38, 'D2'], [40, 'E2'], [43, 'G2'], [45, 'A2']], value: 33 },
+    { id: 'root', label: 'Grundton', choices: [[28, 'E1'], [33, 'A1'], [35, 'B1'], [36, 'C2'], [38, 'D2'], [40, 'E2'], [42, 'F#2'], [43, 'G2'], [45, 'A2']], value: 33 },
     { id: 'chord', label: 'Akkord', choices: Object.entries(CHORDS).map(([k, c]) => [k, c.name]), value: 'fifths' },
     { id: 'wave', label: 'Welle', choices: WAVES, value: 'sawtooth' },
   ];
@@ -54,8 +54,11 @@ export class DroneModule extends SourceBase {
     this.filter.type = 'lowpass';
     this.filter.Q.value = 0.8;
     this.levelGain = ctx.createGain();
+    this.transportGate = ctx.createGain();
+    this.transportGate.gain.value = 1.0;
     this.filter.connect(this.levelGain);
-    this.levelGain.connect(this.output);
+    this.levelGain.connect(this.transportGate);
+    this.transportGate.connect(this.output);
 
     this.voices = [];
     for (let i = 0; i < 6; i++) {
@@ -156,6 +159,16 @@ export class DroneModule extends SourceBase {
     }
   }
 
+  allNotesOff(time = null) {
+    const t = Math.max(time || this.ctx.currentTime, this.ctx.currentTime);
+    this.transportGate.gain.setTargetAtTime(0, t, 0.18);
+  }
+
+  onTransportPlay(time = null) {
+    const t = Math.max(time || this.ctx.currentTime, this.ctx.currentTime);
+    this.transportGate.gain.setTargetAtTime(1.0, t, 0.25);
+  }
+
   getExtra() { return { voices: [...this.voicesOn] }; }
   setExtra(extra) {
     if (Array.isArray(extra?.voices)) {
@@ -190,7 +203,7 @@ export class DroneModule extends SourceBase {
       } catch { /* ignore */ }
     });
     this.voices = [];
-    try { this.filter.disconnect(); this.levelGain.disconnect(); } catch { /* ignore */ }
+    try { this.filter.disconnect(); this.levelGain.disconnect(); this.transportGate.disconnect(); } catch { /* ignore */ }
     super.destroy();
   }
 }

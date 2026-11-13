@@ -28,16 +28,16 @@ export class PatchBay {
     this.appEl = document.querySelector('.app');
 
     const updateSize = () => {
-      if (!this.appEl) return;
-      // DPR auf 1.5 deckeln: spart 50–70 % VRAM auf Retina, Kabel bleiben perfekt scharf
+      const parent = this.canvas.parentElement || this.appEl || document.body;
+      const rect = parent.getBoundingClientRect();
       const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-      const w = Math.max(window.innerWidth, this.appEl.scrollWidth || this.appEl.offsetWidth || 1200);
-      const h = Math.max(window.innerHeight, this.appEl.scrollHeight || this.appEl.offsetHeight || 800);
+      const w = Math.max(rect.width || window.innerWidth, 400);
+      const h = Math.max(rect.height || window.innerHeight, 300);
 
       this.canvas.width = Math.round(w * dpr);
       this.canvas.height = Math.round(h * dpr);
-      this.canvas.style.width = `${w}px`;
-      this.canvas.style.height = `${h}px`;
+      this.canvas.style.width = '100%';
+      this.canvas.style.height = '100%';
 
       this.ctx.setTransform(1, 0, 0, 1, 0, 0);
       this.ctx.scale(dpr, dpr);
@@ -49,11 +49,8 @@ export class PatchBay {
     window.addEventListener('resize', updateSize);
 
     if (window.ResizeObserver) {
+      if (this.canvas.parentElement) new ResizeObserver(() => updateSize()).observe(this.canvas.parentElement);
       if (this.appEl) new ResizeObserver(() => updateSize()).observe(this.appEl);
-      const ws = document.querySelector('.workspace');
-      if (ws) new ResizeObserver(() => updateSize()).observe(ws);
-      const rk = document.querySelector('.rack');
-      if (rk) new ResizeObserver(() => updateSize()).observe(rk);
     }
   }
 
@@ -161,13 +158,12 @@ export class PatchBay {
   getJackCenter(key) {
     const jack = this.jacks.get(key);
     if (!jack || !jack.el || !document.body.contains(jack.el)) return null;
-    if (!this.appEl) this.appEl = document.querySelector('.app');
-    const appRect = this.appEl.getBoundingClientRect();
+    const canvasRect = this.canvas.getBoundingClientRect();
     const rect = jack.el.getBoundingClientRect();
     if (rect.width === 0 && rect.height === 0) return null;
     return {
-      x: rect.left + rect.width / 2 - appRect.left,
-      y: rect.top + rect.height / 2 - appRect.top,
+      x: rect.left + rect.width / 2 - canvasRect.left,
+      y: rect.top + rect.height / 2 - canvasRect.top,
     };
   }
 
@@ -178,15 +174,14 @@ export class PatchBay {
 
     const jack = this.jacks.get(key);
     if (!jack) return;
-    if (!this.appEl) this.appEl = document.querySelector('.app');
-    const appRect = this.appEl.getBoundingClientRect();
+    const canvasRect = this.canvas.getBoundingClientRect();
 
     if (jack.type === 'out') {
       const color = SIGNAL_COLORS[jack.signal] || '#fbbf24';
       this.activeDrag = {
         fromKey: key,
-        currentX: e.clientX - appRect.left,
-        currentY: e.clientY - appRect.top,
+        currentX: e.clientX - canvasRect.left,
+        currentY: e.clientY - canvasRect.top,
         color,
         signal: jack.signal,
       };
@@ -203,8 +198,8 @@ export class PatchBay {
 
         this.activeDrag = {
           fromKey,
-          currentX: e.clientX - appRect.left,
-          currentY: e.clientY - appRect.top,
+          currentX: e.clientX - canvasRect.left,
+          currentY: e.clientY - canvasRect.top,
           color,
           signal,
         };
@@ -285,11 +280,10 @@ export class PatchBay {
   bindEvents() {
     window.addEventListener('mousemove', (e) => {
       if (!this.activeDrag) return;
-      if (!this.appEl) this.appEl = document.querySelector('.app');
-      const appRect = this.appEl.getBoundingClientRect();
+      const canvasRect = this.canvas.getBoundingClientRect();
 
-      this.activeDrag.currentX = e.clientX - appRect.left;
-      this.activeDrag.currentY = e.clientY - appRect.top;
+      this.activeDrag.currentX = e.clientX - canvasRect.left;
+      this.activeDrag.currentY = e.clientY - canvasRect.top;
       this.requestDraw();
 
       this.handleAutoScroll(e);
@@ -311,10 +305,10 @@ export class PatchBay {
     });
 
     document.addEventListener('scroll', () => {
-      if (this.activeDrag && this.lastDragPoint && this.appEl) {
-        const appRect = this.appEl.getBoundingClientRect();
-        this.activeDrag.currentX = this.lastDragPoint.clientX - appRect.left;
-        this.activeDrag.currentY = this.lastDragPoint.clientY - appRect.top;
+      if (this.activeDrag && this.lastDragPoint) {
+        const canvasRect = this.canvas.getBoundingClientRect();
+        this.activeDrag.currentX = this.lastDragPoint.clientX - canvasRect.left;
+        this.activeDrag.currentY = this.lastDragPoint.clientY - canvasRect.top;
       }
       this.requestDraw();
     }, { passive: true, capture: true });
@@ -352,11 +346,10 @@ export class PatchBay {
     this.bindDepthEvents();
   }
 
-  /** Findet die Stärke-Plakette unter dem Mauszeiger (Koordinaten relativ zur App) */
+  /** Findet die Stärke-Plakette unter dem Mauszeiger (Koordinaten relativ zum Canvas) */
   badgeAt(e) {
     if (!this.visible || this.activeDrag || !this.badges.length) return null;
-    if (!this.appEl) this.appEl = document.querySelector('.app');
-    const r = this.appEl.getBoundingClientRect();
+    const r = this.canvas.getBoundingClientRect();
     const x = e.clientX - r.left;
     const y = e.clientY - r.top;
     return this.badges.find((b) => Math.abs(x - b.x) <= 21 && Math.abs(y - b.y) <= 10) || null;
@@ -438,9 +431,9 @@ export class PatchBay {
   }
 
   drawCables() {
-    if (!this.appEl) this.appEl = document.querySelector('.app');
-    const w = this.appEl ? (this.appEl.scrollWidth || this.appEl.offsetWidth) : window.innerWidth;
-    const h = this.appEl ? (this.appEl.scrollHeight || this.appEl.offsetHeight) : window.innerHeight;
+    const canvasRect = this.canvas.getBoundingClientRect();
+    const w = canvasRect.width || window.innerWidth;
+    const h = canvasRect.height || window.innerHeight;
 
     this.ctx.clearRect(0, 0, w, h);
     if (!this.visible && !this.activeDrag) return;

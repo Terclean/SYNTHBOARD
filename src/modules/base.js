@@ -135,6 +135,7 @@ export class ModuleBase {
     this.values = {};
     this.enabled = state.enabled ?? true;
     this.collapsed = !!state.collapsed;
+    this.pos = state.pos ? { ...state.pos } : null;
     this.stoppables = [];
     this.patchSystem = null; // wird von der Engine injiziert
     // "output" ist bei allen Audio-Modulen der Ausgang
@@ -175,12 +176,12 @@ export class ModuleBase {
   }
 
   // ── Modulare Patch-Event Weiterleitung ──
-  emitTrigger(portId, time, velocity = 1, duration = 0.1) {
-    this.patchSystem?.routeTrigger(this.id, portId, time, velocity, duration);
+  emitTrigger(portId, time, velocity = 1, duration = 0.1, meta = null) {
+    this.patchSystem?.routeTrigger(this.id, portId, time, velocity, duration, meta);
   }
 
-  emitPitch(portId, time, midiNote, velocity = 1, duration = 0.1) {
-    this.patchSystem?.routePitch(this.id, portId, time, midiNote, velocity, duration);
+  emitPitch(portId, time, midiNote, velocity = 1, duration = 0.1, meta = null) {
+    this.patchSystem?.routePitch(this.id, portId, time, midiNote, velocity, duration, meta);
   }
 
   emitMod(portId, value, time) {
@@ -191,12 +192,12 @@ export class ModuleBase {
     this.patchSystem?.routeClock(this.id, portId, time, tick);
   }
 
-  receiveTrigger(portId, time, velocity = 1, duration = 0.1) {
-    this.onTrigger(portId, time, velocity, duration);
+  receiveTrigger(portId, time, velocity = 1, duration = 0.1, meta = null) {
+    this.onTrigger(portId, time, velocity, duration, meta);
   }
 
-  receivePitch(portId, time, midiNote, velocity = 1, duration = 0.1) {
-    this.onPitch(portId, time, midiNote, velocity, duration);
+  receivePitch(portId, time, midiNote, velocity = 1, duration = 0.1, meta = null) {
+    this.onPitch(portId, time, midiNote, velocity, duration, meta);
   }
 
   receiveMod(portId, value, time) {
@@ -207,10 +208,16 @@ export class ModuleBase {
     this.onClock(portId, time, tick);
   }
 
-  onTrigger(_portId, _time, _velocity, _duration) {}
-  onPitch(_portId, _time, _midiNote, _velocity, _duration) {}
+  onTrigger(_portId, _time, _velocity, _duration, _meta) {}
+  onPitch(_portId, _time, _midiNote, _velocity, _duration, _meta) {}
   onModulation(_portId, _value, _time) {}
   onClock(_portId, _time, _tick) {}
+
+  /** Beendet gehaltene Noten/Stimmen zuverlässig bei Stop, Pause oder Patch-Wechsel */
+  allNotesOff(_time) {}
+
+  /** Setzt Sequencer-/Taktzähler auf den Stückanfang zurück */
+  resetTransport(_time) {}
 
   getState() {
     return {
@@ -218,6 +225,7 @@ export class ModuleBase {
       id: this.id,
       enabled: this.enabled,
       collapsed: !!this.collapsed,
+      pos: this.pos ? { ...this.pos } : undefined,
       values: { ...this.values },
       extra: { ...this.getExtra(), ...(this.getChannelStripState ? this.getChannelStripState() : {}) },
     };

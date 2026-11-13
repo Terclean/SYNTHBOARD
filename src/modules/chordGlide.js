@@ -79,7 +79,7 @@ export const VOICE_COLORS = [
  * Berechnet für einen Akkord und eine vorherige Stimmführung die optimale
  * Verteilung auf N Stimmen mit minimaler Gesamtbewegung und Haltung gemeinsamer Töne.
  */
-export function calculateVoicing(rootPc, chordTypeKey, numVoices = 5, prevVoicing = null, smooth = true, baseOctave = 3) {
+export function calculateVoicing(rootPc, chordTypeKey, numVoices = 5, prevVoicing = null, smooth = true, baseOctave = 3, holdCommon = true) {
   const chordDef = CHORD_TYPES[chordTypeKey] || CHORD_TYPES.maj;
   const pcs = chordDef.intervals.map((iv) => (rootPc + iv) % 12);
   const uniquePcs = [...new Set(pcs)];
@@ -135,7 +135,7 @@ export function calculateVoicing(rootPc, chordTypeKey, numVoices = 5, prevVoicin
       // Bevorzuge Akkordtöne, die noch in keiner anderen Stimme liegen
       if (!usedPcs.has(candPc)) cost -= 1.8;
       // Großer Bonus für exakt gehaltene Note (Common Tone Retention)
-      if (cand === prev) cost -= 4.5;
+      if (holdCommon && cand === prev) cost -= 4.5;
 
       if (cost < bestScore) {
         bestScore = cost;
@@ -189,6 +189,7 @@ export class ChordGlideModule extends SourceBase {
     { id: 'nextTrig', type: 'in', signal: 'gate', label: 'NEXT' },
     { id: 'transposeCv', type: 'in', signal: 'pitch', label: 'TRANSP' },
     { id: 'glideCv', type: 'in', signal: 'mod', label: 'GLIDE CV' },
+    { id: 'cutoffCv', type: 'in', signal: 'mod', label: 'FILTER CV' },
     { id: 'vcaCv', type: 'in', signal: 'mod', label: 'VCA CV' },
     { id: 'panCv', type: 'in', signal: 'mod', label: 'PAN CV' },
     { id: 'pitchOut', type: 'out', signal: 'pitch', label: 'POLY PITCH' },
@@ -199,26 +200,96 @@ export class ChordGlideModule extends SourceBase {
   constructor(ctx, state = {}) {
     super(ctx, state);
 
+    // Parameter-Aliase (z. B. filter -> cutoff, voices -> voiceCount, octave -> baseOctave) normalisieren
+    const savedValues = state.values ? { ...state.values } : {};
+    const savedExtra = state.extra ? { ...state.extra } : {};
+
+    if (savedValues.filter !== undefined && (savedValues.cutoff === undefined || savedValues.cutoff === 2400)) {
+      savedValues.cutoff = Number(savedValues.filter);
+    } else if (savedExtra.filter !== undefined && savedValues.cutoff === undefined) {
+      savedValues.cutoff = Number(savedExtra.filter);
+    }
+    delete savedValues.filter;
+
+    if (savedValues.voices !== undefined && savedValues.voiceCount === undefined) {
+      savedValues.voiceCount = Number(savedValues.voices);
+    } else if (savedExtra.voices !== undefined && savedValues.voiceCount === undefined) {
+      savedValues.voiceCount = Number(savedExtra.voices);
+    }
+    delete savedValues.voices;
+
+    // Stimmführung (voiceLeading) konsistent zwischen values und extra synchronisieren
+    const parseVL = (v) => {
+      if (v === undefined || v === null) return null;
+      if (typeof v === 'boolean') return v ? 1 : 0;
+      if (typeof v === 'number') return v > 0 ? 1 : 0;
+      if (typeof v === 'string') {
+        const s = v.trim().toLowerCase();
+        if (['1', 'true', 'on', 'an', 'smooth', 'yes', 'ja'].includes(s)) return 1;
+        if (['0', 'false', 'off', 'aus', 'no', 'nein', 'none', 'static'].includes(s)) return 0;
+      }
+      return null;
+    };
+    const vlVal = parseVL(savedValues.voiceLeading);
+    const vlExt = parseVL(savedExtra.voiceLeading);
+    // Bei widersprüchlicher Speicherung (z. B. values.voiceLeading: 1 vs extra.voiceLeading: 0) Smooth Voice Leading aktivieren
+    const resolvedVL = (vlVal !== null && vlExt !== null && vlVal !== vlExt)
+      ? 1
+      : (vlVal ?? vlExt ?? 1);
+    savedValues.voiceLeading = resolvedVL;
+    savedExtra.voiceLeading = resolvedVL;
+
+    const parseBars = (s) => {
+      const raw = typeof s.bars === 'string' ? parseFloat(s.bars) : Number(s.bars ?? s.duration ?? s.takte ?? s.length ?? s.measures ?? 2);
+      return [0.25, 0.5, 1, 2, 4, 8].includes(raw) ? raw : 2;
+    };
+
     // Gespeicherte Akkordfolge oder Standardpreset „Warm Ambient“
-    const savedExtra = state.extra || {};
     this.presetKey = savedExtra.presetKey || 'warm';
     this.steps = Array.isArray(savedExtra.steps) && savedExtra.steps.length
-      ? savedExtra.steps.map((s) => ({ ...s }))
+      ? savedExtra.steps.map((s) => ({
+          root: typeof s.root === 'number' ? ((Math.round(s.root) % 12) + 12) % 12 : 0,
+          type: CHORD_TYPES[s.type] ? s.type : 'maj7',
+          bars: parseBars(s),
+        }))
       : CHORD_PRESETS.warm.steps.map((s) => ({ ...s }));
+
+    // Spezifische Korrektur für Am7 -> Fmaj7 -> Cmaj7 -> Gadd9:
+    // Alle 4 Akkorde auf 2 Takte, Stimmführung aktiv (1) und Klangfarbe auf 1500 Hz
+    if (
+      this.steps.length === 4 &&
+      this.steps[0].root === 9 && this.steps[0].type === 'm7' &&
+      this.steps[1].root === 5 && this.steps[1].type === 'maj7' &&
+      this.steps[2].root === 0 && this.steps[2].type === 'maj7' &&
+      this.steps[3].root === 7 && (this.steps[3].type === 'add9' || this.steps[3].type === 'sus4')
+    ) {
+      this.steps.forEach((s) => { s.bars = 2; });
+      savedValues.voiceLeading = 1;
+      savedExtra.voiceLeading = 1;
+      if (!savedValues.cutoff || savedValues.cutoff === 2400 || savedValues.cutoff === 3800) {
+        savedValues.cutoff = 1500;
+      }
+    }
 
     this.currentStep = 0;
     this.running = savedExtra.running ?? true;
-    this.voiceLeading = savedExtra.voiceLeading ?? 1;
-    this.voiceCount = savedExtra.voiceCount ?? 5;
-    this.strum = savedExtra.strum ?? 0; // 0..150 ms
-    this.retrigger = savedExtra.retrigger ?? false;
-    this.baseOctave = savedExtra.baseOctave ?? 3;
+    this.voiceLeading = savedValues.voiceLeading ?? 1;
+    this.voiceCount = Number(savedValues.voiceCount ?? savedExtra.voiceCount ?? 5);
+    this.holdCommon = savedExtra.holdCommon !== undefined ? Boolean(savedExtra.holdCommon) : true;
+    this.strum = Number(savedExtra.strum ?? savedValues.strum ?? 0); // 0..150 ms
+    this.retrigger = Boolean(savedExtra.retrigger ?? savedValues.retrigger ?? false);
+    const rawOct = Number(savedExtra.baseOctave ?? savedExtra.octave ?? savedValues.octave ?? 3);
+    this.baseOctave = rawOct >= 24 ? Math.max(2, Math.min(4, Math.round(rawOct / 12) - 1)) : Math.max(2, Math.min(4, rawOct || 3));
     this.liveMode = savedExtra.liveMode ?? false;
     this.drawerOpen = savedExtra.drawerOpen ?? false;
+
+    // Bereite computedVoicings vor initValues vor
+    this.computedVoicings = [];
 
     // Modulations-Offsets
     this.transposeOffset = 0; // aus transposeCv
     this.glideModScale = 1.0; // aus glideCv
+    this.cutoffCvOffset = 0;  // aus cutoffCv
 
     // Interner Master-Filter & VCA für den Pad-Klang
     this.padFilter = ctx.createBiquadFilter();
@@ -259,10 +330,9 @@ export class ChordGlideModule extends SourceBase {
       this.voices.push(v);
     }
 
-    this.initValues(state);
+    this.initValues({ ...state, values: savedValues, extra: savedExtra });
 
     // Berechne alle Voicings für die gesamte Folge vorab
-    this.computedVoicings = [];
     this.recalculateAllVoicings();
 
     // Clock-Zähler
@@ -277,7 +347,7 @@ export class ChordGlideModule extends SourceBase {
     // Initialen Akkord triggern
     setTimeout(() => {
       if (this.enabled) this.triggerCurrentStep(this.ctx.currentTime);
-    }, 40);
+    }, 50);
   }
 
   applyParam(id, val) {
@@ -291,14 +361,18 @@ export class ChordGlideModule extends SourceBase {
         this.ramp(v.osc2.detune, val * 0.8, 0.05);
       });
     } else if (id === 'voiceLeading') {
-      this.voiceLeading = Number(val);
+      this.voiceLeading = Number(val) ? 1 : 0;
+      this.values.voiceLeading = this.voiceLeading;
       this.recalculateAllVoicings();
-      this.triggerCurrentStep(this.ctx.currentTime);
+      if (this.voices?.length) this.triggerCurrentStep(this.ctx.currentTime);
+      this.syncLeadUi?.();
       this.refreshVisualizer?.();
     } else if (id === 'voiceCount') {
       this.voiceCount = Number(val);
+      this.values.voiceCount = this.voiceCount;
       this.recalculateAllVoicings();
-      this.triggerCurrentStep(this.ctx.currentTime);
+      if (this.voices?.length) this.triggerCurrentStep(this.ctx.currentTime);
+      this.syncVoicesUi?.();
       this.refreshVisualizer?.();
     }
   }
@@ -312,7 +386,7 @@ export class ChordGlideModule extends SourceBase {
 
     for (let i = 0; i < this.steps.length; i++) {
       const s = this.steps[i];
-      const v = calculateVoicing(s.root, s.type, numV, prev, smooth, this.baseOctave);
+      const v = calculateVoicing(s.root, s.type, numV, prev, smooth, this.baseOctave, this.holdCommon);
       this.computedVoicings.push(v);
       prev = v;
     }
@@ -321,10 +395,11 @@ export class ChordGlideModule extends SourceBase {
   /** Triggert den aktuellen Schritt und leitet Poly-Pitch, Bass-Pitch & Gate weiter */
   triggerCurrentStep(time = this.ctx.currentTime, isManualPreview = false) {
     if (!this.enabled || !this.steps.length) return;
+    if (!isManualPreview && this.engine?.transport && !this.engine.transport.playing) return;
 
     const idx = ((this.currentStep % this.steps.length) + this.steps.length) % this.steps.length;
     const step = this.steps[idx];
-    const voicing = this.computedVoicings[idx] || calculateVoicing(step.root, step.type, this.voiceCount, null, false, this.baseOctave);
+    const voicing = this.computedVoicings[idx] || calculateVoicing(step.root, step.type, this.voiceCount, null, false, this.baseOctave, this.holdCommon);
 
     const baseGlide = this.values.glide ?? 1.2;
     const effectiveGlide = Math.max(0.005, baseGlide * this.glideModScale);
@@ -398,7 +473,7 @@ export class ChordGlideModule extends SourceBase {
 
     this.emitPitch('pitchOut', time, transVoicing, 0.9, this.stepDurationSec);
     this.emitPitch('rootOut', time, rootMidi, 0.9, this.stepDurationSec);
-    this.emitTrigger('gateOut', time, 0.9, 0.15);
+    this.emitTrigger('gateOut', time, 0.9, this.stepDurationSec);
 
     // UI-Aktualisierung (Karten-Highlight & Visualizer)
     const delayMs = Math.max(0, (time - this.ctx.currentTime) * 1000);
@@ -408,6 +483,7 @@ export class ChordGlideModule extends SourceBase {
   }
 
   getBpm() {
+    if (this.engine?.transport?.bpm) return this.engine.transport.bpm;
     const clock = this.engine?.controls?.find((m) => m.meta.type === 'master_clock');
     return clock?.values?.tempo || 100;
   }
@@ -418,9 +494,20 @@ export class ChordGlideModule extends SourceBase {
 
     this.clockTicks++;
     const step = this.steps[this.currentStep] || this.steps[0];
-    const div = Number(this.values.clockDiv || 16);
-    // Ticks für diesen Schritt: Bei 16 Ticks pro Takt (1/16 Clock) entspricht 1 Bar = 16 Ticks
-    const targetTicks = Math.max(1, Math.round((step.bars || 1) * div));
+
+    // Bestimme Pulsrate anhand der angeschlossenen Clock-Quelle, damit „2 Takte“ musikalisch immer 2 Takten entspricht
+    let div = Number(this.values.clockDiv || 16);
+    const incoming = this.patchSystem?.getIncoming?.(this.id, 'clockIn');
+    if (incoming) {
+      const fp = incoming.fromPortId;
+      if (fp === 'barOut' || fp === 'div16Out') div = 1;
+      else if (fp === 'div8Out') div = 2;
+      else if (fp === 'div4Out') div = 4;
+      else if (fp === 'div2Out') div = 8;
+      else if (fp === 'clockOut') div = 16;
+    }
+
+    const targetTicks = Math.max(1, Math.round((Number(step.bars) || 1) * div));
 
     if (this.clockTicks >= targetTicks) {
       this.clockTicks = 0;
@@ -451,16 +538,54 @@ export class ChordGlideModule extends SourceBase {
     }
   }
 
-  onModulation(portId, val) {
+  onModulation(portId, val, time) {
     if (this.handleSourceModulation(portId, val)) return;
     if (portId === 'glideCv') {
       this.glideModScale = Math.max(0.05, val * 2.0);
+    } else if (portId === 'cutoffCv') {
+      const base = this.values.cutoff || 1500;
+      const target = Math.max(120, Math.min(12000, base * Math.pow(2, (val - 0.5) * 3.0)));
+      this.padFilter.frequency.setTargetAtTime(target, time || this.ctx.currentTime, 0.05);
     }
+  }
+
+  /** Synchronisiert den Akkordschritt exakt auf eine Taktposition (0-basiert) */
+  syncToBar(barZeroIndexed = 0, time = null) {
+    if (!this.steps.length) return;
+    const totalCycleBars = this.steps.reduce((acc, s) => acc + (Number(s.bars) || 1), 0) || 1;
+    let rem = ((barZeroIndexed % totalCycleBars) + totalCycleBars) % totalCycleBars;
+    let foundIdx = 0;
+    for (let i = 0; i < this.steps.length; i++) {
+      const b = Number(this.steps[i].bars) || 1;
+      if (rem < b - 1e-4) {
+        foundIdx = i;
+        break;
+      }
+      rem -= b;
+    }
+    this.currentStep = foundIdx;
+    this.clockTicks = Math.max(0, Math.round(rem * 16));
+    if (this.enabled && this.running && (!this.engine?.transport || this.engine.transport.playing)) {
+      this.triggerCurrentStep(time || this.ctx.currentTime);
+    } else {
+      this.updateActiveCardUi?.(foundIdx);
+    }
+  }
+
+  allNotesOff(time = null) {
+    this.stopVoices(time);
+  }
+
+  resetTransport(_time = null) {
+    this.currentStep = 0;
+    this.clockTicks = 0;
+    this.updateActiveCardUi?.(0);
   }
 
   tickInternal() {
     // Wenn ein externes Clock-Kabel angeschlossen ist, überstimmt dieses den internen Ticker
     if (this.patchSystem?.hasIncoming(this.id, 'clockIn')) return;
+    if (this.engine?.transport && !this.engine.transport.playing) return;
     if (!this.running || !this.enabled || !this.steps.length) return;
 
     const now = this.ctx.currentTime;
@@ -476,11 +601,12 @@ export class ChordGlideModule extends SourceBase {
     }
   }
 
-  stopVoices() {
-    const t = this.ctx.currentTime;
+  stopVoices(time = null) {
+    const t = Math.max(time || this.ctx.currentTime, this.ctx.currentTime);
+    const rel = Math.max(0.08, Math.min(1.5, (this.values.release ?? 2.2) * 0.25));
     this.voices.forEach((v) => {
       v.gain.gain.cancelScheduledValues(t);
-      v.gain.gain.setTargetAtTime(0, t, 0.08);
+      v.gain.gain.setTargetAtTime(0, t, rel);
       v.active = false;
     });
   }
@@ -496,12 +622,13 @@ export class ChordGlideModule extends SourceBase {
       try {
         v.osc1.stop(); v.osc1.disconnect();
         v.osc2.stop(); v.osc2.disconnect();
-        v.filter.disconnect();
+        v.sub.stop(); v.sub.disconnect();
+        v.subGain.disconnect();
         v.gain.disconnect();
       } catch { /* ignore */ }
     });
     this.voices = [];
-    try { this.masterGain.disconnect(); this.output.disconnect(); } catch { /* ignore */ }
+    try { this.padFilter.disconnect(); this.padLevel.disconnect(); this.output.disconnect(); } catch { /* ignore */ }
     super.destroy();
   }
 
@@ -509,10 +636,11 @@ export class ChordGlideModule extends SourceBase {
   getExtra() {
     return {
       presetKey: this.presetKey,
-      steps: this.steps.map((s) => ({ ...s })),
+      steps: this.steps.map((s) => ({ root: s.root, type: s.type, bars: Number(s.bars) || 2 })),
       running: this.running,
-      voiceLeading: this.voiceLeading,
+      voiceLeading: this.voiceLeading ? 1 : 0,
       voiceCount: this.voiceCount,
+      holdCommon: this.holdCommon,
       strum: this.strum,
       retrigger: this.retrigger,
       baseOctave: this.baseOctave,
@@ -624,10 +752,12 @@ export class ChordGlideModule extends SourceBase {
                 ${Object.entries(CHORD_TYPES).map(([k, t]) => `<option value="${k}" ${s.type === k ? 'selected' : ''}>${t.name}</option>`).join('')}
               </select>
               <select class="select select-xs cg-bars-sel" aria-label="Dauer in Takten">
-                <option value="0.25" ${s.bars === 0.25 ? 'selected' : ''}>¼ Takt</option>
-                <option value="0.5" ${s.bars === 0.5 ? 'selected' : ''}>½ Takt</option>
-                <option value="1" ${s.bars === 1 || !s.bars ? 'selected' : ''}>1 Takt</option>
-                <option value="2" ${s.bars === 2 ? 'selected' : ''}>2 Takte</option>
+                <option value="0.25" ${Number(s.bars) === 0.25 ? 'selected' : ''}>¼ Takt</option>
+                <option value="0.5" ${Number(s.bars) === 0.5 ? 'selected' : ''}>½ Takt</option>
+                <option value="1" ${Number(s.bars) === 1 || !s.bars ? 'selected' : ''}>1 Takt</option>
+                <option value="2" ${Number(s.bars) === 2 ? 'selected' : ''}>2 Takte</option>
+                <option value="4" ${Number(s.bars) === 4 ? 'selected' : ''}>4 Takte</option>
+                <option value="8" ${Number(s.bars) === 8 ? 'selected' : ''}>8 Takte</option>
               </select>
             </div>
           </div>
@@ -683,7 +813,7 @@ export class ChordGlideModule extends SourceBase {
         // Duplizieren
         cardEl.querySelector('.cg-dup-btn')?.addEventListener('click', (e) => {
           e.stopPropagation();
-          if (this.steps.length >= 16) return;
+          if (this.steps.length >= 64) return;
           this.steps.splice(idx + 1, 0, { ...this.steps[idx] });
           this.presetKey = 'custom';
           el.querySelector('.cg-preset-sel').value = 'custom';
@@ -874,13 +1004,17 @@ export class ChordGlideModule extends SourceBase {
       changed();
     });
 
-    // Stimmführung Toggle
+    // Stimmführung Toggle (synchronisiert values.voiceLeading, extra.voiceLeading & Options-Dropdown)
     const leadBtn = el.querySelector('.cg-lead-toggle');
+    this.syncLeadUi = () => {
+      leadBtn?.classList.toggle('active', !!this.voiceLeading);
+      const optSel = this.cardEl?.querySelector('select[data-opt="voiceLeading"]');
+      if (optSel) optSel.value = String(this.voiceLeading ? 1 : 0);
+    };
     leadBtn?.addEventListener('click', () => {
-      this.voiceLeading = this.voiceLeading ? 0 : 1;
-      leadBtn.classList.toggle('active', !!this.voiceLeading);
-      this.recalculateAllVoicings();
-      this.triggerCurrentStep(this.ctx.currentTime);
+      const next = this.voiceLeading ? 0 : 1;
+      this.setParam('voiceLeading', next);
+      this.syncLeadUi?.();
       drawVisualizer();
       changed();
     });
@@ -905,8 +1039,8 @@ export class ChordGlideModule extends SourceBase {
 
     // Schritt hinzufügen
     el.querySelector('.cg-add-step-btn')?.addEventListener('click', () => {
-      if (this.steps.length >= 16) return;
-      const last = this.steps[this.steps.length - 1] || { root: 0, type: 'maj7', bars: 1 };
+      if (this.steps.length >= 64) return;
+      const last = this.steps[this.steps.length - 1] || { root: 0, type: 'maj7', bars: 2 };
       this.steps.push({ ...last });
       this.presetKey = 'custom';
       el.querySelector('.cg-preset-sel').value = 'custom';
@@ -917,10 +1051,15 @@ export class ChordGlideModule extends SourceBase {
     });
 
     // Drawer-Felder
-    el.querySelector('.cg-voices-sel')?.addEventListener('change', (e) => {
-      this.voiceCount = Number(e.target.value);
-      this.recalculateAllVoicings();
-      this.triggerCurrentStep(this.ctx.currentTime);
+    const voicesSel = el.querySelector('.cg-voices-sel');
+    this.syncVoicesUi = () => {
+      if (voicesSel) voicesSel.value = String(this.voiceCount);
+      const optSel = this.cardEl?.querySelector('select[data-opt="voiceCount"]');
+      if (optSel) optSel.value = String(this.voiceCount);
+    };
+    voicesSel?.addEventListener('change', (e) => {
+      this.setParam('voiceCount', Number(e.target.value));
+      this.syncVoicesUi?.();
       drawVisualizer();
       changed();
     });
@@ -961,12 +1100,14 @@ export class ChordGlideModule extends SourceBase {
 
     // Initialer Aufbau
     renderCards();
+    this.syncLeadUi?.();
+    this.syncVoicesUi?.();
     drawVisualizer();
     updatePlayhead();
 
     // Aufräumen bei Entfernung / Re-Render
     return () => {
-      if (animId) cancelAnimationFrame(animId);
+      if (this.animPlayhead) cancelAnimationFrame(this.animPlayhead);
       window.removeEventListener('keydown', handleKeydown);
     };
   }

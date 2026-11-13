@@ -183,17 +183,24 @@ export class ReverbModule extends EffectBase {
     { id: 'tone', label: 'Tone', min: 500, max: 14000, value: 6000, log: true, fmt: 'hz' },
     { id: 'mix', label: 'Mix', min: 0, max: 1, value: 0.45, fmt: 'pct' },
   ];
+  static jacks = [
+    { id: 'cvMix', type: 'in', signal: 'mod', label: 'MIX CV' },
+  ];
 
   constructor(ctx, state = {}) {
     super(ctx, state);
     this.dryMix = ctx.createGain();
     this.wetMix = ctx.createGain();
+    this.hpF = ctx.createBiquadFilter();
+    this.hpF.type = 'highpass';
+    this.hpF.frequency.value = 95; // Hält Subbass aus dem Hall für klare tiefe Mitte
     this.pre = ctx.createDelay(0.5);
     this.toneF = ctx.createBiquadFilter();
     this.toneF.type = 'lowpass';
     this.input.connect(this.dryMix);
     this.dryMix.connect(this.wet);
-    this.input.connect(this.pre);
+    this.input.connect(this.hpF);
+    this.hpF.connect(this.pre);
     this.toneF.connect(this.wetMix);
     this.wetMix.connect(this.wet);
     this.conv = null;
@@ -255,6 +262,17 @@ export class ReverbModule extends EffectBase {
     }
   }
 
+  onModulation(portId, val, time) {
+    if (portId === 'cvMix') {
+      const base = this.values.mix ?? 0.45;
+      const eff = Math.max(0, Math.min(1, base + (val - 0.5) * 0.5));
+      const m = mixGains(eff);
+      const t = time || this.ctx.currentTime;
+      this.dryMix.gain.setTargetAtTime(m.dry, t, 0.05);
+      this.wetMix.gain.setTargetAtTime(m.wet * 1.1, t, 0.05);
+    }
+  }
+
   destroy() {
     clearTimeout(this.irTimer);
     try {
@@ -264,6 +282,7 @@ export class ReverbModule extends EffectBase {
       if (this.wetMix) this.wetMix.disconnect();
       if (this.toneF) this.toneF.disconnect();
       if (this.pre) this.pre.disconnect();
+      if (this.hpF) this.hpF.disconnect();
     } catch { /* ignore */ }
     this.conv = null;
     this.convGain = null;
