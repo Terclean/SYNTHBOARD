@@ -3,7 +3,7 @@
 > **Zweck dieses Dokuments:**  
 > Dieses Dokument bietet einer externen KI oder einem Musiker eine lückenlose, technisch exakte Übersicht aller tatsächlich im Code implementierten Funktionen von **SYNTHBOARD**. Es dient als verbindliche Wissensbasis, um Schritt für Schritt beim Sounddesign, Patching, Beatbauen und bei Live-Performances anzuleiten, ohne den Quellcode lesen zu müssen.
 >
-> **Stand:** Codebasis nach Bereinigung (33 Module, Snapshot-System, 5-Slot Focus Dock, Tastatur-Workflow, 14 Beispiel-Boards).
+> **Stand:** Codebasis nach Bereinigung (35 Module, Snapshot-System, 5-Slot Focus Dock, Tastatur-Workflow, 14 Beispiel-Boards).
 
 ---
 
@@ -12,10 +12,10 @@
 2. [Bedienoberfläche, Steuerung & Interaktion](#2-bedienoberfläche-steuerung--interaktion)
 3. [Das modulare Patch-System (Kabel, Signaltypen & Modulationsstärke)](#3-das-modulare-patch-system-kabel-signaltypen--modulationsstärke)
 4. [Kanalzug & Mixer-Architektur jeder Klangquelle](#4-kanalzug--mixer-architektur-jeder-klangquelle)
-5. [Vollständiger Modulkatalog (33 Module)](#5-vollständiger-modulkatalog-33-module)
-   - 5.1 [Steuerung & Rhythmus (12 Module)](#51-steuerung--rhythmus-12-module)
+5. [Vollständiger Modulkatalog (35 Module)](#5-vollständiger-modulkatalog-35-module)
+   - 5.1 [Steuerung & Rhythmus (13 Module)](#51-steuerung--rhythmus-13-module)
    - 5.2 [Klangquellen & Instrumente (15 Module)](#52-klangquellen--instrumente-15-module)
-   - 5.3 [Effektkette (6 Module)](#53-effektkette-6-module)
+   - 5.3 [Effektkette (7 Module)](#53-effektkette-7-module)
 6. [Presets, Boards & Performance Snapshot-System](#6-presets-boards--performance-snapshot-system)
 7. [Technische Besonderheiten & Signalfluss](#7-technische-besonderheiten--signalfluss)
 8. [Status: Funktionsfähig, Teilweise umgesetzt & Geplant](#8-status-funktionsfähig-teilweise-umgesetzt--geplant)
@@ -133,9 +133,9 @@ Jede Klangquelle (`SourceBase`) besitzt am unteren Rand einen vollwertigen Stere
 
 ---
 
-## 5. Vollständiger Modulkatalog (33 Module)
+## 5. Vollständiger Modulkatalog (35 Module)
 
-### 5.1 Steuerung & Rhythmus (12 Module)
+### 5.1 Steuerung & Rhythmus (13 Module)
 
 #### 1. Master Clock (`master_clock`)
 - **Zweck:** Das rhythmische Herz des Racks. Erzeugt hochpräzise BPM-Takte und Swing.
@@ -304,6 +304,29 @@ Jede Klangquelle (`SourceBase`) besitzt am unteren Rand einen vollwertigen Stere
   - `SLOT 5` (`slot5In`) [IN, Gate]: Aktiviert Performance-Snapshot 5
   - `NEXT` (`nextIn`) [IN, Gate]: Schreitet zyklisch zum nächsten Snapshot (1 ➔ 2 ➔ 3 ➔ 4 ➔ 5 ➔ 1) voran
   - `RESET` (`resetIn`) [IN, Gate]: Setzt per Impuls auf Snapshot 1 zurück
+
+#### 13. Chord Arpeggiator (`chord_arp`)
+- **Zweck:** Empfängt polyphone Noten-Arrays (z. B. von `chord_glide:pitchOut`) oder Einzelnoten und zerlegt sie rhythmisch synchron zur Master-Clock in melodische Ostinati und filmische Arpeggio-Linien. Falls an `pitchIn` eine Einzelnote anliegt, baut das Modul intern automatisch einen harmonischen Dreiklang auf.
+- **Optionen (Dropdown):**
+  - `Muster` (`pattern`):
+    - `Up (Aufwärts)` (`up`): Durchläuft die Akkordtöne von tief nach hoch.
+    - `Down (Abwärts)` (`down`): Durchläuft die Töne von hoch nach tief.
+    - `Up-Down (Pendel)` (`updown`): Pendelt auf und ab ohne Endpunkt-Wiederholung (Standard).
+    - `Converge (Zusammenlauf)` (`converge`): Spielt abwechselnd die äußersten Töne (tief, hoch, zweittief, zweithoch …).
+    - `Root-Pulse (Anker)` (`pulse`): Spielt vor jedem Akkordton rhythmisch den tiefsten Grundton als Puls-Anker.
+    - `Random (Zufall)` (`random`): Wählt pro Schritt zufällig aus allen Tönen des Akkords.
+- **Regler:**
+  - `Oktaven` (`octaves`): 1 bis 3 Oktaven (Standard: 2). Erweitert das Arpeggio in höhere Register.
+  - `Gate-Länge` (`gateLen`): 10% bis 120% relative Schrittlänge (Standard: 65%). Erzeugt Staccato-Picks oder Legato-Bögen.
+  - `Dichte` (`density`): 0% bis 100% Noten-Wahrscheinlichkeit (Standard: 100%). Ermöglicht rhythmisch ausgedünnte, organische Pattern.
+  - `Akzent alle` (`accentEvery`): 0 bis 8 Schritte (Standard: 4). Sendet alle N Schritte einen Akzent-Impuls an `accentOut`.
+- **Buchsen:**
+  - `CLOCK` (`clockIn`) [IN, Clock]: Taktet das Arpeggio synchron weiter.
+  - `RESET` (`resetIn`) [IN, Gate]: Setzt den Schrittzähler per Trigger auf Step 1 zurück.
+  - `POLY PITCH` (`pitchIn`) [IN, Pitch]: Polyphones Akkord-Array oder monophone Referenznote.
+  - `GATE OUT` (`gateOut`) [OUT, Gate]: Gate-Impulse für angeschlossene Instrumente.
+  - `PITCH OUT` (`pitchOut`) [OUT, Pitch]: 1V/Okt Notentonhöhe des aktuellen Schritts.
+  - `ACCENT OUT` (`accentOut`) [OUT, Gate]: Rhythmischer Akzent-Trigger für Filteröffnungen oder Drums.
 
 ---
 
@@ -657,7 +680,7 @@ Alle Klangquellen besitzen standardmäßig den integrierten Mixer-Kanalzug (`PAN
 
 ---
 
-### 5.3 Effektkette (6 Module)
+### 5.3 Effektkette (7 Module)
 
 Die Effektkette liegt seriell im Master-Weg. Module können horizontal verschoben oder per Bypass stummgeschaltet werden.
 
@@ -722,6 +745,27 @@ Die Effektkette liegt seriell im Master-Weg. Module können horizontal verschobe
   - `Tone` (`tone`): 500 bis 14000 Hz log Helligkeit (Standard: 6000 Hz)
   - `Mix` (`mix`): 0% bis 100% Reverb-Anteil (Standard: 45%)
 
+#### 7. Granular Cloud (`granular_cloud`)
+- **Zweck:** Echtzeit-Granular-Synthese & Shimmer-Hall in der Master-Effektkette. Zerlegt das Stereosignal in überlappende Mikrosound-Grains mit weicher Hann-Hüllkurve, freiem Stereo-Panning und warm gefiltertem Feedback für filmische, ätherische Hans-Zimmer-Klangwolken.
+- **Optionen (Dropdown):**
+  - `Pitch / Shimmer` (`pitchMode`):
+    - `+1 Oktave (Oct Up)` (`octUp`): Transponiert Grains um +12 Halbtöne (2.0x Wiedergaberate) für klassischen Shimmer-Glanz (Standard).
+    - `+Quinte (Fifth Up)` (`fifthUp`): Transponiert um +7 Halbtöne (1.498x) für feierliche, schwebende Obertöne.
+    - `Dual Shimmer (+1 Okt & +Quinte)` (`dualShimmer`): Mischt abwechselnd +1 Oktave und +Quinte für dichte Orchester-Wolken.
+    - `-1 Oktave (Oct Down)` (`octDown`): Transponiert um -12 Halbtöne (0.5x) für dunkle, abgründige Sub-Texturen.
+  - `Buffer` (`freeze`):
+    - `Live Audio` (`0`): Kontinuierliche Echtzeit-Aufnahme in den 2-Sekunden-Ringbuffer.
+    - `❄ Freeze` (`1`): Friert den aktuellen Puffer ein und lässt die Klangwolke endlos weiterschweben.
+- **Regler:**
+  - `Grain-Size` (`size`): 0.03 bis 0.35 s (Standard: 0.12 s). Bestimmt die zeitliche Ausdehnung der Grains von kurzen Nadeln bis zu langen Pads.
+  - `Textur` (`texture`): 0% bis 100% (Standard: 65%). Regelt zeitlichen Jitter, chaotische Streuung und Stereobreite der Körner.
+  - `Feedback` (`feedback`): 0% bis 85% (Standard: 45%). Rückkopplung in den Granular-Buffer mit integriertem sanftem 6 kHz Tiefpassfilter.
+  - `Mix` (`mix`): 0% bis 100% Dry/Wet-Verhältnis (Standard: 35%).
+- **Buchsen:**
+  - `FREEZE` (`freezeIn`) [IN, Gate]: Toggelt das Einfrieren des 2-Sekunden-Puffers per Gate-Impuls.
+  - `MIX CV` (`cvMix`) [IN, Mod]: Moduliert den Dry/Wet-Mix.
+  - `TEXTURE CV` (`cvTexture`) [IN, Mod]: Steuert Streuung und Stereobreite in Echtzeit.
+
 ---
 
 ## 6. Presets, Boards & Performance Snapshot-System
@@ -780,7 +824,7 @@ Oben im Rack befindet sich die Leiste `PRESET SLOTS (1–5)`:
 
 | Funktion / Modul | Status | Bemerkungen |
 |---|---|---|
-| **Alle 33 Module** | ✅ **Voll funktionsfähig** | Alle Parameter, Jacks und Synthesestufen berechnen echtes Audio in Web Audio. |
+| **Alle 35 Module** | ✅ **Voll funktionsfähig** | Alle Parameter, Jacks und Synthesestufen berechnen echtes Audio in Web Audio. |
 | **Kabel-Patchbay** | ✅ **Voll funktionsfähig** | Farbcodierung, Drag & Drop, LED-Aktivitätsanzeige, Mehrfach-Ausgänge. |
 | **Kabel-Modulationsstärke** | ✅ **Voll funktionsfähig** | 0% bis 200% Depth per Drag/Wheel auf dem Kabelbadge einstellbar. |
 | **VCA & Pan CV pro Stimme** | ✅ **Voll funktionsfähig** | Jede Quelle reagiert auf VCA- und Pan-Modulation. |
@@ -947,10 +991,10 @@ TIPP: [1 praktischer Tipp für die Performance oder das Schrauben am Sound]
 ```
 
 ### 11.2 Gültige Bezeichner (Auszug für schnelle Referenz)
-- **Modul-IDs (33 Module):**
-  - **Steuerung & Rhythmus (12):** `master_clock`, `clock_divider`, `euclidean`, `prob_gate`, `random_walk`, `quantizer`, `slow_random`, `macro`, `slope_generator`, `attenuverter`, `logic_switch`, `snapshot_ctrl`.
+- **Modul-IDs (35 Module):**
+  - **Steuerung & Rhythmus (13):** `master_clock`, `clock_divider`, `euclidean`, `prob_gate`, `random_walk`, `quantizer`, `slow_random`, `macro`, `slope_generator`, `attenuverter`, `logic_switch`, `snapshot_ctrl`, `chord_arp`.
   - **Klangquellen & Instrumente (15):** `chord_glide`, `violin`, `felt_piano`, `drone`, `pluck`, `fm_voice`, `bass`, `drum_rack`, `keys`, `sequencer`, `noise`, `morph_voice`, `hybrid_perc`, `resonator_garden`, `spectral_swarm`.
-  - **Effekte (6):** `filter`, `chorus`, `tremolo`, `lofi`, `delay`, `reverb`.
+  - **Effekte (7):** `filter`, `chorus`, `tremolo`, `lofi`, `delay`, `reverb`, `granular_cloud`.
 - **Signaltypen:** `clock` (Cyan), `gate` (Amber), `pitch` (Violett), `mod` (Grün), `audio` (Blau).
 - **Stärke:** `0%` bis `200%` (Standard `100%`).
 
@@ -966,7 +1010,7 @@ Sobald ein Block im Format ````synthboard-patch ... ```` hier im Chat eingefügt
 > **Verbindliche Buchsen-Regel für das `cables`-Array im JSON:**  
 > Im JSON-Array `cables` müssen **immer die exakten internen Jack-IDs** (`id`) verwendet werden (z. B. `master_clock:clockOut` statt `master_clock:1/16` und `clock_divider:div4Out` statt `clock_divider:/4 (1/4)`). Der SYNTHBOARD-Importer besitzt zwar für Labels eine automatische Erkennung, für 100 % fehlerfreie und reproduzierbare Patches dürfen externe KIs jedoch ausschließlich die kanonischen Buchsen-IDs aus der folgenden Tabelle verwenden!
 
-#### 11.4.1 Buchsen-Referenztabelle (Alle 33 Module)
+#### 11.4.1 Buchsen-Referenztabelle (Alle 35 Module)
 
 | Modul-ID | Buchsen-Name & Funktion | Interne Buchsen-ID (`id` für JSON) | Richtung | Signal-Typ | Label auf UI |
 |---|---|---|---|---|---|
@@ -1036,6 +1080,12 @@ Sobald ein Block im Format ````synthboard-patch ... ```` hier im Chat eingefügt
 | | Snapshot Slot 5 Trigger | `slot5In` | **IN** | `gate` | `SLOT 5` |
 | | Nächster Snapshot (1->5 Loop) | `nextIn` | **IN** | `gate` | `NEXT` |
 | | Reset auf Snapshot Slot 1 | `resetIn` | **IN** | `gate` | `RESET` |
+| **`chord_arp`** | Takt-Clock Eingang | `clockIn` | **IN** | `clock` | `CLOCK` |
+| | Reset auf Schritt 1 | `resetIn` | **IN** | `gate` | `RESET` |
+| | Polyphones Akkord-Notenarray / CV | `pitchIn` | **IN** | `pitch` | `POLY PITCH` |
+| | Arpeggio Noten-Gate Ausgang | `gateOut` | **OUT** | `gate` | `GATE OUT` |
+| | Arpeggio Tonhöhe 1V/Okt Ausgang | `pitchOut` | **OUT** | `pitch` | `PITCH OUT` |
+| | Akzent Trigger Ausgang (alle N Steps) | `accentOut` | **OUT** | `gate` | `ACCENT OUT` |
 | **`chord_glide`** | Takt-Clock Eingang | `clockIn` | **IN** | `clock` | `CLOCK` |
 | | Reset auf Schritt 1 | `resetIn` | **IN** | `gate` | `RESET` |
 | | Nächster Akkord Trigger | `nextTrig` | **IN** | `gate` | `NEXT` |
@@ -1133,6 +1183,9 @@ Sobald ein Block im Format ````synthboard-patch ... ```` hier im Chat eingefügt
 | **`filter`** | Filter Cutoff Modulation | `cvCutoff` | **IN** | `mod` | `CUTOFF CV` |
 | **`delay`** | Echo-Verzögerungszeit CV | `cvTime` | **IN** | `mod` | `TIME CV` |
 | **`reverb`** | Hallanteil Modulation | `cvMix` | **IN** | `mod` | `MIX CV` |
+| **`granular_cloud`** | Buffer Freeze Toggle / Hold | `freezeIn` | **IN** | `gate` | `FREEZE` |
+| | Dry/Wet Mix Modulation | `cvMix` | **IN** | `mod` | `MIX CV` |
+| | Textur / Jitter / Spread CV | `cvTexture` | **IN** | `mod` | `TEXTURE CV` |
 
 ---
 

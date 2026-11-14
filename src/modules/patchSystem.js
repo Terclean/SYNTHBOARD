@@ -117,6 +117,17 @@ export function resolveJackId(mod, portId, expectedType = null) {
     if (norm === 'slot5' || norm === 'slot5in' || norm === '5') return 'slot5In';
     if (norm === 'next' || norm === 'nextin') return 'nextIn';
     if (norm === 'reset' || norm === 'resetin') return 'resetIn';
+  } else if (mType === 'chord_arp') {
+    if (norm === 'clock' || norm === 'clockin') return 'clockIn';
+    if (norm === 'reset' || norm === 'resetin') return 'resetIn';
+    if (norm === 'pitch' || norm === 'pitchin' || norm === 'polypitch') return 'pitchIn';
+    if (norm === 'gate' || norm === 'gateout') return 'gateOut';
+    if (norm === 'pitchout') return 'pitchOut';
+    if (norm === 'accent' || norm === 'accentout') return 'accentOut';
+  } else if (mType === 'granular_cloud') {
+    if (norm === 'freeze' || norm === 'freezein') return 'freezeIn';
+    if (norm === 'mix' || norm === 'mixcv' || norm === 'cvmix') return 'cvMix';
+    if (norm === 'texture' || norm === 'texturecv' || norm === 'cvtexture') return 'cvTexture';
   }
 
   // 6. Generische Fallbacks für Ports mit Typenangabe

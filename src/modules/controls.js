@@ -1165,3 +1165,224 @@ export class SnapshotControllerModule extends ModuleBase {
   }
 }
 
+// ───────────────────────────────────────────── 13. CHORD ARPEGGIATOR ──
+export class ChordArpeggiatorModule extends ModuleBase {
+  static type = 'chord_arp';
+  static title = 'Chord Arpeggiator';
+  static category = 'control';
+  static color = '#818cf8';
+  static icon = '⤹';
+  static description = 'Melodische Ostinati & Arpeggios aus polyphonen Akkorden';
+  static params = [
+    { id: 'octaves', label: 'Oktaven', min: 1, max: 3, value: 2, fmt: 'int' },
+    { id: 'gateLen', label: 'Gate-Länge', min: 0.1, max: 1.2, value: 0.65, fmt: 'pct' },
+    { id: 'density', label: 'Dichte', min: 0, max: 1, value: 1.0, fmt: 'pct' },
+    { id: 'accentEvery', label: 'Akzent alle', min: 0, max: 8, value: 4, fmt: 'int' },
+  ];
+  static options = [
+    {
+      id: 'pattern',
+      label: 'Muster',
+      choices: [
+        ['up', 'Up (Aufwärts)'],
+        ['down', 'Down (Abwärts)'],
+        ['updown', 'Up-Down (Pendel)'],
+        ['converge', 'Converge (Zusammenlauf)'],
+        ['pulse', 'Root-Pulse (Anker)'],
+        ['random', 'Random (Zufall)'],
+      ],
+      value: 'updown',
+    },
+  ];
+  static jacks = [
+    { id: 'clockIn', type: 'in', signal: 'clock', label: 'CLOCK' },
+    { id: 'resetIn', type: 'in', signal: 'gate', label: 'RESET' },
+    { id: 'pitchIn', type: 'in', signal: 'pitch', label: 'POLY PITCH' },
+    { id: 'gateOut', type: 'out', signal: 'gate', label: 'GATE OUT' },
+    { id: 'pitchOut', type: 'out', signal: 'pitch', label: 'PITCH OUT' },
+    { id: 'accentOut', type: 'out', signal: 'gate', label: 'ACCENT OUT' },
+  ];
+
+  constructor(ctx, state = {}) {
+    super(ctx, state);
+    this.currentChord = [48, 52, 55]; // Standard C-Dur Dreiklang (C3, E3, G3)
+    this.stepIndex = 0;
+    this.lastClockTime = 0;
+    this.activeNote = null;
+    this.updateDisplay = null;
+    this.initValues(state);
+  }
+
+  onPitch(portId, _time, midiNote) {
+    if (portId !== 'pitchIn') return;
+    if (Array.isArray(midiNote) && midiNote.length > 0) {
+      const notes = midiNote
+        .filter((n) => typeof n === 'number' && Number.isFinite(n))
+        .map((n) => Math.round(n));
+      const unique = [...new Set(notes)].sort((a, b) => a - b);
+      if (unique.length > 0) {
+        this.currentChord = unique;
+      }
+    } else if (typeof midiNote === 'number' && Number.isFinite(midiNote)) {
+      const root = Math.round(midiNote);
+      this.currentChord = [root, root + 4, root + 7];
+    }
+    this.updateDisplay?.();
+  }
+
+  onTrigger(portId, _time) {
+    if (portId === 'resetIn') {
+      this.stepIndex = 0;
+      this.updateDisplay?.();
+    }
+  }
+
+  resetTransport(_time) {
+    this.stepIndex = 0;
+    this.updateDisplay?.();
+  }
+
+  getArpSequence() {
+    const base = this.currentChord && this.currentChord.length > 0 ? this.currentChord : [48, 52, 55];
+    const oct = Math.max(1, Math.min(3, Math.round(this.values.octaves ?? 2)));
+    const expanded = [];
+    for (let o = 0; o < oct; o++) {
+      for (const n of base) {
+        expanded.push(n + o * 12);
+      }
+    }
+    expanded.sort((a, b) => a - b);
+    const N = expanded.length;
+    if (N === 0) return [60];
+
+    const pat = this.values.pattern || 'updown';
+    switch (pat) {
+      case 'up':
+        return expanded;
+      case 'down':
+        return [...expanded].reverse();
+      case 'updown': {
+        if (N <= 2) return expanded;
+        const seq = [...expanded];
+        for (let i = N - 2; i >= 1; i--) {
+          seq.push(expanded[i]);
+        }
+        return seq;
+      }
+      case 'converge': {
+        const seq = [];
+        let left = 0, right = N - 1;
+        while (left <= right) {
+          seq.push(expanded[left]);
+          if (left !== right) seq.push(expanded[right]);
+          left++;
+          right--;
+        }
+        return seq;
+      }
+      case 'pulse': {
+        const root = expanded[0];
+        const seq = [];
+        for (let i = 0; i < N; i++) {
+          seq.push(root);
+          seq.push(expanded[i]);
+        }
+        return seq;
+      }
+      case 'random':
+      default:
+        return expanded;
+    }
+  }
+
+  onClock(portId, time, _tick) {
+    if (portId !== 'clockIn' || !this.enabled) return;
+    const seq = this.getArpSequence();
+    if (seq.length === 0) return;
+
+    const pat = this.values.pattern || 'updown';
+    let note;
+    if (pat === 'random') {
+      const idx = Math.floor(Math.random() * seq.length);
+      note = seq[idx];
+    } else {
+      const idx = this.stepIndex % seq.length;
+      note = seq[idx];
+    }
+
+    const stepDur = (this.lastClockTime && time > this.lastClockTime)
+      ? Math.max(0.04, Math.min(1.0, time - this.lastClockTime))
+      : 0.25;
+    this.lastClockTime = time;
+
+    const density = this.values.density ?? 1.0;
+    const playStep = Math.random() < density;
+
+    if (playStep) {
+      const gateLen = Math.max(0.02, Math.min(2.0, stepDur * (this.values.gateLen ?? 0.65)));
+      this.activeNote = note;
+      this.emitPitch('pitchOut', time, note, 0.9, gateLen);
+      this.emitTrigger('gateOut', time, 1.0, gateLen);
+    } else {
+      this.activeNote = null;
+    }
+
+    const accentEvery = Math.round(this.values.accentEvery ?? 4);
+    if (accentEvery > 0 && (this.stepIndex % accentEvery === 0)) {
+      this.emitTrigger('accentOut', time, 1.0, 0.05);
+    }
+
+    this.stepIndex++;
+    this.updateDisplay?.();
+  }
+
+  renderExtra(el) {
+    el.innerHTML = `
+      <div class="chord-arp-display">
+        <div class="arp-header-row">
+          <span class="arp-lbl">AKKORD-OSTINATO</span>
+          <span class="arp-step-badge">STEP <b class="arp-step-val">1</b></span>
+        </div>
+        <div class="arp-notes-track"></div>
+        <div class="arp-footer-row">
+          <span class="arp-note-active">—</span>
+          <span class="arp-pattern-tag">${(this.values.pattern || 'updown').toUpperCase()}</span>
+        </div>
+      </div>
+    `;
+
+    const stepVal = el.querySelector('.arp-step-val');
+    const track = el.querySelector('.arp-notes-track');
+    const noteActive = el.querySelector('.arp-note-active');
+    const patternTag = el.querySelector('.arp-pattern-tag');
+
+    this.updateDisplay = () => {
+      const seq = this.getArpSequence();
+      if (stepVal) stepVal.textContent = String((this.stepIndex % (seq.length || 1)) + 1);
+      if (patternTag) patternTag.textContent = (this.values.pattern || 'updown').toUpperCase();
+
+      if (noteActive) {
+        if (this.activeNote !== null) {
+          noteActive.textContent = midiToName ? midiToName(this.activeNote) : `MIDI ${this.activeNote}`;
+          noteActive.classList.add('playing');
+        } else {
+          noteActive.textContent = '—';
+          noteActive.classList.remove('playing');
+        }
+      }
+
+      if (track) {
+        const base = this.currentChord || [48, 52, 55];
+        track.innerHTML = base.map((m) => {
+          const name = midiToName ? midiToName(m) : m;
+          const isAct = this.activeNote && (this.activeNote % 12 === m % 12);
+          return `<span class="arp-note-pill ${isAct ? 'active' : ''}">${name}</span>`;
+        }).join('');
+      }
+    };
+
+    this.updateDisplay();
+  }
+}
+
+

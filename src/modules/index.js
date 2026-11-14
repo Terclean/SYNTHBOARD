@@ -9,9 +9,9 @@ import {
   MasterClockModule, ClockDividerModule, EuclideanModule,
   ProbabilityGateModule, RandomWalkModule, ScaleQuantizerModule,
   SlowRandomModule, MacroControllerModule, SlopeGeneratorModule, AttenuverterModule,
-  LogicSwitchModule, SnapshotControllerModule
+  LogicSwitchModule, SnapshotControllerModule, ChordArpeggiatorModule
 } from './controls.js';
-import { FilterModule, DelayModule, ReverbModule, ChorusModule, TremoloModule, LoFiModule } from './effects.js';
+import { FilterModule, DelayModule, ReverbModule, ChorusModule, TremoloModule, LoFiModule, GranularCloudModule } from './effects.js';
 import { PatchSystem } from './patchSystem.js';
 
 export const MODULES = Object.fromEntries(
@@ -20,7 +20,7 @@ export const MODULES = Object.fromEntries(
     MasterClockModule, ClockDividerModule, EuclideanModule,
     ProbabilityGateModule, RandomWalkModule, ScaleQuantizerModule,
     SlowRandomModule, MacroControllerModule, SlopeGeneratorModule, AttenuverterModule,
-    LogicSwitchModule, SnapshotControllerModule,
+    LogicSwitchModule, SnapshotControllerModule, ChordArpeggiatorModule,
 
     // Instrumente & Klangquellen
     ChordGlideModule, ViolinModule, FeltPianoModule, DroneModule, PluckModule, FmVoiceModule, BassModule,
@@ -28,7 +28,7 @@ export const MODULES = Object.fromEntries(
     MorphVoiceModule, HybridPercModule, ResonatorGardenModule, SpectralSwarmModule,
 
     // Effekte
-    FilterModule, ChorusModule, TremoloModule, LoFiModule, DelayModule, ReverbModule
+    FilterModule, ChorusModule, TremoloModule, LoFiModule, DelayModule, ReverbModule, GranularCloudModule
   ].map((M) => [M.type, M])
 );
 
@@ -208,6 +208,12 @@ export class RackEngine {
       'prob_gate': 'prob_gate',
       'scale_quantizer': 'quantizer',
       'quantizer': 'quantizer',
+      'chord_arpeggiator': 'chord_arp',
+      'arpeggiator': 'chord_arp',
+      'arp': 'chord_arp',
+      'granular': 'granular_cloud',
+      'granular_cloud': 'granular_cloud',
+      'cloud': 'granular_cloud',
     };
     const targetType = aliasMap[t] || t;
     return this.controls.find((m) => m.meta.type === targetType || m.meta.type === t) ||

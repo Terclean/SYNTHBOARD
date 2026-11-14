@@ -210,6 +210,19 @@ export const JACK_HELP = {
   'violin:glideCv': { name: 'Finger-Glide CV', desc: 'Moduliert die Portamento-Zeit beim Lagewechsel auf dem Griffbrett.' },
   'violin:vcaCv': { name: 'VCA CV', desc: 'Lautstärkesteuerung für dynamisches Anschwellen und Expressivität.' },
   'violin:panCv': { name: 'Pan CV', desc: 'Stereo-Panoramamodulation für räumliche Bewegung.' },
+
+  // Chord Arpeggiator
+  'chord_arp:clockIn': { name: 'Clock Eingang', desc: 'Taktet das Arpeggio rhythmisch weiter.' },
+  'chord_arp:resetIn': { name: 'Reset Eingang', desc: 'Setzt den Arpeggio-Schrittzähler per Gate-Impuls auf Step 1 zurück.' },
+  'chord_arp:pitchIn': { name: 'Polyphone Pitch CV', desc: 'Empfängt polyphone Noten-Arrays (z. B. von Chord Glide) oder Einzelnoten.' },
+  'chord_arp:gateOut': { name: 'Gate Ausgang', desc: 'Sendet Gates für jeden gespielten Arpeggio-Ton an Klangerzeuger.' },
+  'chord_arp:pitchOut': { name: 'Pitch CV Ausgang', desc: 'Gibt die Tonhöhe des aktuellen Arpeggio-Schritts aus.' },
+  'chord_arp:accentOut': { name: 'Akzent Ausgang', desc: 'Gibt alle N Steps einen Akzent-Trigger aus.' },
+
+  // Granular Cloud
+  'granular_cloud:freezeIn': { name: 'Freeze Eingang', desc: 'Friert den 2-Sekunden-Audiopuffer per Gate-Trigger ein oder gibt ihn frei.' },
+  'granular_cloud:cvMix': { name: 'Mix CV', desc: 'Moduliert das Dry/Wet-Mischverhältnis des Granular-Shimmers.' },
+  'granular_cloud:cvTexture': { name: 'Textur CV', desc: 'Moduliert Jitter, Streuung und Stereobreite der Grains.' },
 };
 
 // Beschreibungen für Regler

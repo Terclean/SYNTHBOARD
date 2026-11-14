@@ -446,3 +446,284 @@ export class LoFiModule extends EffectBase {
     }
   }
 }
+
+// ───────────────────────────────────────────── GRANULAR CLOUD ──
+export class GranularCloudModule extends EffectBase {
+  static type = 'granular_cloud';
+  static title = 'Granular Cloud';
+  static color = '#c084fc';
+  static icon = '☁';
+  static description = 'Echtzeit-Granular-Synthese & Shimmer';
+  static params = [
+    { id: 'size', label: 'Grain-Size', min: 0.03, max: 0.35, value: 0.12, fmt: 's' },
+    { id: 'texture', label: 'Textur', min: 0, max: 1, value: 0.65, fmt: 'pct' },
+    { id: 'feedback', label: 'Feedback', min: 0, max: 0.85, value: 0.45, fmt: 'pct' },
+    { id: 'mix', label: 'Mix', min: 0, max: 1, value: 0.35, fmt: 'pct' },
+  ];
+  static options = [
+    {
+      id: 'pitchMode',
+      label: 'Pitch / Shimmer',
+      choices: [
+        ['octUp', '+1 Oktave (Oct Up)'],
+        ['fifthUp', '+Quinte (Fifth Up)'],
+        ['dualShimmer', 'Dual Shimmer (+1 Okt & +Quinte)'],
+        ['octDown', '-1 Oktave (Oct Down)'],
+      ],
+      value: 'octUp',
+    },
+    {
+      id: 'freeze',
+      label: 'Buffer',
+      choices: [
+        [0, 'Live Audio'],
+        [1, '❄ Freeze (Eingefroren)'],
+      ],
+      value: 0,
+    },
+  ];
+  static jacks = [
+    { id: 'freezeIn', type: 'in', signal: 'gate', label: 'FREEZE' },
+    { id: 'cvMix', type: 'in', signal: 'mod', label: 'MIX CV' },
+    { id: 'cvTexture', type: 'in', signal: 'mod', label: 'TEXTURE CV' },
+  ];
+
+  constructor(ctx, state = {}) {
+    super(ctx, state);
+    this.dryMix = ctx.createGain();
+    this.wetMix = ctx.createGain();
+    this.input.connect(this.dryMix);
+    this.dryMix.connect(this.wet);
+
+    const sr = ctx.sampleRate || 44100;
+    this.sr = sr;
+    this.bufferLength = Math.floor(sr * 2.0);
+    this.bufferL = new Float32Array(this.bufferLength);
+    this.bufferR = new Float32Array(this.bufferLength);
+    this.writeIndex = 0;
+
+    this.fbL = 0;
+    this.fbR = 0;
+    this.lastWetL = 0;
+    this.lastWetR = 0;
+    this.cvMixVal = 0;
+    this.cvTextureVal = 0;
+    this.updateDisplay = null;
+
+    const grainLen = Math.max(128, Math.floor(0.12 * sr));
+    this.grains = [];
+    for (let g = 0; g < 6; g++) {
+      this.grains.push({
+        active: true,
+        pos: Math.floor((g / 6) * this.bufferLength),
+        length: grainLen,
+        currentSample: Math.floor((g / 6) * grainLen),
+        rate: 2.0,
+        pan: (g % 2 === 0 ? -0.45 : 0.45),
+      });
+    }
+
+    if (ctx.createScriptProcessor) {
+      this.scriptNode = ctx.createScriptProcessor(2048, 2, 2);
+      this.scriptNode.onaudioprocess = (e) => this.processAudio(e);
+      this.input.connect(this.scriptNode);
+      this.scriptNode.connect(this.wetMix);
+    } else {
+      this.scriptNode = ctx.createGain();
+      this.input.connect(this.scriptNode);
+      this.scriptNode.connect(this.wetMix);
+    }
+    this.wetMix.connect(this.wet);
+
+    this.initValues(state);
+    this.updateMix();
+  }
+
+  updateMix(time) {
+    const base = Number(this.values.mix ?? 0.35);
+    const effective = Math.max(0, Math.min(1, base + this.cvMixVal));
+    const { dry, wet } = mixGains(effective);
+    const t = time || this.ctx.currentTime;
+    this.dryMix.gain.setTargetAtTime(dry, t, 0.02);
+    this.wetMix.gain.setTargetAtTime(wet, t, 0.02);
+  }
+
+  setMix(m) {
+    this.setParam('mix', m);
+  }
+
+  applyParam(id, _val) {
+    switch (id) {
+      case 'mix':
+        this.updateMix();
+        break;
+      case 'freeze':
+      case 'texture':
+      case 'size':
+      case 'pitchMode':
+      case 'feedback':
+        this.updateDisplay?.();
+        break;
+    }
+  }
+
+  onModulation(portId, val, time) {
+    if (portId === 'cvMix') {
+      this.cvMixVal = (val - 0.5) * 1.5;
+      this.updateMix(time);
+    } else if (portId === 'cvTexture') {
+      this.cvTextureVal = (val - 0.5) * 0.9;
+    }
+  }
+
+  onTrigger(portId, _time) {
+    if (portId === 'freezeIn') {
+      const cur = Number(this.values.freeze) || 0;
+      this.setParam('freeze', cur === 1 ? 0 : 1);
+      this.updateDisplay?.();
+    }
+  }
+
+  resetGrain(grain) {
+    const sr = this.sr;
+    const effectiveTexture = Math.max(0, Math.min(1, (this.values.texture ?? 0.65) + this.cvTextureVal));
+    const effectiveSize = Math.max(0.03, Math.min(0.35, this.values.size ?? 0.12));
+    const dur = effectiveSize * (1 + (Math.random() - 0.5) * 0.4 * effectiveTexture);
+    grain.length = Math.max(64, Math.floor(dur * sr));
+    grain.currentSample = 0;
+
+    const FIFTH = 1.4983070768766815; // 2^(7/12)
+    const mode = this.values.pitchMode || 'octUp';
+    switch (mode) {
+      case 'fifthUp': grain.rate = FIFTH; break;
+      case 'octDown': grain.rate = 0.5; break;
+      case 'dualShimmer': grain.rate = Math.random() < 0.5 ? 2.0 : FIFTH; break;
+      case 'octUp':
+      default: grain.rate = 2.0; break;
+    }
+
+    if (effectiveTexture > 0) {
+      grain.rate *= 1 + (Math.random() - 0.5) * 0.012 * effectiveTexture;
+    }
+
+    grain.pan = (Math.random() * 2 - 1) * Math.min(1.0, 0.2 + effectiveTexture * 0.8);
+
+    const baseDelay = sr * 0.08;
+    const jitter = (Math.random() * 2 - 1) * 0.5 * effectiveTexture * (sr * 0.8);
+    const offset = Math.floor(baseDelay + Math.random() * sr * 0.35 + jitter);
+    grain.pos = (this.writeIndex - offset + this.bufferLength * 4) % this.bufferLength;
+  }
+
+  processAudio(e) {
+    const inpL = e.inputBuffer.getChannelData(0);
+    const inpR = e.inputBuffer.numberOfChannels > 1 ? e.inputBuffer.getChannelData(1) : inpL;
+    const outL = e.outputBuffer.getChannelData(0);
+    const outR = e.outputBuffer.numberOfChannels > 1 ? e.outputBuffer.getChannelData(1) : outL;
+    const len = inpL.length;
+    const bufLen = this.bufferLength;
+    const isFrozen = Number(this.values.freeze) === 1;
+    const fbGain = Math.min(0.85, (this.values.feedback ?? 0.45));
+    const lpAlpha = 1 - Math.exp((-2 * Math.PI * 6000) / this.sr);
+    const norm = 0.42;
+
+    for (let i = 0; i < len; i++) {
+      if (!isFrozen) {
+        this.fbL += lpAlpha * (this.lastWetL - this.fbL);
+        this.fbR += lpAlpha * (this.lastWetR - this.fbR);
+        const recL = inpL[i] + Math.tanh(this.fbL * 0.95) * fbGain;
+        const recR = inpR[i] + Math.tanh(this.fbR * 0.95) * fbGain;
+        this.bufferL[this.writeIndex] = recL;
+        this.bufferR[this.writeIndex] = recR;
+        this.writeIndex = (this.writeIndex + 1) % bufLen;
+      }
+
+      let wetL = 0;
+      let wetR = 0;
+
+      for (let g = 0; g < this.grains.length; g++) {
+        const grain = this.grains[g];
+        if (grain.currentSample >= grain.length) {
+          this.resetGrain(grain);
+        }
+
+        const p0 = Math.floor(grain.pos);
+        const p1 = (p0 + 1) % bufLen;
+        const frac = grain.pos - p0;
+        const sL = this.bufferL[p0] * (1 - frac) + this.bufferL[p1] * frac;
+        const sR = this.bufferR[p0] * (1 - frac) + this.bufferR[p1] * frac;
+
+        // Hann-Hüllkurve
+        const win = 0.5 * (1 - Math.cos((2 * Math.PI * grain.currentSample) / grain.length));
+        const panAngle = (grain.pan + 1) * (Math.PI / 4);
+        const gL = Math.cos(panAngle) * win;
+        const gR = Math.sin(panAngle) * win;
+
+        wetL += sL * gL;
+        wetR += sR * gR;
+
+        grain.pos = (grain.pos + grain.rate) % bufLen;
+        grain.currentSample++;
+      }
+
+      wetL *= norm;
+      wetR *= norm;
+      this.lastWetL = wetL;
+      this.lastWetR = wetR;
+
+      outL[i] = wetL;
+      outR[i] = wetR;
+    }
+  }
+
+  destroy() {
+    if (this.scriptNode) {
+      this.scriptNode.onaudioprocess = null;
+      try { this.scriptNode.disconnect(); } catch { /* ignore */ }
+    }
+    super.destroy();
+  }
+
+  renderExtra(el, helpers) {
+    el.innerHTML = `
+      <div class="granular-cloud-display">
+        <div class="gc-header-row">
+          <span class="gc-lbl">GRANULAR BUFFER & SHIMMER</span>
+          <button class="gc-freeze-btn ${Number(this.values.freeze) === 1 ? 'frozen' : ''}">
+            ${Number(this.values.freeze) === 1 ? '❄ FROZEN' : 'LIVE'}
+          </button>
+        </div>
+        <div class="gc-cloud-canvas-wrap">
+          <div class="gc-grain-dots">
+            ${[0, 1, 2, 3, 4, 5].map((idx) => `<span class="gc-grain-dot" data-grain="${idx}"></span>`).join('')}
+          </div>
+        </div>
+        <div class="gc-footer-row">
+          <span class="gc-mode-tag">${(this.values.pitchMode || 'octUp').toUpperCase()}</span>
+          <span class="gc-feedback-tag">FB: ${Math.round((this.values.feedback ?? 0.45) * 100)}%</span>
+        </div>
+      </div>
+    `;
+
+    const freezeBtn = el.querySelector('.gc-freeze-btn');
+    const modeTag = el.querySelector('.gc-mode-tag');
+    const fbTag = el.querySelector('.gc-feedback-tag');
+
+    freezeBtn?.addEventListener('click', () => {
+      const cur = Number(this.values.freeze) || 0;
+      this.setParam('freeze', cur === 1 ? 0 : 1);
+      helpers?.changed?.();
+      this.updateDisplay?.();
+    });
+
+    this.updateDisplay = () => {
+      const isFrz = Number(this.values.freeze) === 1;
+      if (freezeBtn) {
+        freezeBtn.textContent = isFrz ? '❄ FROZEN' : 'LIVE';
+        freezeBtn.classList.toggle('frozen', isFrz);
+      }
+      if (modeTag) modeTag.textContent = (this.values.pitchMode || 'octUp').toUpperCase();
+      if (fbTag) fbTag.textContent = `FB: ${Math.round((this.values.feedback ?? 0.45) * 100)}%`;
+    };
+  }
+}
+
