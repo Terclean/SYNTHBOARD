@@ -329,11 +329,19 @@ export class SourceBase extends ModuleBase {
     this.reverbSendGain.gain.setTargetAtTime(this.chReverb, t, 0.02);
   }
 
-  setChannelStrip({ pan, delay, reverb, level } = {}) {
+  setChannelStrip({ pan, delay, reverb, level, chPan, chDelay, chReverb, chLevel } = {}) {
     if (pan !== undefined) this.chPan = pan;
+    else if (chPan !== undefined) this.chPan = chPan;
+
     if (delay !== undefined) this.chDelay = delay;
+    else if (chDelay !== undefined) this.chDelay = chDelay;
+
     if (reverb !== undefined) this.chReverb = reverb;
+    else if (chReverb !== undefined) this.chReverb = chReverb;
+
     if (level !== undefined) this.chLevel = level;
+    else if (chLevel !== undefined) this.chLevel = chLevel;
+
     this.updateChannelStrip();
   }
 

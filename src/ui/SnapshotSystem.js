@@ -2,6 +2,34 @@
 // Slots 1 bis 5: Regler-Snapshots & Modul-Zuweisung
 // Speed 6, 7, 8: Direkt (0s) · Glide (0.8s) · Slow Morph (3.5s)
 
+function isDiscreteParam(mod, pId, startVal, targetVal) {
+  // 1. Strings, Booleans oder nicht-endliche Werte sind immer diskret
+  if (typeof targetVal === 'string' || typeof targetVal === 'boolean') return true;
+  if (typeof startVal === 'string' || typeof startVal === 'boolean') return true;
+
+  // 2. Ist der Parameter in mod.meta.options definiert? -> IMMER diskret (Dropdowns / Auswahlen)
+  const isOption = mod.meta?.options?.some((o) => o.id === pId);
+  if (isOption) return true;
+
+  // 3. Ist der Parameter in mod.meta.params mit festen choices oder int-Format?
+  const paramDef = mod.meta?.params?.find((p) => p.id === pId);
+  if (paramDef) {
+    if (Array.isArray(paramDef.choices) && paramDef.choices.length > 0) return true;
+    if (paramDef.step === 1 || paramDef.fmt === 'int' || paramDef.fmt === 'st') return true;
+  }
+
+  // 4. Bekannte diskrete Schlüsselwörter
+  const discreteKeyWords = [
+    'voiceCount', 'voiceLeading', 'octave', 'root', 'key', 'scale', 'chord',
+    'wave', 'wave1', 'wave2', 'mode', 'bars', 'pattern', 'steps', 'pulses',
+    'rotation', 'subdiv', 'running', 'direction', 'preset', 'presetKey',
+    'algorithm', 'quantize', 'type', 'semi', 'hold'
+  ];
+  if (discreteKeyWords.includes(pId)) return true;
+
+  return false;
+}
+
 export class SnapshotSystem {
   constructor(engine, options = {}) {
     this.engine = engine;
@@ -256,10 +284,11 @@ export class SnapshotSystem {
     const speedInfo = this.SPEEDS[this.currentSpeed] || this.SPEEDS[7];
     const duration = speedInfo.duration;
 
-    // Breche vorherige Morph-Animation ab
+    // Breche vorherige Morph-Animation sauber ab
     if (this.activeMorphAnim) {
       cancelAnimationFrame(this.activeMorphAnim);
       this.activeMorphAnim = null;
+      this.engine.isMorphing = false;
     }
 
     const allModules = [...this.engine.controls, ...this.engine.sources, ...this.engine.effects];
@@ -302,21 +331,27 @@ export class SnapshotSystem {
       return;
     }
 
-    // ── GLIDE / SLOW MORPH (Speed 7 oder 8): Weiche Interpolation ──
+    // ── GLIDE / SLOW MORPH (Speed 7 oder 8): Weiche, lückenlose Überblendung ──
+    this.engine.isMorphing = true;
     const startTime = performance.now();
     const durationMs = duration * 1000;
 
-    // Vorbereitung: Diskrete Optionen (Akkorde, Wellenformen, Skalen) sofort schalten,
-    // kontinuierliche Zahlenwerte sanft morphen
     const transitions = [];
-    const discreteParams = [];
+    const csTransitions = [];
+    const modulesToDisableAtEnd = [];
 
     targetModuleMap.forEach((savedData, mod) => {
-      // Enabled sofort setzen
-      if (typeof savedData.enabled === 'boolean') {
-        mod.setEnabled(savedData.enabled);
+      // Enabled: Wenn aktiviert werden soll, sofort einschalten (Pegel blendet hoch).
+      // Wenn deaktiviert werden soll, erst nach der Überblendung abschalten, damit der Ton nicht abreißt.
+      if (typeof savedData.enabled === 'boolean' && savedData.enabled !== mod.enabled) {
+        if (savedData.enabled) {
+          mod.setEnabled(true);
+        } else {
+          modulesToDisableAtEnd.push(mod);
+        }
       }
-      // Extra-State sofort wiederherstellen (z. B. Stimmen-Pads)
+
+      // Extra-State (z. B. Stimmen-Pads) sanft synchronisieren
       if (savedData.extra) {
         if (mod.setExtra) {
           mod.setExtra(savedData.extra);
@@ -327,41 +362,58 @@ export class SnapshotSystem {
         }
       }
 
+      // Parameter analysieren: Diskrete Optionen nur bei echter Änderung einmalig setzen;
+      // kontinuierliche Parameter in die flüssige Glättungs-Schleife aufnehmen
       Object.entries(savedData.values || {}).forEach(([pId, targetVal]) => {
         const startVal = mod.values[pId] ?? targetVal;
-        const isDiscrete =
-          typeof targetVal === 'string' ||
-          typeof targetVal === 'boolean' ||
-          typeof startVal === 'string' ||
-          typeof startVal === 'boolean';
-
-        if (isDiscrete) {
-          discreteParams.push({ mod, pId, targetVal });
+        if (isDiscreteParam(mod, pId, startVal, targetVal)) {
+          if (startVal !== targetVal) {
+            mod.setParam(pId, targetVal);
+          }
         } else {
-          transitions.push({
-            mod,
-            pId,
-            startVal: Number(startVal),
-            targetVal: Number(targetVal),
-          });
+          const sNum = Number(startVal);
+          const tNum = Number(targetVal);
+          // Nur morphen, wenn der Wert sich tatsächlich messbar ändert!
+          if (Number.isFinite(sNum) && Number.isFinite(tNum) && Math.abs(sNum - tNum) > 0.0005) {
+            transitions.push({
+              mod,
+              pId,
+              startVal: sNum,
+              targetVal: tNum,
+            });
+          }
         }
       });
-    });
 
-    // Diskrete Parameter (z. B. Akkord: Quinte ➔ Oktave) sofort anwenden
-    discreteParams.forEach(({ mod, pId, targetVal }) => {
-      mod.setParam(pId, targetVal);
-    });
-
-    targetModuleMap.forEach((savedData, mod) => {
-      if (savedData.channelStrip && mod.setChannelStrip) {
-        mod.setChannelStrip(savedData.channelStrip);
+      // Channel-Strips (Pan, Level, Delay, Reverb) weich überblenden
+      if (savedData.channelStrip && mod.getChannelStripState) {
+        const curCs = mod.getChannelStripState();
+        const csMap = [
+          { key: 'chPan', alias: 'pan' },
+          { key: 'chDelay', alias: 'delay' },
+          { key: 'chReverb', alias: 'reverb' },
+          { key: 'chLevel', alias: 'level' },
+        ];
+        csMap.forEach(({ key, alias }) => {
+          const sVal = curCs[key] ?? 0;
+          const tVal = savedData.channelStrip[key] ?? savedData.channelStrip[alias] ?? sVal;
+          if (Math.abs(sVal - tVal) > 0.001) {
+            csTransitions.push({
+              mod,
+              alias,
+              startVal: sVal,
+              targetVal: tVal,
+            });
+          }
+        });
       }
-      mod.refreshKnobs?.();
     });
 
-    // Smoothstep Easing (sanftes Beschleunigen und Abbremsen)
-    const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+    // Sofortige visuelle Aktualisierung diskreter Auswahlen (z. B. Wellenformen)
+    targetModuleMap.forEach((_, mod) => mod.refreshKnobs?.());
+
+    // Sanfte Sinusoidale Easing-Kurve (verhindert abrupte Pegelsprünge am Anfang & Ende)
+    const easeInOut = (t) => 0.5 - 0.5 * Math.cos(Math.PI * t);
     let lastKnobRefresh = 0;
 
     const step = (now) => {
@@ -369,7 +421,7 @@ export class SnapshotSystem {
       const progress = Math.min(1, elapsed / durationMs);
       const eased = easeInOut(progress);
 
-      // Aktualisiere numerische Werte
+      // 1. Kontinuierliche Modul-Parameter flüssig interpolieren
       const touchedModules = new Set();
       transitions.forEach(({ mod, pId, startVal, targetVal }) => {
         const currentVal = startVal + (targetVal - startVal) * eased;
@@ -377,8 +429,14 @@ export class SnapshotSystem {
         touchedModules.add(mod);
       });
 
-      // Knobs im UI synchron mitdrehen (gedrosselt auf 30 FPS zur Entlastung des Frontends)
-      if (progress >= 1 || now - lastKnobRefresh >= 33) {
+      // 2. Kanalzug-Parameter (Pan, Delay, Reverb, Level) flüssig überblenden
+      csTransitions.forEach(({ mod, alias, startVal, targetVal }) => {
+        const curVal = startVal + (targetVal - startVal) * eased;
+        mod.setChannelStrip?.({ [alias]: curVal });
+      });
+
+      // 3. UI-Knobs schonend mitdrehen (gedrosselt auf ca. 20 FPS, damit Web Audio Vorrang hat)
+      if (progress >= 1 || now - lastKnobRefresh >= 50) {
         lastKnobRefresh = now;
         touchedModules.forEach((mod) => mod.refreshKnobs?.());
       }
@@ -387,6 +445,17 @@ export class SnapshotSystem {
         this.activeMorphAnim = requestAnimationFrame(step);
       } else {
         this.activeMorphAnim = null;
+        this.engine.isMorphing = false;
+
+        // Am Ende der Überblendung Module deaktivieren, die im Zielslot ausgeschaltet sind
+        modulesToDisableAtEnd.forEach((mod) => mod.setEnabled(false));
+
+        // Reverb Convolver IR einmalig final auffrischen
+        allModules.forEach((m) => {
+          if (m.meta.type === 'reverb' && m.conv) m.buildIR();
+          m.refreshKnobs?.();
+        });
+
         this.onModified();
       }
     };
@@ -489,13 +558,38 @@ export class SnapshotSystem {
     };
   }
 
+  clear() {
+    this.slots = {
+      1: null,
+      2: null,
+      3: null,
+      4: null,
+      5: null,
+    };
+    this.activeSlot = null;
+    this.selectedModulesFilter = 'all';
+    this.updateVisuals();
+  }
+
   loadState(state = {}) {
-    if (!state) return;
-    if (state.slots) this.slots = { ...this.slots, ...state.slots };
+    if (!state || typeof state !== 'object' || Object.keys(state).length === 0) {
+      this.clear();
+      return;
+    }
+    this.slots = {
+      1: null,
+      2: null,
+      3: null,
+      4: null,
+      5: null,
+      ...(state.slots || {}),
+    };
     if (state.currentSpeed) this.currentSpeed = state.currentSpeed;
-    if (state.activeSlot) this.activeSlot = state.activeSlot;
+    this.activeSlot = state.activeSlot || null;
     if (state.filter) {
       this.selectedModulesFilter = state.filter === 'all' ? 'all' : new Set(state.filter);
+    } else {
+      this.selectedModulesFilter = 'all';
     }
     this.updateVisuals();
   }

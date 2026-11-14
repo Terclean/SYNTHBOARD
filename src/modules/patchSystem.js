@@ -8,6 +8,115 @@ export const SIGNAL_COLORS = {
   audio: '#60a5fa',   // Sky Blue (Audio)
 };
 
+/**
+ * Löst Buchsen-IDs tolerant auf: Unterstützt interne IDs, visuelle Labels
+ * (z. B. '1/16' -> 'clockOut', '/4 (1/4)' -> 'div4Out') sowie gängige Aliase.
+ */
+export function resolveJackId(mod, portId, expectedType = null) {
+  if (!mod?.meta?.jacks || !portId) return portId;
+  const jacks = mod.meta.jacks;
+  const raw = String(portId).trim();
+
+  // 1. Exakte ID-Übereinstimmung
+  let found = jacks.find((j) => j.id === raw && (!expectedType || j.type === expectedType));
+  if (found) return found.id;
+
+  // 2. Case-Insensitive ID-Übereinstimmung
+  const lower = raw.toLowerCase();
+  found = jacks.find((j) => j.id.toLowerCase() === lower && (!expectedType || j.type === expectedType));
+  if (found) return found.id;
+
+  // 3. Label-Übereinstimmung (exakt oder case-insensitive)
+  found = jacks.find((j) => j.label && j.label.toLowerCase() === lower && (!expectedType || j.type === expectedType));
+  if (found) return found.id;
+
+  // 4. Normalisierte Zeichenkette (Klammern, Schrägstriche, Leerzeichen entfernen)
+  const norm = lower.replace(/[\s\(\)\/\-_]/g, '');
+  found = jacks.find((j) => {
+    if (expectedType && j.type !== expectedType) return false;
+    const jNorm = j.id.toLowerCase().replace(/[\s\(\)\/\-_]/g, '');
+    const lNorm = (j.label || '').toLowerCase().replace(/[\s\(\)\/\-_]/g, '');
+    return jNorm === norm || lNorm === norm;
+  });
+  if (found) return found.id;
+
+  // 5. Modulspezifische Aliase
+  const mType = mod.meta.type;
+  if (mType === 'master_clock') {
+    if (norm === '116' || norm === 'clock' || norm === 'clockout') return 'clockOut';
+    if (norm === '18' || norm === 'div2' || norm === 'div2out') return 'div2Out';
+    if (norm === '14' || norm === 'div4' || norm === 'div4out') return 'div4Out';
+    if (norm === '1bar' || norm === 'bar' || norm === 'barout') return 'barOut';
+    if (norm === 'reset' || norm === 'resetout') return 'resetOut';
+  } else if (mType === 'clock_divider') {
+    if (norm === 'clock' || norm === 'clockin') return 'clockIn';
+    if (norm === 'reset' || norm === 'resetin') return 'resetIn';
+    if (norm === '1' || norm === 'div1' || norm === 'div1out' || norm === 'outa') return 'div1Out';
+    if (norm === '2' || norm === 'div2' || norm === 'div2out') return 'div2Out';
+    if (norm === '3' || norm === 'div3' || norm === 'div3out') return 'div3Out';
+    if (norm === '4' || norm === 'div4' || norm === 'div4out' || norm === 'outb') return 'div4Out';
+    if (norm === '8' || norm === 'div8' || norm === 'div8out' || norm === 'outc') return 'div8Out';
+    if (norm === '16' || norm === 'div16' || norm === 'div16out' || norm === 'outd') return 'div16Out';
+  } else if (mType === 'random_walk') {
+    if (norm === 'clock' || norm === 'clockin' || norm === 'step') return 'clockIn';
+    if (norm === 'reset' || norm === 'resetin') return 'resetIn';
+    if (norm === 'pitch' || norm === 'pitchout' || norm === 'cv') return 'pitchOut';
+    if (norm === 'gate' || norm === 'gateout') return 'gateOut';
+  } else if (mType === 'chord_glide') {
+    if (norm === 'clock' || norm === 'clockin') return 'clockIn';
+    if (norm === 'reset' || norm === 'resetin') return 'resetIn';
+    if (norm === 'next' || norm === 'nexttrig') return 'nextTrig';
+    if (norm === 'transp' || norm === 'transpose' || norm === 'transposecv') return 'transposeCv';
+    if (norm === 'glide' || norm === 'glidecv') return 'glideCv';
+    if (norm === 'cutoff' || norm === 'cutoffcv' || norm === 'filter' || norm === 'filtercv') return 'cutoffCv';
+    if (norm === 'vca' || norm === 'vcacv') return 'vcaCv';
+    if (norm === 'pan' || norm === 'pancv') return 'panCv';
+    if (norm === 'pitch' || norm === 'pitchout' || norm === 'polypitch') return 'pitchOut';
+    if (norm === 'root' || norm === 'rootout' || norm === 'rootpitch') return 'rootOut';
+    if (norm === 'gate' || norm === 'gateout' || norm === 'chordtrig') return 'gateOut';
+  } else if (mType === 'violin') {
+    if (norm === 'gate' || norm === 'gatein' || norm === 'bow' || norm === 'bowgate') return 'gateIn';
+    if (norm === 'pitch' || norm === 'pitchin') return 'pitchIn';
+    if (norm === 'bowcv') return 'bowCv';
+    if (norm === 'vib' || norm === 'vibcv' || norm === 'vibrato' || norm === 'vibratocv') return 'vibratoCv';
+    if (norm === 'glide' || norm === 'glidecv') return 'glideCv';
+    if (norm === 'vca' || norm === 'vcacv') return 'vcaCv';
+    if (norm === 'pan' || norm === 'pancv') return 'panCv';
+  } else if (mType === 'felt_piano') {
+    if (norm === 'gate' || norm === 'gatein') return 'gateIn';
+    if (norm === 'pitch' || norm === 'pitchin') return 'pitchIn';
+    if (norm === 'vca' || norm === 'vcacv') return 'vcaCv';
+    if (norm === 'felt' || norm === 'feltcv') return 'feltCv';
+    if (norm === 'pan' || norm === 'pancv') return 'panCv';
+  }
+
+  // 6. Generische Fallbacks für Ports mit Typenangabe
+  if (expectedType === 'in' || !expectedType) {
+    if (norm === 'clock' || norm === 'clockin') {
+      const j = jacks.find((x) => x.type === 'in' && x.signal === 'clock');
+      if (j) return j.id;
+    }
+    if (norm === 'gate' || norm === 'gatein') {
+      const j = jacks.find((x) => x.type === 'in' && x.signal === 'gate');
+      if (j) return j.id;
+    }
+    if (norm === 'pitch' || norm === 'pitchin') {
+      const j = jacks.find((x) => x.type === 'in' && x.signal === 'pitch');
+      if (j) return j.id;
+    }
+    if (norm === 'vca' || norm === 'vcacv') {
+      const j = jacks.find((x) => x.type === 'in' && x.id === 'vcaCv');
+      if (j) return j.id;
+    }
+    if (norm === 'pan' || norm === 'pancv') {
+      const j = jacks.find((x) => x.type === 'in' && x.id === 'panCv');
+      if (j) return j.id;
+    }
+  }
+
+  return raw;
+}
+
 export class PatchSystem {
   constructor(engine) {
     this.engine = engine;
@@ -30,22 +139,25 @@ export class PatchSystem {
     const actualFromId = fromMod.id;
     const actualToId = toMod.id;
 
-    // Ein Input-Jack kann typischerweise nur von einem Kabel gespeist werden (Eurorack-Standard)
-    this.disconnectPort(actualToId, toPortId);
+    const actualFromPortId = resolveJackId(fromMod, fromPortId, 'out');
+    const actualToPortId = resolveJackId(toMod, toPortId, 'in');
 
-    const fromJack = fromMod.meta.jacks?.find(j => j.id === fromPortId);
-    const toJack = toMod.meta.jacks?.find(j => j.id === toPortId);
+    // Ein Input-Jack kann typischerweise nur von einem Kabel gespeist werden (Eurorack-Standard)
+    this.disconnectPort(actualToId, actualToPortId);
+
+    const fromJack = fromMod.meta.jacks?.find((j) => j.id === actualFromPortId);
+    const toJack = toMod.meta.jacks?.find((j) => j.id === actualToPortId);
 
     const signal = fromJack?.signal || toJack?.signal || 'gate';
     const color = customColor || SIGNAL_COLORS[signal] || '#a0aab2';
 
-    const id = PatchSystem.makeId(actualFromId, fromPortId, actualToId, toPortId);
+    const id = PatchSystem.makeId(actualFromId, actualFromPortId, actualToId, actualToPortId);
     const conn = {
       id,
       fromModuleId: actualFromId,
-      fromPortId,
+      fromPortId: actualFromPortId,
       toModuleId: actualToId,
-      toPortId,
+      toPortId: actualToPortId,
       signal,
       color,
       depth: Number.isFinite(depth) ? Math.max(0, Math.min(2, depth)) : 1, // Modulationsstärke pro Kabel
@@ -190,12 +302,26 @@ export class PatchSystem {
   loadState(cables = []) {
     this.connections.clear();
     if (!Array.isArray(cables)) return;
+    const connectedInputs = new Set();
     for (const c of cables) {
       if (!c.from || !c.to) continue;
-      const [fromMod, fromPort] = c.from.split(':');
-      const [toMod, toPort] = c.to.split(':');
-      if (fromMod && fromPort && toMod && toPort) {
-        this.connect(fromMod, fromPort, toMod, toPort, c.color, c.depth ?? 1);
+      const [fromMod, fromPort] = String(c.from).split(':');
+      const [toMod, toPort] = String(c.to).split(':');
+      if (!fromMod || !fromPort || !toMod || !toPort) continue;
+
+      const targetMod = this.engine.find(toMod) || this.engine.findByType?.(toMod);
+      const actualToId = targetMod?.id || toMod;
+      const resolvedToPort = targetMod ? resolveJackId(targetMod, toPort, 'in') : toPort;
+      const inputKey = `${actualToId}:${resolvedToPort}`;
+
+      // Wenn ein Eingang (`to`) im JSON bereits belegt ist, darf er nicht durch Folgeroutings überschrieben werden
+      if (connectedInputs.has(inputKey)) {
+        continue;
+      }
+
+      const conn = this.connect(fromMod, fromPort, toMod, toPort, c.color, c.depth ?? 1);
+      if (conn) {
+        connectedInputs.add(inputKey);
       }
     }
     this.onConnectionsChanged?.();

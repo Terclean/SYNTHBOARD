@@ -361,19 +361,23 @@ export class ChordGlideModule extends SourceBase {
         this.ramp(v.osc2.detune, val * 0.8, 0.05);
       });
     } else if (id === 'voiceLeading') {
-      this.voiceLeading = Number(val) ? 1 : 0;
-      this.values.voiceLeading = this.voiceLeading;
-      this.recalculateAllVoicings();
-      if (this.voices?.length) this.triggerCurrentStep(this.ctx.currentTime);
-      this.syncLeadUi?.();
-      this.refreshVisualizer?.();
+      const newVl = Number(val) ? 1 : 0;
+      if (newVl !== this.voiceLeading) {
+        this.voiceLeading = newVl;
+        this.values.voiceLeading = this.voiceLeading;
+        this.recalculateAllVoicings();
+        this.syncLeadUi?.();
+        this.refreshVisualizer?.();
+      }
     } else if (id === 'voiceCount') {
-      this.voiceCount = Number(val);
-      this.values.voiceCount = this.voiceCount;
-      this.recalculateAllVoicings();
-      if (this.voices?.length) this.triggerCurrentStep(this.ctx.currentTime);
-      this.syncVoicesUi?.();
-      this.refreshVisualizer?.();
+      const newVc = Math.max(4, Math.min(this.maxVoices, Math.round(Number(val))));
+      if (newVc !== this.voiceCount) {
+        this.voiceCount = newVc;
+        this.values.voiceCount = this.voiceCount;
+        this.recalculateAllVoicings();
+        this.syncVoicesUi?.();
+        this.refreshVisualizer?.();
+      }
     }
   }
 

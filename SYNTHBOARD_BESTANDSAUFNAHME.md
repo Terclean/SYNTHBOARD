@@ -3,7 +3,7 @@
 > **Zweck dieses Dokuments:**  
 > Dieses Dokument bietet einer externen KI oder einem Musiker eine lückenlose, technisch exakte Übersicht aller tatsächlich im Code implementierten Funktionen von **SYNTHBOARD**. Es dient als verbindliche Wissensbasis, um Schritt für Schritt beim Sounddesign, Patching, Beatbauen und bei Live-Performances anzuleiten, ohne den Quellcode lesen zu müssen.
 >
-> **Stand:** Codebasis nach Bereinigung (29 Module, Snapshot-System, 5-Slot Focus Dock, Tastatur-Workflow, 14 Beispiel-Boards).
+> **Stand:** Codebasis nach Bereinigung (31 Module, Snapshot-System, 5-Slot Focus Dock, Tastatur-Workflow, 14 Beispiel-Boards).
 
 ---
 
@@ -12,9 +12,9 @@
 2. [Bedienoberfläche, Steuerung & Interaktion](#2-bedienoberfläche-steuerung--interaktion)
 3. [Das modulare Patch-System (Kabel, Signaltypen & Modulationsstärke)](#3-das-modulare-patch-system-kabel-signaltypen--modulationsstärke)
 4. [Kanalzug & Mixer-Architektur jeder Klangquelle](#4-kanalzug--mixer-architektur-jeder-klangquelle)
-5. [Vollständiger Modulkatalog (29 Module)](#5-vollständiger-modulkatalog-29-module)
+5. [Vollständiger Modulkatalog (31 Module)](#5-vollständiger-modulkatalog-31-module)
    - 5.1 [Steuerung & Rhythmus (10 Module)](#51-steuerung--rhythmus-10-module)
-   - 5.2 [Klangquellen & Instrumente (13 Module)](#52-klangquellen--instrumente-13-module)
+   - 5.2 [Klangquellen & Instrumente (15 Module)](#52-klangquellen--instrumente-15-module)
    - 5.3 [Effektkette (6 Module)](#53-effektkette-6-module)
 6. [Presets, Boards & Performance Snapshot-System](#6-presets-boards--performance-snapshot-system)
 7. [Technische Besonderheiten & Signalfluss](#7-technische-besonderheiten--signalfluss)
@@ -32,7 +32,7 @@ SYNTHBOARD ist eine browserbasierte, semi-modulare Synthesizer- und Ambient-Groo
 
 ### Grundprinzip des Signalflusses
 1. **Steuerung (Control-Ebene):** Module wie Clocks, Sequencer, Euklidische Rhythmen und LFOs erzeugen Steuerimpulse (Trigger, Clock, Gate, Pitch, CV). Sie werden über virtuelle farbcodierte Patchkabel frei an Instrumente oder Effektparameter geroutet.
-2. **Klangquellen (Audio-Ebene):** Bis zu 13 verschiedene Syntheseformen laufen parallel. Jede Klangquelle verfügt über einen eigenen integrierten **Kanalzug** (VCA, Pan, Delay Send, Reverb Send).
+2. **Klangquellen (Audio-Ebene):** Bis zu 15 verschiedene Syntheseformen laufen parallel. Jede Klangquelle verfügt über einen eigenen integrierten **Kanalzug** (VCA, Pan, Delay Send, Reverb Send).
 3. **Effektkette (Master-FX):** Alle aktiven Klangquellen werden summiert und durchlaufen eine serielle Effektkette (Filter, Chorus, LoFi, Reverb, Delay, Tremolo), bevor das Signal am Master-Ausgang mit Limiter und Oszilloskop ankommt.
 
 ---
@@ -133,7 +133,7 @@ Jede Klangquelle (`SourceBase`) besitzt am unteren Rand einen vollwertigen Stere
 
 ---
 
-## 5. Vollständiger Modulkatalog (29 Module)
+## 5. Vollständiger Modulkatalog (31 Module)
 
 ### 5.1 Steuerung & Rhythmus (10 Module)
 
@@ -274,7 +274,7 @@ Jede Klangquelle (`SourceBase`) besitzt am unteren Rand einen vollwertigen Stere
 
 ---
 
-### 5.2 Klangquellen & Instrumente (13 Module)
+### 5.2 Klangquellen & Instrumente (15 Module)
 
 Alle Klangquellen besitzen standardmäßig den integrierten Mixer-Kanalzug (`PAN`, `DELAY`, `REVERB`, `VCA CV`, `PAN CV`).
 
@@ -747,7 +747,7 @@ Oben im Rack befindet sich die Leiste `PRESET SLOTS (1–5)`:
 
 | Funktion / Modul | Status | Bemerkungen |
 |---|---|---|
-| **Alle 29 Module** | ✅ **Voll funktionsfähig** | Alle Parameter, Jacks und Synthesestufen berechnen echtes Audio in Web Audio. |
+| **Alle 31 Module** | ✅ **Voll funktionsfähig** | Alle Parameter, Jacks und Synthesestufen berechnen echtes Audio in Web Audio. |
 | **Kabel-Patchbay** | ✅ **Voll funktionsfähig** | Farbcodierung, Drag & Drop, LED-Aktivitätsanzeige, Mehrfach-Ausgänge. |
 | **Kabel-Modulationsstärke** | ✅ **Voll funktionsfähig** | 0% bis 200% Depth per Drag/Wheel auf dem Kabelbadge einstellbar. |
 | **VCA & Pan CV pro Stimme** | ✅ **Voll funktionsfähig** | Jede Quelle reagiert auf VCA- und Pan-Modulation. |
@@ -834,11 +834,11 @@ Oben im Rack befindet sich die Leiste `PRESET SLOTS (1–5)`:
   - Dropdown `Modus`: `Ping-Pong`, `Time`: `0.38 s`, `Feedback`: `55%`, `Tone`: `3200 Hz`, `Mix`: `40%`.
 
 #### Kabelverbindungen
-1. Von `master_clock:1/16` ➔ nach `euclidean:CLOCK`.
-2. Von `master_clock:1/8` ➔ nach `random_walk:CLOCK`.
-3. Von `random_walk:PITCH` ➔ nach `quantizer:PITCH IN`.
-4. Von `quantizer:QUANT OUT` ➔ nach `pluck:PITCH`.
-5. Von `euclidean:TRIG` ➔ nach `pluck:GATE`.
+1. Von `master_clock:clockOut` (UI: `1/16`) ➔ nach `euclidean:clockIn` (UI: `CLOCK`).
+2. Von `master_clock:div2Out` (UI: `1/8`) ➔ nach `random_walk:clockIn` (UI: `CLOCK`).
+3. Von `random_walk:pitchOut` (UI: `PITCH`) ➔ nach `quantizer:pitchIn` (UI: `CV IN`).
+4. Von `quantizer:pitchOut` (UI: `PITCH OUT`) ➔ nach `pluck:pitchIn` (UI: `PITCH`).
+5. Von `euclidean:gateOut` (UI: `GATE OUT`) ➔ nach `pluck:gateIn` (UI: `GATE`).
 
 ---
 
@@ -866,9 +866,9 @@ Oben im Rack befindet sich die Leiste `PRESET SLOTS (1–5)`:
   - Dropdown `Kurve`: `Gleitend`, `Rate`: `0.1 Hz`, `Glättung`: `1.2 s`, `Tiefe`: `35%`.
 
 #### Kabelverbindungen
-1. Von `master_clock:1/4` ➔ nach `clock_divider:CLOCK`.
-2. Von `clock_divider:/2 (1/8)` ➔ nach `bass:GATE`.
-3. Von `slow_random:CV OUT` ➔ nach `bass:CUTOFF CV`.
+1. Von `master_clock:div4Out` (UI: `1/4`) ➔ nach `clock_divider:clockIn` (UI: `CLOCK`).
+2. Von `clock_divider:div2Out` (UI: `/2 (1/8)`) ➔ nach `bass:gateIn` (UI: `GATE`).
+3. Von `slow_random:modOut` (UI: `SMOOTH CV`) ➔ nach `bass:cutoffCv` (UI: `CUTOFF CV`).
    - **Kabel-Badge einstellen:** Auf das Badge klicken und auf **`30%`** herunterziehen, damit der Bass nur minimal atmet und druckvoll bleibt.
 
 ---
@@ -914,8 +914,11 @@ TIPP: [1 praktischer Tipp für die Performance oder das Schrauben am Sound]
 ```
 
 ### 11.2 Gültige Bezeichner (Auszug für schnelle Referenz)
-- **Modul-IDs:** `master_clock`, `clock_divider`, `euclidean`, `prob_gate`, `random_walk`, `quantizer`, `slow_random`, `macro`, `slope_generator`, `attenuverter`, `felt_piano`, `drone`, `pluck`, `fm_voice`, `bass`, `drum_rack`, `keys`, `sequencer`, `noise`, `morph_voice`, `hybrid_perc`, `resonator_garden`, `spectral_swarm`, `filter`, `chorus`, `tremolo`, `lofi`, `delay`, `reverb`.
-- **Signaltypen:** `clock` (Cyan), `gate` (Amber), `pitch` (Violett), `mod` (Grün).
+- **Modul-IDs (31 Module):**
+  - **Steuerung & Rhythmus (10):** `master_clock`, `clock_divider`, `euclidean`, `prob_gate`, `random_walk`, `quantizer`, `slow_random`, `macro`, `slope_generator`, `attenuverter`.
+  - **Klangquellen & Instrumente (15):** `chord_glide`, `violin`, `felt_piano`, `drone`, `pluck`, `fm_voice`, `bass`, `drum_rack`, `keys`, `sequencer`, `noise`, `morph_voice`, `hybrid_perc`, `resonator_garden`, `spectral_swarm`.
+  - **Effekte (6):** `filter`, `chorus`, `tremolo`, `lofi`, `delay`, `reverb`.
+- **Signaltypen:** `clock` (Cyan), `gate` (Amber), `pitch` (Violett), `mod` (Grün), `audio` (Blau).
 - **Stärke:** `0%` bis `200%` (Standard `100%`).
 
 ### 11.3 Was Antigravity aus diesem Block automatisch baut
@@ -924,12 +927,242 @@ Sobald ein Block im Format ````synthboard-patch ... ```` hier im Chat eingefügt
 2. Eine tabellarische **Rack-Bauanleitung** mit Klick-Pfaden und Shortcut-Tipps.
 3. Einen **Import-fertigen SYNTHBOARD-JSON-Code**, der über den Button `Import JSON` mit einem einzigen Klick direkt in das Synthesizer-Rack geladen werden kann.
 
-### 11.4 Offizielles SYNTHBOARD JSON-Schema & Export-Beispiel
-Wenn eine KI direkt eine `.json`-Datei generieren soll, die über den Button **„Import JSON“** im Header von SYNTHBOARD importiert werden kann, muss sie diesem Schema entsprechen:
+### 11.4 Offizielles SYNTHBOARD JSON-Schema & Code-Referenz
+
+> [!IMPORTANT]
+> **Verbindliche Buchsen-Regel für das `cables`-Array im JSON:**  
+> Im JSON-Array `cables` müssen **immer die exakten internen Jack-IDs** (`id`) verwendet werden (z. B. `master_clock:clockOut` statt `master_clock:1/16` und `clock_divider:div4Out` statt `clock_divider:/4 (1/4)`). Der SYNTHBOARD-Importer besitzt zwar für Labels eine automatische Erkennung, für 100 % fehlerfreie und reproduzierbare Patches dürfen externe KIs jedoch ausschließlich die kanonischen Buchsen-IDs aus der folgenden Tabelle verwenden!
+
+#### 11.4.1 Buchsen-Referenztabelle (Alle 31 Module)
+
+| Modul-ID | Buchsen-Name & Funktion | Interne Buchsen-ID (`id` für JSON) | Richtung | Signal-Typ | Label auf UI |
+|---|---|---|---|---|---|
+| **`master_clock`** | 1/16 Takt-Puls | `clockOut` | **OUT** | `clock` | `1/16` |
+| | 1/8 Takt-Puls | `div2Out` | **OUT** | `clock` | `1/8` |
+| | 1/4 Takt-Puls | `div4Out` | **OUT** | `clock` | `1/4` |
+| | 1 Bar (Ganzer 4/4-Takt) | `barOut` | **OUT** | `clock` | `1 BAR` |
+| | Reset Impuls | `resetOut` | **OUT** | `gate` | `RESET` |
+| **`clock_divider`** | Clock Eingang | `clockIn` | **IN** | `clock` | `CLOCK` |
+| | Reset Eingang | `resetIn` | **IN** | `gate` | `RESET` |
+| | /2 Teiler (1/8) | `div2Out` | **OUT** | `clock` | `/2 (1/8)` |
+| | /3 Teiler (Triolen) | `div3Out` | **OUT** | `clock` | `/3 (Triol)` |
+| | /4 Teiler (1/4) | `div4Out` | **OUT** | `clock` | `/4 (1/4)` |
+| | /8 Teiler (1/2) | `div8Out` | **OUT** | `clock` | `/8 (1/2)` |
+| | /16 Teiler (1 Bar) | `div16Out` | **OUT** | `clock` | `/16 (1 Bar)` |
+| **`euclidean`** | Clock Eingang | `clockIn` | **IN** | `clock` | `CLOCK` |
+| | Reset Eingang | `resetIn` | **IN** | `gate` | `RESET` |
+| | Euklidischer Rhythmus Gate | `gateOut` | **OUT** | `gate` | `GATE OUT` |
+| | Taktanfang-Akzent | `accentOut` | **OUT** | `gate` | `ACCENT OUT` |
+| **`prob_gate`** | Gate Eingang | `gateIn` | **IN** | `gate` | `GATE IN` |
+| | Ausgang A (P(A)) | `gateA` | **OUT** | `gate` | `OUT A` |
+| | Ausgang B (P(B)) | `gateB` | **OUT** | `gate` | `OUT B` |
+| | Alternierender Ausgang | `altOut` | **OUT** | `gate` | `ALT OUT` |
+| **`random_walk`** | Step Clock Eingang | `clockIn` | **IN** | `clock` | `CLOCK` |
+| | Reset Eingang | `resetIn` | **IN** | `gate` | `RESET` |
+| | Zufalls-Notenhöhe 1V/Okt | `pitchOut` | **OUT** | `pitch` | `PITCH` |
+| | Noten-Gate Trigger | `gateOut` | **OUT** | `gate` | `GATE` |
+| **`quantizer`** | Unquantisierte Pitch-CV | `pitchIn` | **IN** | `pitch` | `CV IN` |
+| | Latch Clock Trigger | `clockIn` | **IN** | `clock` | `LATCH` |
+| | Skalen-quantisierte Pitch-CV | `pitchOut` | **OUT** | `pitch` | `PITCH OUT` |
+| | Tonwechsel-Gate | `gateOut` | **OUT** | `gate` | `TRIG OUT` |
+| **`slow_random`** | S&H Clock Eingang | `clockIn` | **IN** | `clock` | `S&H CLK` |
+| | Glatter LFO CV | `modOut` | **OUT** | `mod` | `SMOOTH CV` |
+| | Sample & Hold Treppen-CV | `shOut` | **OUT** | `mod` | `S&H CV` |
+| | Invertierter LFO CV | `invOut` | **OUT** | `mod` | `INV CV` |
+| **`macro`** | Makro-Ausgang A | `outA` | **OUT** | `mod` | `OUT A` |
+| | Makro-Ausgang B | `outB` | **OUT** | `mod` | `OUT B` |
+| | Makro-Ausgang C | `outC` | **OUT** | `mod` | `OUT C` |
+| | Makro-Ausgang D | `outD` | **OUT** | `mod` | `OUT D` |
+| **`slope_generator`** | Hüllkurven-Trigger | `trigIn` | **IN** | `gate` | `TRIG IN` |
+| | Anstiegszeit Modulation | `modRise` | **IN** | `mod` | `RISE CV` |
+| | Abfallzeit Modulation | `modFall` | **IN** | `mod` | `FALL CV` |
+| | Hüllkurven-Ausgang | `envOut` | **OUT** | `mod` | `ENV OUT` |
+| | Invertierte Hüllkurve (Ducking) | `invOut` | **OUT** | `mod` | `INV OUT` |
+| | End of Rise (EOR) Gate | `eorOut` | **OUT** | `gate` | `EOR OUT` |
+| **`attenuverter`** | Eingang Signal A | `inA` | **IN** | `mod` | `IN A` |
+| | Skalierter Ausgang A | `outA` | **OUT** | `mod` | `OUT A` |
+| | Eingang Signal B | `inB` | **IN** | `mod` | `IN B` |
+| | Skalierter Ausgang B | `outB` | **OUT** | `mod` | `OUT B` |
+| | Summen-Ausgang (A + B) | `sumOut` | **OUT** | `mod` | `SUM OUT` |
+| **`chord_glide`** | Takt-Clock Eingang | `clockIn` | **IN** | `clock` | `CLOCK` |
+| | Reset auf Schritt 1 | `resetIn` | **IN** | `gate` | `RESET` |
+| | Nächster Akkord Trigger | `nextTrig` | **IN** | `gate` | `NEXT` |
+| | Gesamt-Transposition | `transposeCv` | **IN** | `pitch` | `TRANSP` |
+| | Glide-Zeit Modulation | `glideCv` | **IN** | `mod` | `GLIDE CV` |
+| | Filter-Cutoff Modulation | `cutoffCv` | **IN** | `mod` | `FILTER CV` |
+| | Lautstärke VCA Modulation | `vcaCv` | **IN** | `mod` | `VCA CV` |
+| | Stereopanorama Modulation | `panCv` | **IN** | `mod` | `PAN CV` |
+| | Polyphone Akkordnoten | `pitchOut` | **OUT** | `pitch` | `POLY PITCH` |
+| | Grundton der Harmonie | `rootOut` | **OUT** | `pitch` | `ROOT PITCH` |
+| | Akkordwechsel Trigger-Impuls | `gateOut` | **OUT** | `gate` | `CHORD TRIG` |
+| **`violin`** | Bogen-Gate Eingang | `gateIn` | **IN** | `gate` | `BOW GATE` |
+| | Tonhöhe 1V/Okt | `pitchIn` | **IN** | `pitch` | `PITCH` |
+| | Bogendruck / Attack CV | `bowCv` | **IN** | `mod` | `BOW CV` |
+| | Vibrato-Intensität CV | `vibratoCv` | **IN** | `mod` | `VIB CV` |
+| | Portamento/Glide CV | `glideCv` | **IN** | `mod` | `GLIDE CV` |
+| | Lautstärke VCA CV | `vcaCv` | **IN** | `mod` | `VCA CV` |
+| | Stereopanorama CV | `panCv` | **IN** | `mod` | `PAN CV` |
+| **`felt_piano`** | Tasten-Gate Eingang | `gateIn` | **IN** | `gate` | `GATE` |
+| | Notenhöhe 1V/Okt | `pitchIn` | **IN** | `pitch` | `PITCH` |
+| | Lautstärke VCA CV | `vcaCv` | **IN** | `mod` | `VCA CV` |
+| | Filzdämpfung CV | `feltCv` | **IN** | `mod` | `FELT CV` |
+| | Stereopanorama CV | `panCv` | **IN** | `mod` | `PAN CV` |
+| **`drone`** | Lautstärke VCA CV | `vcaCv` | **IN** | `mod` | `VCA CV` |
+| | Grundton-Tonhöhe CV | `cvRoot` | **IN** | `mod` | `ROOT CV` |
+| | Klangfarbe / Filter CV | `cvTone` | **IN** | `mod` | `TONE CV` |
+| | Detune / Schwebung CV | `cvDetune` | **IN** | `mod` | `DETUNE CV` |
+| | Stereopanorama CV | `panCv` | **IN** | `mod` | `PAN CV` |
+| **`pluck`** | Gate Trigger Eingang | `gateIn` | **IN** | `gate` | `GATE` |
+| | Tonhöhe 1V/Okt | `pitchIn` | **IN** | `pitch` | `PITCH` |
+| | Helligkeit / Oberton CV | `toneCv` | **IN** | `mod` | `TONE CV` |
+| | Saitendämpfung CV | `dampCv` | **IN** | `mod` | `DAMP CV` |
+| | Lautstärke VCA CV | `vcaCv` | **IN** | `mod` | `VCA CV` |
+| | Stereopanorama CV | `panCv` | **IN** | `mod` | `PAN CV` |
+| **`fm_voice`** | Noten-Gate Eingang | `gateIn` | **IN** | `gate` | `GATE` |
+| | Notenhöhe 1V/Okt | `pitchIn` | **IN** | `pitch` | `PITCH` |
+| | FM-Modulationsindex CV | `indexCv` | **IN** | `mod` | `FM CV` |
+| | Ausklingzeit CV | `decayCv` | **IN** | `mod` | `DECAY CV` |
+| | Lautstärke VCA CV | `vcaCv` | **IN** | `mod` | `VCA CV` |
+| | Stereopanorama CV | `panCv` | **IN** | `mod` | `PAN CV` |
+| **`bass`** | Noten-Gate Eingang | `gateIn` | **IN** | `gate` | `GATE` |
+| | Tonhöhe 1V/Okt | `pitchIn` | **IN** | `pitch` | `PITCH` |
+| | Filter Cutoff CV | `cutoffCv` | **IN** | `mod` | `CUTOFF CV` |
+| | Hüllkurventiefe CV | `envCv` | **IN** | `mod` | `ENV CV` |
+| | Lautstärke VCA CV | `vcaCv` | **IN** | `mod` | `VCA CV` |
+| | Stereopanorama CV | `panCv` | **IN** | `mod` | `PAN CV` |
+| **`drum_rack`** | Kick Trigger | `trigKick` | **IN** | `gate` | `KICK IN` |
+| | Snare Trigger | `trigSnare` | **IN** | `gate` | `SNARE IN` |
+| | Hi-Hat Trigger | `trigHat` | **IN** | `gate` | `HAT IN` |
+| | Clap Trigger | `trigClap` | **IN** | `gate` | `CLAP IN` |
+| | Lautstärke VCA CV | `vcaCv` | **IN** | `mod` | `VCA CV` |
+| | Stereopanorama CV | `panCv` | **IN** | `mod` | `PAN CV` |
+| **`keys`** | Noten-Gate Eingang | `gateIn` | **IN** | `gate` | `GATE` |
+| | Tonhöhe 1V/Okt | `pitchIn` | **IN** | `pitch` | `PITCH` |
+| | Filter Cutoff CV | `cutoffCv` | **IN** | `mod` | `CUTOFF CV` |
+| | Lautstärke VCA CV | `vcaCv` | **IN** | `mod` | `VCA CV` |
+| | Stereopanorama CV | `panCv` | **IN** | `mod` | `PAN CV` |
+| **`sequencer`** | Schritt-Clock Eingang | `clockIn` | **IN** | `clock` | `CLOCK IN` |
+| | Reset Eingang | `resetIn` | **IN** | `gate` | `RESET IN` |
+| | Sequenz-Notenhöhe 1V/Okt | `pitchOut` | **OUT** | `pitch` | `PITCH OUT` |
+| | Sequenz Schritt-Gate | `gateOut` | **OUT** | `gate` | `GATE OUT` |
+| **`noise`** | Filterfrequenz CV | `cvTone` | **IN** | `mod` | `TONE CV` |
+| | Modulationsrate CV | `cvRate` | **IN** | `mod` | `RATE CV` |
+| | Lautstärke VCA CV | `vcaCv` | **IN** | `mod` | `VCA CV` |
+| | Stereopanorama CV | `panCv` | **IN** | `mod` | `PAN CV` |
+| **`morph_voice`** | Noten-Gate Eingang | `gateIn` | **IN** | `gate` | `GATE` |
+| | Tonhöhe 1V/Okt | `pitchIn` | **IN** | `pitch` | `PITCH` |
+| | Wellenform-Morphing CV | `morphCv` | **IN** | `mod` | `MORPH CV` |
+| | Wavefolder-Tiefe CV | `foldCv` | **IN** | `mod` | `FOLD CV` |
+| | Lautstärke VCA CV | `vcaCv` | **IN** | `mod` | `VCA CV` |
+| | Stereopanorama CV | `panCv` | **IN** | `mod` | `PAN CV` |
+| | Zufalls-Mutation Trigger | `mutateIn` | **IN** | `gate` | `MUTATE` |
+| **`hybrid_perc`** | Drum-Gate Eingang | `gateIn` | **IN** | `gate` | `GATE` |
+| | Tonhöhe 1V/Okt | `pitchIn` | **IN** | `pitch` | `PITCH` |
+| | Material/Timbre CV | `timbreCv` | **IN** | `mod` | `MATERIAL CV` |
+| | Ausklinglänge CV | `lengthCv` | **IN** | `mod` | `LENGTH CV` |
+| | Lautstärke VCA CV | `vcaCv` | **IN** | `mod` | `VCA CV` |
+| | Stereopanorama CV | `panCv` | **IN** | `mod` | `PAN CV` |
+| | Zufalls-Mutation Trigger | `mutateIn` | **IN** | `gate` | `MUTATE` |
+| **`resonator_garden`** | Anregungs-Gate Eingang | `gateIn` | **IN** | `gate` | `GATE` |
+| | Resonanz-Tonhöhe 1V/Okt | `pitchIn` | **IN** | `pitch` | `PITCH` |
+| | Material-Oberton CV | `materialCv` | **IN** | `mod` | `MATERIAL CV` |
+| | Resonanzdämpfung CV | `dampCv` | **IN** | `mod` | `DAMP CV` |
+| | Lautstärke VCA CV | `vcaCv` | **IN** | `mod` | `VCA CV` |
+| | Stereopanorama CV | `panCv` | **IN** | `mod` | `PAN CV` |
+| | Zufalls-Mutation Trigger | `mutateIn` | **IN** | `gate` | `MUTATE` |
+| **`spectral_swarm`** | Partikel-Gate Eingang | `gateIn` | **IN** | `gate` | `GATE` |
+| | Zentrum-Tonhöhe 1V/Okt | `pitchIn` | **IN** | `pitch` | `PITCH` |
+| | Schwarm-Zerstreuung Trigger | `scatterIn` | **IN** | `gate` | `SCATTER` |
+| | Schwarm-Bündelung Trigger | `gatherIn` | **IN** | `gate` | `GATHER` |
+| | Harmonie-Kohäsion CV | `cohesionCv` | **IN** | `mod` | `COHESION CV` |
+| | Lautstärke VCA CV | `vcaCv` | **IN** | `mod` | `VCA CV` |
+| | Stereopanorama CV | `panCv` | **IN** | `mod` | `PAN CV` |
+| | Zufalls-Mutation Trigger | `mutateIn` | **IN** | `gate` | `MUTATE` |
+| **`filter`** | Filter Cutoff Modulation | `cvCutoff` | **IN** | `mod` | `CUTOFF CV` |
+| **`delay`** | Echo-Verzögerungszeit CV | `cvTime` | **IN** | `mod` | `TIME CV` |
+| **`reverb`** | Hallanteil Modulation | `cvMix` | **IN** | `mod` | `MIX CV` |
+
+---
+
+#### 11.4.2 Exakte Definition der `extra`-Objekte im JSON
+
+Einige Module besitzen neben den Standard-Drehreglern (`values`) zusätzliche Parameter und Sequenzen, die im Objekt `extra` abgelegt werden:
+
+##### 1. Drone Maschine (`drone`)
+- **`extra.voices`:** Ein Array aus exakt 6 Booleans `[boolean x 6]`, das jede der 6 Schwebungs-Stimmen einzeln ein- oder ausschaltet.
+  - **Code-Fakt:** Der Schlüssel heißt im Code exakt `voices` (nicht `activeVoices`).
+  - Beispiel: `"extra": { "voices": [true, true, true, false, false, false] }`
+
+##### 2. Chord Glide (`chord_glide`)
+- **`extra.steps`:** Array von Akkordschritten, die sequenziell durchlaufen werden:
+  - `root`: Ganzzahl `0` bis `11` (0 = C, 1 = C#, 2 = D, ..., 9 = A, 11 = B).
+  - `type`: String eines gültigen Akkordtyps: `"m7"`, `"maj7"`, `"dom7"`, `"m9"`, `"maj9"`, `"add9"`, `"sus4"`, `"dim7"`, `"aug"`.
+  - `bars`: Taktlänge als Zahl (`0.25`, `0.5`, `1`, `2`, `4` oder `8` Takte).
+- **`extra.presetKey`:** String (z. B. `"custom"`, `"warm"`, `"ambient"`).
+- **`extra.voiceLeading`:** Number `1` (Smooth / minimaler Stimmweg) oder `0` (statische Grundstellung).
+- **`extra.voiceCount`:** Number `4`, `5` oder `6` (Anzahl gleichzeitiger Stimmen).
+- **`extra.holdCommon`:** Boolean `true` oder `false` (gemeinsame Töne zwischen Akkorden weiterklingen lassen).
+- **`extra.strum`:** Number `0` bis `150` (Arpeggio-Anschlagsverzögerung in Millisekunden).
+- **`extra.retrigger`:** Boolean `true` oder `false` (Hüllkurven bei jedem Akkord neu anstoßen).
+- **`extra.baseOctave`:** Number `2`, `3` oder `4` (Oktavbereich des Voicings, Standard: `3`).
+- **`extra.running`:** Boolean `true` oder `false` (Akkordfortschritt aktiv).
+
+##### 3. Step Sequencer (`sequencer`)
+- **`extra.steps`:** Array aus 8 Objekten `[{ "on": boolean, "deg": 0..7 }]`.
+- **`extra.running`:** Boolean `true` oder `false`.
+
+##### 4. Kanalzug aller Klangquellen (`SourceBase`)
+Für jedes Instrument (`felt_piano`, `violin`, `drone`, `pluck`, `fm_voice`, `bass`, `drum_rack`, `keys`, `noise`, `morph_voice`, `hybrid_perc`, `resonator_garden`, `spectral_swarm`, `chord_glide`) können die Aux-Sends im `extra`-Objekt vordefiniert werden:
+- **`extra.chPan`:** Number `-1.0` (voll links) bis `+1.0` (voll rechts).
+- **`extra.chDelay`:** Number `0.0` bis `1.0` (Anteil in das Master-Delay).
+- **`extra.chReverb`:** Number `0.0` bis `1.0` (Anteil in den Master-Hall).
+
+---
+
+#### 11.4.3 Performance Snapshots (`snapshots`) im Preset-JSON
+
+Wird ein JSON-Preset **ohne** `snapshots`-Objekt importiert, setzt SYNTHBOARD automatisch alle Snapshot-Slots 1–5 auf `null` zurück und deaktiviert `activeSlot`.
+
+Soll das Preset eigene vorbereitete Performance-Snapshots mitliefern, verwendet das JSON folgendes Format:
+
+```json
+"snapshots": {
+  "slots": {
+    "1": {
+      "name": "Intro (Gedämpft)",
+      "speed": 8,
+      "values": {
+        "chord_glide": { "cutoff": 900, "level": 0.65 },
+        "delay": { "mix": 0.25 },
+        "reverb": { "mix": 0.4 }
+      }
+    },
+    "2": {
+      "name": "Chorus (Offen & Weit)",
+      "speed": 8,
+      "values": {
+        "chord_glide": { "cutoff": 2200, "level": 0.85 },
+        "delay": { "mix": 0.45 },
+        "reverb": { "mix": 0.65 }
+      }
+    },
+    "3": null,
+    "4": null,
+    "5": null
+  },
+  "activeSlot": 1,
+  "currentSpeed": 8,
+  "filter": "all"
+}
+```
+
+---
+
+#### 11.4.4 Vollständiges, valides Beispiel-JSON
 
 ```json
 {
-  "name": "Mein erster Beat (100 BPM)",
+  "name": "Zwischen den Sternen – Chord Glide & Violin",
   "state": {
     "version": 2,
     "master": 0.85,
@@ -939,93 +1172,92 @@ Wenn eine KI direkt eine `.json`-Datei generieren soll, die über den Button **�
         "id": "master_clock",
         "enabled": true,
         "values": {
-          "tempo": 100,
-          "swing": 0.12,
+          "tempo": 74,
+          "swing": 0.04,
           "running": 1
         }
       },
       {
-        "type": "sequencer",
-        "id": "sequencer",
+        "type": "clock_divider",
+        "id": "clock_divider",
         "enabled": true,
-        "values": {
-          "tempo": 100,
-          "level": 0.0,
-          "decay": 0.45,
-          "cutoff": 1800,
-          "reso": 4,
-          "env": 0.6,
-          "chance": 1,
-          "wave": "sawtooth",
-          "division": 2,
-          "key": 9,
-          "scale": "minorPenta",
-          "octave": 48
-        },
-        "extra": {
-          "running": true,
-          "steps": [
-            { "on": true, "deg": 0 },
-            { "on": true, "deg": 2 },
-            { "on": false, "deg": 0 },
-            { "on": true, "deg": 4 },
-            { "on": false, "deg": 0 },
-            { "on": true, "deg": 3 },
-            { "on": true, "deg": 7 },
-            { "on": false, "deg": 0 }
-          ]
-        }
+        "values": {}
       },
       {
-        "type": "pluck",
-        "id": "pluck",
+        "type": "chord_glide",
+        "id": "chord_glide",
         "enabled": true,
         "values": {
           "level": 0.75,
-          "damp": 3600,
-          "decay": 1.6,
-          "overtone": 0.65,
-          "body": 0.35
+          "glide": 1.8,
+          "cutoff": 1500,
+          "detune": 10,
+          "attack": 1.0,
+          "release": 4.0,
+          "voiceLeading": 1,
+          "voiceCount": 5,
+          "clockDiv": 16
         },
         "extra": {
-          "chPan": 0.2,
-          "chDelay": 0.35,
+          "presetKey": "custom",
+          "running": true,
+          "voiceLeading": 1,
+          "voiceCount": 5,
+          "holdCommon": true,
+          "strum": 20,
+          "retrigger": false,
+          "baseOctave": 3,
+          "steps": [
+            { "root": 9, "type": "m7", "bars": 2 },
+            { "root": 5, "type": "maj7", "bars": 2 },
+            { "root": 0, "type": "maj7", "bars": 2 },
+            { "root": 7, "type": "add9", "bars": 2 }
+          ],
+          "chPan": 0.0,
+          "chDelay": 0.25,
+          "chReverb": 0.45
+        }
+      },
+      {
+        "type": "violin",
+        "id": "violin",
+        "enabled": true,
+        "values": {
+          "level": 0.7,
+          "bow": 0.45,
+          "vibrato": 0.35,
+          "vibRate": 5.2,
+          "glide": 0.3,
+          "brightness": 2400,
+          "body": 0.65,
+          "room": 0.4
+        },
+        "extra": {
+          "chPan": 0.15,
+          "chDelay": 0.3,
           "chReverb": 0.4
         }
       },
       {
-        "type": "bass",
-        "id": "bass",
+        "type": "drone",
+        "id": "drone",
         "enabled": true,
         "values": {
-          "level": 0.85,
-          "cutoff": 240,
-          "reso": 2.2,
-          "env": 0.55,
-          "decay": 0.4,
-          "sub": 0.75
+          "level": 0.45,
+          "root": 33,
+          "chord": "minor9",
+          "wave": "triangle",
+          "tone": 1200,
+          "detune": 6,
+          "sub": 0.5,
+          "fm": 0.02,
+          "drift": 0.3
         },
         "extra": {
-          "chPan": 0.0,
-          "chDelay": 0.0,
-          "chReverb": 0.08
-        }
-      },
-      {
-        "type": "drum_rack",
-        "id": "drum_rack",
-        "enabled": true,
-        "values": {
-          "level": 0.8,
-          "kDecay": 0.35,
-          "sSnap": 0.55,
-          "hDecay": 0.08,
-          "pTune": 320
-        },
-        "extra": {
-          "chPan": 0.0,
+          "voices": [true, true, true, false, false, false],
+          "chPan": -0.1,
           "chDelay": 0.1,
-          "chReverb": 0.15
+          "chReverb": 0.35
         }
       },
       {
@@ -1033,10 +1265,10 @@ Wenn eine KI direkt eine `.json`-Datei generieren soll, die über den Button **�
         "id": "delay",
         "enabled": true,
         "values": {
-          "time": 0.3,
-          "feedback": 0.45,
-          "tone": 3000,
-          "mod": 0.15,
+          "time": 0.48,
+          "feedback": 0.52,
+          "tone": 2400,
+          "mod": 0.22,
           "mix": 0.35,
           "mode": "pingpong"
         }
@@ -1046,41 +1278,36 @@ Wenn eine KI direkt eine `.json`-Datei generieren soll, die über den Button **�
         "id": "reverb",
         "enabled": true,
         "values": {
-          "decay": 6.5,
-          "damp": 0.45,
-          "tone": 5000,
-          "mix": 0.4
+          "decay": 8.0,
+          "damp": 0.5,
+          "predelay": 0.03,
+          "tone": 3500,
+          "mix": 0.45
         }
       }
     ],
     "cables": [
       {
-        "from": "master_clock:1/16",
-        "to": "sequencer:clockIn",
+        "from": "master_clock:clockOut",
+        "to": "chord_glide:clockIn",
         "color": "#06b6d4",
         "depth": 1
       },
       {
-        "from": "sequencer:gateOut",
-        "to": "pluck:gateIn",
-        "color": "#fbbf24",
+        "from": "master_clock:clockOut",
+        "to": "clock_divider:clockIn",
+        "color": "#06b6d4",
         "depth": 1
       },
       {
-        "from": "sequencer:pitchOut",
-        "to": "pluck:pitchIn",
+        "from": "chord_glide:rootOut",
+        "to": "violin:pitchIn",
         "color": "#a855f7",
         "depth": 1
       },
       {
-        "from": "master_clock:1/4",
-        "to": "drum_rack:trigKick",
-        "color": "#fbbf24",
-        "depth": 1
-      },
-      {
-        "from": "master_clock:1/4",
-        "to": "bass:gateIn",
+        "from": "chord_glide:gateOut",
+        "to": "violin:gateIn",
         "color": "#fbbf24",
         "depth": 1
       }

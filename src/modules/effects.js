@@ -258,7 +258,7 @@ export class ReverbModule extends EffectBase {
       case 'predelay': this.ramp(this.pre.delayTime, val); break;
       case 'tone': this.ramp(this.toneF.frequency, val); break;
       case 'mix': { const m = mixGains(val); this.ramp(this.dryMix.gain, m.dry); this.ramp(this.wetMix.gain, m.wet * 1.1); break; }
-      case 'decay': case 'damp': if (this.conv) this.buildIR(); break;
+      case 'decay': case 'damp': if (this.conv && !this.patchSystem?.engine?.isMorphing) this.buildIR(); break;
     }
   }
 

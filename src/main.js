@@ -993,6 +993,12 @@ $('#file-import')?.addEventListener('change', async (e) => {
     const data = JSON.parse(await file.text());
     const state = data.state || data;
     if (!Array.isArray(state.modules)) throw new Error('Kein gültiges Board');
+
+    // Wenn kein explizites snapshots-Objekt im JSON vorhanden ist, Snapshots zurücksetzen
+    if (!state.snapshots || typeof state.snapshots !== 'object' || !state.snapshots.slots) {
+      state.snapshots = null;
+    }
+
     normalizePatchState(state);
     const boards = loadBoards();
     const baseName = (data.name || file.name.replace(/\..*$/, '')).trim();
@@ -1284,6 +1290,19 @@ function normalizePatchState(state) {
       }
     }
   }
+
+  // Kabel bereinigen: Keine Duplikate auf denselben Eingang zulassen (erstes definiertes Kabel hat Vorrang)
+  if (Array.isArray(state.cables)) {
+    const occupiedInputs = new Set();
+    state.cables = state.cables.filter((c) => {
+      if (!c || !c.from || !c.to) return false;
+      const toKey = String(c.to).trim().toLowerCase();
+      if (occupiedInputs.has(toKey)) return false;
+      occupiedInputs.add(toKey);
+      return true;
+    });
+  }
+
   return state;
 }
 

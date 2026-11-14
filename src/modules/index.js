@@ -198,9 +198,18 @@ export class RackEngine {
   }
 
   findByType(type) {
-    return this.controls.find((m) => m.meta.type === type) ||
-           this.sources.find((m) => m.meta.type === type) ||
-           this.effects.find((m) => m.meta.type === type);
+    if (!type) return null;
+    const t = String(type).toLowerCase();
+    const aliasMap = {
+      'probability_gate': 'prob_gate',
+      'prob_gate': 'prob_gate',
+      'scale_quantizer': 'quantizer',
+      'quantizer': 'quantizer',
+    };
+    const targetType = aliasMap[t] || t;
+    return this.controls.find((m) => m.meta.type === targetType || m.meta.type === t) ||
+           this.sources.find((m) => m.meta.type === targetType || m.meta.type === t) ||
+           this.effects.find((m) => m.meta.type === targetType || m.meta.type === t);
   }
 
   /** Effektkette & Aux-Sends sauber verdrahten */
@@ -269,6 +278,7 @@ export class RackEngine {
     this.controls = [];
     this.sources = [];
     this.effects = [];
+    this.snapshotSystem?.clear?.();
   }
 
   load(state) {
@@ -280,8 +290,12 @@ export class RackEngine {
       this.patchSystem.loadState(state.cables);
       setTimeout(() => this.patchSystem.onConnectionsChanged?.(), 30);
     }
-    if (state?.snapshots && this.snapshotSystem) {
-      this.snapshotSystem.loadState(state.snapshots);
+    if (this.snapshotSystem) {
+      if (state?.snapshots && typeof state.snapshots === 'object' && Object.keys(state.snapshots).length > 0) {
+        this.snapshotSystem.loadState(state.snapshots);
+      } else {
+        this.snapshotSystem.clear();
+      }
     }
     if (state?.focusDock && this.focusDock) {
       setTimeout(() => this.focusDock.loadState(state.focusDock, this), 50);
