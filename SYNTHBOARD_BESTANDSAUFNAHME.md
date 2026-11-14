@@ -3,7 +3,7 @@
 > **Zweck dieses Dokuments:**  
 > Dieses Dokument bietet einer externen KI oder einem Musiker eine lückenlose, technisch exakte Übersicht aller tatsächlich im Code implementierten Funktionen von **SYNTHBOARD**. Es dient als verbindliche Wissensbasis, um Schritt für Schritt beim Sounddesign, Patching, Beatbauen und bei Live-Performances anzuleiten, ohne den Quellcode lesen zu müssen.
 >
-> **Stand:** Codebasis nach Bereinigung (31 Module, Snapshot-System, 5-Slot Focus Dock, Tastatur-Workflow, 14 Beispiel-Boards).
+> **Stand:** Codebasis nach Bereinigung (33 Module, Snapshot-System, 5-Slot Focus Dock, Tastatur-Workflow, 14 Beispiel-Boards).
 
 ---
 
@@ -12,8 +12,8 @@
 2. [Bedienoberfläche, Steuerung & Interaktion](#2-bedienoberfläche-steuerung--interaktion)
 3. [Das modulare Patch-System (Kabel, Signaltypen & Modulationsstärke)](#3-das-modulare-patch-system-kabel-signaltypen--modulationsstärke)
 4. [Kanalzug & Mixer-Architektur jeder Klangquelle](#4-kanalzug--mixer-architektur-jeder-klangquelle)
-5. [Vollständiger Modulkatalog (31 Module)](#5-vollständiger-modulkatalog-31-module)
-   - 5.1 [Steuerung & Rhythmus (10 Module)](#51-steuerung--rhythmus-10-module)
+5. [Vollständiger Modulkatalog (33 Module)](#5-vollständiger-modulkatalog-33-module)
+   - 5.1 [Steuerung & Rhythmus (12 Module)](#51-steuerung--rhythmus-12-module)
    - 5.2 [Klangquellen & Instrumente (15 Module)](#52-klangquellen--instrumente-15-module)
    - 5.3 [Effektkette (6 Module)](#53-effektkette-6-module)
 6. [Presets, Boards & Performance Snapshot-System](#6-presets-boards--performance-snapshot-system)
@@ -133,9 +133,9 @@ Jede Klangquelle (`SourceBase`) besitzt am unteren Rand einen vollwertigen Stere
 
 ---
 
-## 5. Vollständiger Modulkatalog (31 Module)
+## 5. Vollständiger Modulkatalog (33 Module)
 
-### 5.1 Steuerung & Rhythmus (10 Module)
+### 5.1 Steuerung & Rhythmus (12 Module)
 
 #### 1. Master Clock (`master_clock`)
 - **Zweck:** Das rhythmische Herz des Racks. Erzeugt hochpräzise BPM-Takte und Swing.
@@ -251,12 +251,13 @@ Jede Klangquelle (`SourceBase`) besitzt am unteren Rand einen vollwertigen Stere
   - `Zyklus` (`loop`): 0 (Aus) oder 1 (Ein)
 - **Buchsen:**
   - `TRIG IN` (`trigIn`) [IN, Gate]: Startet Hüllkurve
-  - `MOD RISE` (`riseCv`) [IN, Mod]: Moduliert Anstiegszeit
-  - `MOD FALL` (`fallCv`) [IN, Mod]: Moduliert Abfallzeit
+  - `GATE IN` (`gateIn`) [IN, Gate]: Hält Sustain im Gate-Modus
+  - `RISE CV` (`modRise`) [IN, Mod]: Moduliert Anstiegszeit (0.05s bis 60s)
+  - `FALL CV` (`modFall`) [IN, Mod]: Moduliert Abfallzeit (0.05s bis 60s)
   - `ENV OUT` (`envOut`) [OUT, Mod]: Hüllkurven-Ausgang (0..1)
   - `INV OUT` (`invOut`) [OUT, Mod]: Invertierte Hüllkurve
-  - `EOR` (`eorOut`) [OUT, Gate]: End of Rise Trigger (wenn Anstieg abgeschlossen ist)
-  - `EOF` (`eofOut`) [OUT, Gate]: End of Fall Trigger (wenn Abfall abgeschlossen ist)
+  - `EOR OUT` (`eorOut`) [OUT, Gate]: End of Rise Trigger (wenn Anstieg abgeschlossen ist)
+  - `EOF OUT` (`eofOut`) [OUT, Gate]: End of Fall Trigger (sobald Abfall abgeschlossen ist und Pegel 0 erreicht)
 
 #### 10. Attenuverter & Offset (`attenuverter`)
 - **Zweck:** Präzises Skalieren, Invertieren und Verschieben zweier CV-Spannungen inklusive Summierung.
@@ -270,7 +271,39 @@ Jede Klangquelle (`SourceBase`) besitzt am unteren Rand einen vollwertigen Stere
   - `IN B` (`inB`) [IN, Mod]
   - `OUT A` (`outA`) [OUT, Mod]
   - `OUT B` (`outB`) [OUT, Mod]
-  - `A+B SUM` (`sumOut`) [OUT, Mod]: Summe beider verarbeiteten Spannungen
+  - `SUM OUT` (`sumOut`) [OUT, Mod]: Summe beider verarbeiteten Spannungen
+
+#### 11. CV Logic & Switch (`logic_switch`)
+- **Zweck:** Drei unverzichtbare Logik- und Routing-Werkzeuge in einem kompakten Steuermodul:
+  1. **A/B Gate Router:** Leitet ein Gate abhängig von einer Steuerspannung an Kanal A oder B weiter.
+  2. **Flip-Flop / Latch:** Toggelt eine Steuerspannung bei jedem Trigger-Impuls zwischen 0.0V (LOW) und 1.0V (HIGH) hin und her (inkl. Reset-Eingang).
+  3. **Boolean Gate Combiner:** Kombiniert zwei Gate-Eingänge über echte Boolesche Logik (`AND` und `OR`).
+- **Regler:**
+  - `Schwelle` (`thresh`): 0% bis 100% (Standard: 50% / 0.5) – Schaltschwelle für den A/B-Router.
+- **Buchsen:**
+  - `GATE IN` (`gateIn`) [IN, Gate]: Eingehendes Gate-Signal für den A/B-Router
+  - `CTRL CV` (`ctrlCv`) [IN, Mod]: Modulations-Steuerspannung für den Router
+  - `PASS A` (`passOut`) [OUT, Gate]: Leitet `gateIn` weiter, wenn `ctrlCv >= thresh`
+  - `INV B` (`invPassOut`) [OUT, Gate]: Leitet `gateIn` weiter, wenn `ctrlCv < thresh`
+  - `TOGGLE IN` (`toggleIn`) [IN, Gate]: Wechselt den Zustand des Flip-Flops (0.0V ↔ 1.0V)
+  - `RESET` (`resetIn`) [IN, Gate]: Setzt das Flip-Flop sofort auf 0.0V zurück
+  - `LATCH CV` (`stateOut`) [OUT, Mod]: Gehaltene Schaltspannung (0.0V oder 1.0V)
+  - `IN 1` (`in1`) [IN, Gate]: Erster Gate-Eingang für den Combiner
+  - `IN 2` (`in2`) [IN, Gate]: Zweiter Gate-Eingang für den Combiner
+  - `AND OUT` (`andOut`) [OUT, Gate]: Sendet Trigger nur wenn IN 1 und IN 2 gleichzeitig aktiv sind
+  - `OR OUT` (`orOut`) [OUT, Gate]: Sendet Trigger wenn mindestens einer der beiden Eingänge triggert
+
+#### 12. Snapshot Controller (`snapshot_ctrl`)
+- **Zweck:** Ermöglicht das automatisierte, musiksynchrone Umschalten der 5 Performance-Snapshots per Patchkabel (z. B. getaktet über Clock Divider, Sequencer oder LFO).
+- **Funktion:** Jeder Trigger löst den regulären Snapshot-Wechsel inklusive der im Snapshot-System eingestellten Morph-Geschwindigkeit (Direkt, Glide oder Slow Morph) aus.
+- **Buchsen:**
+  - `SLOT 1` (`slot1In`) [IN, Gate]: Aktiviert Performance-Snapshot 1
+  - `SLOT 2` (`slot2In`) [IN, Gate]: Aktiviert Performance-Snapshot 2
+  - `SLOT 3` (`slot3In`) [IN, Gate]: Aktiviert Performance-Snapshot 3
+  - `SLOT 4` (`slot4In`) [IN, Gate]: Aktiviert Performance-Snapshot 4
+  - `SLOT 5` (`slot5In`) [IN, Gate]: Aktiviert Performance-Snapshot 5
+  - `NEXT` (`nextIn`) [IN, Gate]: Schreitet zyklisch zum nächsten Snapshot (1 ➔ 2 ➔ 3 ➔ 4 ➔ 5 ➔ 1) voran
+  - `RESET` (`resetIn`) [IN, Gate]: Setzt per Impuls auf Snapshot 1 zurück
 
 ---
 
@@ -747,7 +780,7 @@ Oben im Rack befindet sich die Leiste `PRESET SLOTS (1–5)`:
 
 | Funktion / Modul | Status | Bemerkungen |
 |---|---|---|
-| **Alle 31 Module** | ✅ **Voll funktionsfähig** | Alle Parameter, Jacks und Synthesestufen berechnen echtes Audio in Web Audio. |
+| **Alle 33 Module** | ✅ **Voll funktionsfähig** | Alle Parameter, Jacks und Synthesestufen berechnen echtes Audio in Web Audio. |
 | **Kabel-Patchbay** | ✅ **Voll funktionsfähig** | Farbcodierung, Drag & Drop, LED-Aktivitätsanzeige, Mehrfach-Ausgänge. |
 | **Kabel-Modulationsstärke** | ✅ **Voll funktionsfähig** | 0% bis 200% Depth per Drag/Wheel auf dem Kabelbadge einstellbar. |
 | **VCA & Pan CV pro Stimme** | ✅ **Voll funktionsfähig** | Jede Quelle reagiert auf VCA- und Pan-Modulation. |
@@ -755,7 +788,7 @@ Oben im Rack befindet sich die Leiste `PRESET SLOTS (1–5)`:
 | **Snapshot-Morphing** | ✅ **Voll funktionsfähig** | 5 Slots, 3 Geschwindigkeiten (0s / 0.8s / 3.5s), inkl. Dropdown-Interpolation. |
 | **Audio-Patching per Kabel** | ⚠️ **Teilweise / Speziell** | Kabel sind für Steuer- und Modulationssignale (Clock, Gate, Pitch, CV). Der Audiofluss erfolgt fest über die Quell-Kanalzüge zur Master-Effektkette (kein freies Audio-Feedback per Kabel). |
 | **Freie Sample-WAV-Lader** | ❌ **Nicht implementiert** | Es gibt keinen WAV-Sampler/Field-Recorder. Rauschen/Knistern wird vom Modul `noise` synthetisiert. |
-| **Triggerbare Slotwechsel** | ❌ **Nicht implementiert** | Snapshot-Slots können manuell per Klick oder Tastatur (1–5) gewechselt werden, besitzen aber noch keine CV-Triggerbuchse. |
+| **Triggerbare Slotwechsel** | ✅ **Voll implementiert** | Automatische Umschaltung der 5 Performance-Slots per Gate/CV-Trigger über das Modul `snapshot_ctrl` (Slots 1–5, Next, Reset) inkl. eingestellter Morph-Speed. |
 
 ---
 
@@ -914,8 +947,8 @@ TIPP: [1 praktischer Tipp für die Performance oder das Schrauben am Sound]
 ```
 
 ### 11.2 Gültige Bezeichner (Auszug für schnelle Referenz)
-- **Modul-IDs (31 Module):**
-  - **Steuerung & Rhythmus (10):** `master_clock`, `clock_divider`, `euclidean`, `prob_gate`, `random_walk`, `quantizer`, `slow_random`, `macro`, `slope_generator`, `attenuverter`.
+- **Modul-IDs (33 Module):**
+  - **Steuerung & Rhythmus (12):** `master_clock`, `clock_divider`, `euclidean`, `prob_gate`, `random_walk`, `quantizer`, `slow_random`, `macro`, `slope_generator`, `attenuverter`, `logic_switch`, `snapshot_ctrl`.
   - **Klangquellen & Instrumente (15):** `chord_glide`, `violin`, `felt_piano`, `drone`, `pluck`, `fm_voice`, `bass`, `drum_rack`, `keys`, `sequencer`, `noise`, `morph_voice`, `hybrid_perc`, `resonator_garden`, `spectral_swarm`.
   - **Effekte (6):** `filter`, `chorus`, `tremolo`, `lofi`, `delay`, `reverb`.
 - **Signaltypen:** `clock` (Cyan), `gate` (Amber), `pitch` (Violett), `mod` (Grün), `audio` (Blau).
@@ -933,7 +966,7 @@ Sobald ein Block im Format ````synthboard-patch ... ```` hier im Chat eingefügt
 > **Verbindliche Buchsen-Regel für das `cables`-Array im JSON:**  
 > Im JSON-Array `cables` müssen **immer die exakten internen Jack-IDs** (`id`) verwendet werden (z. B. `master_clock:clockOut` statt `master_clock:1/16` und `clock_divider:div4Out` statt `clock_divider:/4 (1/4)`). Der SYNTHBOARD-Importer besitzt zwar für Labels eine automatische Erkennung, für 100 % fehlerfreie und reproduzierbare Patches dürfen externe KIs jedoch ausschließlich die kanonischen Buchsen-IDs aus der folgenden Tabelle verwenden!
 
-#### 11.4.1 Buchsen-Referenztabelle (Alle 31 Module)
+#### 11.4.1 Buchsen-Referenztabelle (Alle 33 Module)
 
 | Modul-ID | Buchsen-Name & Funktion | Interne Buchsen-ID (`id` für JSON) | Richtung | Signal-Typ | Label auf UI |
 |---|---|---|---|---|---|
@@ -979,11 +1012,30 @@ Sobald ein Block im Format ````synthboard-patch ... ```` hier im Chat eingefügt
 | | Hüllkurven-Ausgang | `envOut` | **OUT** | `mod` | `ENV OUT` |
 | | Invertierte Hüllkurve (Ducking) | `invOut` | **OUT** | `mod` | `INV OUT` |
 | | End of Rise (EOR) Gate | `eorOut` | **OUT** | `gate` | `EOR OUT` |
+| | End of Fall (EOF) Gate | `eofOut` | **OUT** | `gate` | `EOF OUT` |
 | **`attenuverter`** | Eingang Signal A | `inA` | **IN** | `mod` | `IN A` |
 | | Skalierter Ausgang A | `outA` | **OUT** | `mod` | `OUT A` |
 | | Eingang Signal B | `inB` | **IN** | `mod` | `IN B` |
 | | Skalierter Ausgang B | `outB` | **OUT** | `mod` | `OUT B` |
 | | Summen-Ausgang (A + B) | `sumOut` | **OUT** | `mod` | `SUM OUT` |
+| **`logic_switch`** | Router Gate Eingang | `gateIn` | **IN** | `gate` | `GATE IN` |
+| | Router Schwellenwert-CV | `ctrlCv` | **IN** | `mod` | `CTRL CV` |
+| | Router Ausgang A (ctrlCv >= Thresh) | `passOut` | **OUT** | `gate` | `PASS A` |
+| | Router Ausgang B (ctrlCv < Thresh) | `invPassOut` | **OUT** | `gate` | `INV B` |
+| | Latch Toggle Gate Eingang | `toggleIn` | **IN** | `gate` | `TOGGLE IN` |
+| | Latch Reset Eingang | `resetIn` | **IN** | `gate` | `RESET` |
+| | Latch State CV Ausgang (0.0 / 1.0) | `stateOut` | **OUT** | `mod` | `LATCH CV` |
+| | Combiner Eingang 1 | `in1` | **IN** | `gate` | `IN 1` |
+| | Combiner Eingang 2 | `in2` | **IN** | `gate` | `IN 2` |
+| | Combiner AND Ausgang | `andOut` | **OUT** | `gate` | `AND OUT` |
+| | Combiner OR Ausgang | `orOut` | **OUT** | `gate` | `OR OUT` |
+| **`snapshot_ctrl`** | Snapshot Slot 1 Trigger | `slot1In` | **IN** | `gate` | `SLOT 1` |
+| | Snapshot Slot 2 Trigger | `slot2In` | **IN** | `gate` | `SLOT 2` |
+| | Snapshot Slot 3 Trigger | `slot3In` | **IN** | `gate` | `SLOT 3` |
+| | Snapshot Slot 4 Trigger | `slot4In` | **IN** | `gate` | `SLOT 4` |
+| | Snapshot Slot 5 Trigger | `slot5In` | **IN** | `gate` | `SLOT 5` |
+| | Nächster Snapshot (1->5 Loop) | `nextIn` | **IN** | `gate` | `NEXT` |
+| | Reset auf Snapshot Slot 1 | `resetIn` | **IN** | `gate` | `RESET` |
 | **`chord_glide`** | Takt-Clock Eingang | `clockIn` | **IN** | `clock` | `CLOCK` |
 | | Reset auf Schritt 1 | `resetIn` | **IN** | `gate` | `RESET` |
 | | Nächster Akkord Trigger | `nextTrig` | **IN** | `gate` | `NEXT` |

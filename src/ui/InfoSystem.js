@@ -63,6 +63,8 @@ export const JACK_HELP = {
   'slope_generator:modFall': { name: 'Fall CV Eingang', desc: 'Moduliert die Abfallzeit (0.05s bis 60s) dynamisch von außen.' },
   'slope_generator:envOut': { name: 'Hüllkurve Ausgang', desc: 'Gibt die positive Hüllkurve (0.0 bis 1.0) nach Skalierung und Offset aus. Ideal für bis zu 60s lange Ambient-Swells!' },
   'slope_generator:invOut': { name: 'Invertierter Ausgang', desc: 'Gibt die umgekehrte Hüllkurve (1.0 bis 0.0) aus – perfekt für Sidechain-Ducking ohne Kompressor!' },
+  'slope_generator:eorOut': { name: 'End-Of-Rise Trigger (EOR)', desc: 'Sendet einen Gate-Trigger, sobald die Anstiegsphase (Rise) ihren Scheitelpunkt erreicht.' },
+  'slope_generator:eofOut': { name: 'End-Of-Fall Trigger (EOF)', desc: 'Sendet einen Gate-Trigger am Ende der Abklingphase (Fall), sobald der Pegel 0 erreicht.' },
   'slope_generator:eocOut': { name: 'End-Of-Cycle Trigger', desc: 'Sendet einen Trigger-Puls, sobald die Hüllkurve fertig abgeklungen ist. Ermöglicht Kaskaden mehrerer Hüllkurven!' },
 
   // Attenuverter & Offset
@@ -71,6 +73,28 @@ export const JACK_HELP = {
   'attenuverter:inB': { name: 'Eingang B', desc: 'Eingehendes CV-Signal für Kanal B.' },
   'attenuverter:outB': { name: 'Ausgang B', desc: 'Skalierter Ausgang B.' },
   'attenuverter:sumOut': { name: 'Summen-Ausgang', desc: 'Mischung aus Ausgang A + Ausgang B.' },
+
+  // CV Logic & Switch
+  'logic_switch:gateIn': { name: 'Gate Eingang', desc: 'Das einzuspeisende Gate/Trigger-Signal für den A/B-Umschalter.' },
+  'logic_switch:ctrlCv': { name: 'Steuerspannung (CV)', desc: 'Steuerspannung für den Router: Bei CV >= Schwelle geht das Gate an PASS A, sonst an INV B.' },
+  'logic_switch:passOut': { name: 'Pass A Ausgang', desc: 'Leitet Gate IN weiter, solange CTRL CV >= Schwelle ist.' },
+  'logic_switch:invPassOut': { name: 'Inv B Ausgang', desc: 'Leitet Gate IN weiter, solange CTRL CV < Schwelle ist.' },
+  'logic_switch:toggleIn': { name: 'Toggle Eingang', desc: 'Jeder Trigger wechselt den Zustand des Flip-Flops (0.0V ↔ 1.0V).' },
+  'logic_switch:resetIn': { name: 'Reset Eingang', desc: 'Setzt den Latch-Zustand sofort auf 0.0V zurück.' },
+  'logic_switch:stateOut': { name: 'Latch CV Ausgang', desc: 'Gibt die gehaltene Schaltspannung (0.0V oder 1.0V) als Modulations-CV aus.' },
+  'logic_switch:in1': { name: 'Gate Eingang 1', desc: 'Erster Eingang für den Boolean-Gate-Kombinierer.' },
+  'logic_switch:in2': { name: 'Gate Eingang 2', desc: 'Zweiter Eingang für den Boolean-Gate-Kombinierer.' },
+  'logic_switch:andOut': { name: 'AND Ausgang (&)', desc: 'Gibt nur dann einen Trigger aus, wenn IN 1 und IN 2 gleichzeitig aktiv sind.' },
+  'logic_switch:orOut': { name: 'OR Ausgang (≥1)', desc: 'Gibt einen Trigger aus, sobald mindestens einer der beiden Eingänge triggert.' },
+
+  // Snapshot Controller
+  'snapshot_ctrl:slot1In': { name: 'Trigger Slot 1', desc: 'Schaltet das gesamte Rack per Impuls auf Performance-Snapshot 1 um.' },
+  'snapshot_ctrl:slot2In': { name: 'Trigger Slot 2', desc: 'Schaltet das gesamte Rack per Impuls auf Performance-Snapshot 2 um.' },
+  'snapshot_ctrl:slot3In': { name: 'Trigger Slot 3', desc: 'Schaltet das gesamte Rack per Impuls auf Performance-Snapshot 3 um.' },
+  'snapshot_ctrl:slot4In': { name: 'Trigger Slot 4', desc: 'Schaltet das gesamte Rack per Impuls auf Performance-Snapshot 4 um.' },
+  'snapshot_ctrl:slot5In': { name: 'Trigger Slot 5', desc: 'Schaltet das gesamte Rack per Impuls auf Performance-Snapshot 5 um.' },
+  'snapshot_ctrl:nextIn': { name: 'Trigger Nächster Slot', desc: 'Schreitet zyklisch zum nächsten Snapshot (1 bis 5) voran.' },
+  'snapshot_ctrl:resetIn': { name: 'Trigger Reset', desc: 'Setzt das Rack per Impuls auf Snapshot 1 zurück.' },
 
   // Drone
   'drone:gateIn': { name: 'Gate / Swell In', desc: 'Triggert ein sanftes Anschwellen der Drone-Akkorde.' },

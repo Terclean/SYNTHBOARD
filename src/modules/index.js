@@ -8,7 +8,8 @@ import { ChordGlideModule } from './chordGlide.js';
 import {
   MasterClockModule, ClockDividerModule, EuclideanModule,
   ProbabilityGateModule, RandomWalkModule, ScaleQuantizerModule,
-  SlowRandomModule, MacroControllerModule, SlopeGeneratorModule, AttenuverterModule
+  SlowRandomModule, MacroControllerModule, SlopeGeneratorModule, AttenuverterModule,
+  LogicSwitchModule, SnapshotControllerModule
 } from './controls.js';
 import { FilterModule, DelayModule, ReverbModule, ChorusModule, TremoloModule, LoFiModule } from './effects.js';
 import { PatchSystem } from './patchSystem.js';
@@ -19,6 +20,7 @@ export const MODULES = Object.fromEntries(
     MasterClockModule, ClockDividerModule, EuclideanModule,
     ProbabilityGateModule, RandomWalkModule, ScaleQuantizerModule,
     SlowRandomModule, MacroControllerModule, SlopeGeneratorModule, AttenuverterModule,
+    LogicSwitchModule, SnapshotControllerModule,
 
     // Instrumente & Klangquellen
     ChordGlideModule, ViolinModule, FeltPianoModule, DroneModule, PluckModule, FmVoiceModule, BassModule,
@@ -96,6 +98,7 @@ export class RackEngine {
     const M = MODULES[type];
     if (!M) return null;
     const mod = new M(this.ctx, state);
+    mod.engine = this;
     mod.patchSystem = this.patchSystem;
 
     if (M.category === 'control') {

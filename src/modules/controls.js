@@ -714,6 +714,8 @@ export class SlopeGeneratorModule extends ModuleBase {
     { id: 'modFall', type: 'in', signal: 'mod', label: 'FALL CV' },
     { id: 'envOut', type: 'out', signal: 'mod', label: 'ENV OUT' },
     { id: 'invOut', type: 'out', signal: 'mod', label: 'INV OUT' },
+    { id: 'eorOut', type: 'out', signal: 'gate', label: 'EOR OUT' },
+    { id: 'eofOut', type: 'out', signal: 'gate', label: 'EOF OUT' },
     { id: 'eocOut', type: 'out', signal: 'gate', label: 'EOC OUT' },
   ];
 
@@ -786,6 +788,7 @@ export class SlopeGeneratorModule extends ModuleBase {
 
       if (linearP >= 1) {
         this.currentVal = 1.0;
+        this.emitTrigger('eorOut', now, 1.0, 0.05);
         if (this.values.mode === 'gate' && this.gateHeld) {
           this.stage = 'sustain';
         } else {
@@ -801,6 +804,7 @@ export class SlopeGeneratorModule extends ModuleBase {
       if (linearP >= 1) {
         this.currentVal = 0;
         this.stage = 'idle';
+        this.emitTrigger('eofOut', now, 1.0, 0.05);
         this.emitTrigger('eocOut', now, 1.0, 0.05);
 
         if (this.values.mode === 'loop') {
@@ -918,6 +922,246 @@ export class AttenuverterModule extends ModuleBase {
   destroy() {
     clearInterval(this.timer);
     super.destroy();
+  }
+}
+
+// ───────────────────────────────────────────── 11. CV LOGIC & SWITCH ──
+export class LogicSwitchModule extends ModuleBase {
+  static type = 'logic_switch';
+  static title = 'CV Logic & Switch';
+  static category = 'control';
+  static color = '#14b8a6';
+  static icon = '⎇';
+  static description = 'A/B Gate Router, Flip-Flop Latch & Boolean Gate Combiner';
+  static params = [
+    { id: 'thresh', label: 'Schwelle', min: 0, max: 1, value: 0.5, fmt: 'pct' },
+  ];
+  static options = [];
+  static jacks = [
+    { id: 'gateIn', type: 'in', signal: 'gate', label: 'GATE IN' },
+    { id: 'ctrlCv', type: 'in', signal: 'mod', label: 'CTRL CV' },
+    { id: 'passOut', type: 'out', signal: 'gate', label: 'PASS A' },
+    { id: 'invPassOut', type: 'out', signal: 'gate', label: 'INV B' },
+
+    { id: 'toggleIn', type: 'in', signal: 'gate', label: 'TOGGLE IN' },
+    { id: 'resetIn', type: 'in', signal: 'gate', label: 'RESET' },
+    { id: 'stateOut', type: 'out', signal: 'mod', label: 'LATCH CV' },
+
+    { id: 'in1', type: 'in', signal: 'gate', label: 'IN 1' },
+    { id: 'in2', type: 'in', signal: 'gate', label: 'IN 2' },
+    { id: 'andOut', type: 'out', signal: 'gate', label: 'AND OUT' },
+    { id: 'orOut', type: 'out', signal: 'gate', label: 'OR OUT' },
+  ];
+
+  constructor(ctx, state = {}) {
+    super(ctx, state);
+    this.currentCv = 0.5;
+    this.latchState = 0.0;
+    this.gate1ActiveUntil = 0;
+    this.gate2ActiveUntil = 0;
+    this.lastGate1Time = 0;
+    this.lastGate2Time = 0;
+    this.initValues(state);
+
+    // Periodischer Latch-Emitter (30ms), damit Zielmodule stabil mit der Latch-Spannung versorgt sind
+    this.timer = setInterval(() => {
+      if (this.enabled) {
+        this.emitMod('stateOut', this.latchState, this.ctx.currentTime);
+      }
+    }, 30);
+  }
+
+  onModulation(portId, value, _time) {
+    if (portId === 'ctrlCv') {
+      this.currentCv = Math.max(0, Math.min(1, value));
+      this.updateRouterUi?.(this.currentCv);
+    }
+  }
+
+  onTrigger(portId, time, velocity = 1, duration = 0.1, meta = null) {
+    if (!this.enabled) return;
+    const now = time || this.ctx.currentTime;
+    const dur = duration || 0.1;
+
+    // 1. A/B Gate Router
+    if (portId === 'gateIn') {
+      const thresh = this.values.thresh ?? 0.5;
+      if (this.currentCv >= thresh) {
+        this.emitTrigger('passOut', now, velocity, dur, meta);
+        this.flashLed?.('pass');
+      } else {
+        this.emitTrigger('invPassOut', now, velocity, dur, meta);
+        this.flashLed?.('invPass');
+      }
+    }
+
+    // 2. Flip-Flop / Latch
+    else if (portId === 'toggleIn') {
+      this.latchState = this.latchState > 0.5 ? 0.0 : 1.0;
+      this.emitMod('stateOut', this.latchState, now);
+      this.updateLatchUi?.(this.latchState);
+    } else if (portId === 'resetIn') {
+      this.latchState = 0.0;
+      this.emitMod('stateOut', 0.0, now);
+      this.updateLatchUi?.(0.0);
+    }
+
+    // 3. Gate Combiner (AND / OR)
+    else if (portId === 'in1' || portId === 'in2') {
+      // OR gibt jeden eingehenden Impuls sofort aus
+      this.emitTrigger('orOut', now, velocity, dur, meta);
+      this.flashLed?.('or');
+
+      if (portId === 'in1') {
+        this.gate1ActiveUntil = now + dur;
+        this.lastGate1Time = now;
+        if (now < this.gate2ActiveUntil + 0.005 || Math.abs(now - this.lastGate2Time) < 0.02) {
+          this.emitTrigger('andOut', now, velocity, dur, meta);
+          this.flashLed?.('and');
+        }
+      } else if (portId === 'in2') {
+        this.gate2ActiveUntil = now + dur;
+        this.lastGate2Time = now;
+        if (now < this.gate1ActiveUntil + 0.005 || Math.abs(now - this.lastGate1Time) < 0.02) {
+          this.emitTrigger('andOut', now, velocity, dur, meta);
+          this.flashLed?.('and');
+        }
+      }
+    }
+  }
+
+  renderExtra(el) {
+    el.innerHTML = `
+      <div class="logic-switch-display">
+        <div class="ls-col">
+          <span class="ls-lbl">ROUTER A/B</span>
+          <div class="ls-pills">
+            <span class="ls-pill pill-a active">PASS A</span>
+            <span class="ls-pill pill-b">INV B</span>
+          </div>
+        </div>
+        <div class="ls-col">
+          <span class="ls-lbl">LATCH</span>
+          <div class="ls-val val-latch">0.0V (LOW)</div>
+        </div>
+        <div class="ls-col">
+          <span class="ls-lbl">COMBINER</span>
+          <div class="ls-pills">
+            <span class="ls-pill pill-and">&amp; AND</span>
+            <span class="ls-pill pill-or">≥1 OR</span>
+          </div>
+        </div>
+      </div>
+    `;
+    const pillA = el.querySelector('.pill-a');
+    const pillB = el.querySelector('.pill-b');
+    const valLatch = el.querySelector('.val-latch');
+    const pillAnd = el.querySelector('.pill-and');
+    const pillOr = el.querySelector('.pill-or');
+
+    this.updateRouterUi = (cv) => {
+      const isA = cv >= (this.values.thresh ?? 0.5);
+      if (pillA) pillA.classList.toggle('active', isA);
+      if (pillB) pillB.classList.toggle('active', !isA);
+    };
+
+    this.updateLatchUi = (st) => {
+      if (valLatch) {
+        valLatch.textContent = st > 0.5 ? '1.0V (HIGH)' : '0.0V (LOW)';
+        valLatch.classList.toggle('active', st > 0.5);
+      }
+    };
+
+    this.flashLed = (type) => {
+      const target = type === 'pass' ? pillA : type === 'invPass' ? pillB : type === 'and' ? pillAnd : pillOr;
+      if (target) {
+        target.classList.add('flash');
+        setTimeout(() => target.classList.remove('flash'), 120);
+      }
+    };
+
+    this.updateRouterUi(this.currentCv);
+    this.updateLatchUi(this.latchState);
+  }
+
+  destroy() {
+    clearInterval(this.timer);
+    super.destroy();
+  }
+}
+
+// ───────────────────────────────────────────── 12. SNAPSHOT CONTROLLER ──
+export class SnapshotControllerModule extends ModuleBase {
+  static type = 'snapshot_ctrl';
+  static title = 'Snapshot Controller';
+  static category = 'control';
+  static color = '#f97316';
+  static icon = '🎛️';
+  static description = 'Automatisches Umschalten der 5 Performance-Snapshots per Patchkabel';
+  static params = [];
+  static options = [];
+  static jacks = [
+    { id: 'slot1In', type: 'in', signal: 'gate', label: 'SLOT 1' },
+    { id: 'slot2In', type: 'in', signal: 'gate', label: 'SLOT 2' },
+    { id: 'slot3In', type: 'in', signal: 'gate', label: 'SLOT 3' },
+    { id: 'slot4In', type: 'in', signal: 'gate', label: 'SLOT 4' },
+    { id: 'slot5In', type: 'in', signal: 'gate', label: 'SLOT 5' },
+    { id: 'nextIn', type: 'in', signal: 'gate', label: 'NEXT' },
+    { id: 'resetIn', type: 'in', signal: 'gate', label: 'RESET' },
+  ];
+
+  constructor(ctx, state = {}) {
+    super(ctx, state);
+    this.lastTriggeredSlot = null;
+    this.initValues(state);
+  }
+
+  onTrigger(portId, _time, _velocity = 1, _duration = 0.1) {
+    if (!this.enabled) return;
+    const snapSys = this.engine?.snapshotSystem || this.patchSystem?.engine?.snapshotSystem;
+    if (!snapSys) return;
+
+    let targetSlot = null;
+    if (portId === 'slot1In') targetSlot = 1;
+    else if (portId === 'slot2In') targetSlot = 2;
+    else if (portId === 'slot3In') targetSlot = 3;
+    else if (portId === 'slot4In') targetSlot = 4;
+    else if (portId === 'slot5In') targetSlot = 5;
+    else if (portId === 'resetIn') targetSlot = 1;
+    else if (portId === 'nextIn') {
+      const cur = snapSys.activeSlot || 1;
+      targetSlot = (cur % 5) + 1;
+    }
+
+    if (targetSlot !== null) {
+      this.lastTriggeredSlot = targetSlot;
+      snapSys.triggerSlot(targetSlot);
+      this.updateActiveUi?.(targetSlot);
+    }
+  }
+
+  renderExtra(el) {
+    el.innerHTML = `
+      <div class="snapshot-ctrl-display">
+        <span class="snap-ctrl-lbl">AKTIVER PERFORMANCE SNAPSHOT</span>
+        <div class="snap-ctrl-slots">
+          ${[1, 2, 3, 4, 5].map((s) => `<span class="snap-ctrl-pill" data-slot="${s}">SLOT ${s}</span>`).join('')}
+        </div>
+      </div>
+    `;
+    const pills = el.querySelectorAll('.snap-ctrl-pill');
+
+    this.updateActiveUi = (activeSlot) => {
+      pills.forEach((p) => {
+        const s = Number(p.dataset.slot);
+        p.classList.toggle('active', s === activeSlot);
+      });
+    };
+
+    const snapSys = this.engine?.snapshotSystem || this.patchSystem?.engine?.snapshotSystem;
+    if (snapSys?.activeSlot) {
+      this.updateActiveUi(snapSys.activeSlot);
+    }
   }
 }
 

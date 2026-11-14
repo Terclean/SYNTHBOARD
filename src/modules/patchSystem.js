@@ -88,6 +88,35 @@ export function resolveJackId(mod, portId, expectedType = null) {
     if (norm === 'vca' || norm === 'vcacv') return 'vcaCv';
     if (norm === 'felt' || norm === 'feltcv') return 'feltCv';
     if (norm === 'pan' || norm === 'pancv') return 'panCv';
+  } else if (mType === 'slope_generator') {
+    if (norm === 'trig' || norm === 'trigin') return 'trigIn';
+    if (norm === 'gate' || norm === 'gatein') return 'gateIn';
+    if (norm === 'rise' || norm === 'risecv' || norm === 'modrise') return 'modRise';
+    if (norm === 'fall' || norm === 'fallcv' || norm === 'modfall') return 'modFall';
+    if (norm === 'env' || norm === 'envout') return 'envOut';
+    if (norm === 'inv' || norm === 'invout') return 'invOut';
+    if (norm === 'eor' || norm === 'eorout') return 'eorOut';
+    if (norm === 'eof' || norm === 'eofout' || norm === 'eoc' || norm === 'eocout') return 'eofOut';
+  } else if (mType === 'logic_switch') {
+    if (norm === 'gate' || norm === 'gatein') return 'gateIn';
+    if (norm === 'ctrl' || norm === 'ctrlcv' || norm === 'mod') return 'ctrlCv';
+    if (norm === 'pass' || norm === 'passout' || norm === 'passa') return 'passOut';
+    if (norm === 'inv' || norm === 'invpass' || norm === 'invpassout' || norm === 'invb') return 'invPassOut';
+    if (norm === 'toggle' || norm === 'togglein') return 'toggleIn';
+    if (norm === 'reset' || norm === 'resetin') return 'resetIn';
+    if (norm === 'state' || norm === 'stateout' || norm === 'latch' || norm === 'latchcv') return 'stateOut';
+    if (norm === 'in1') return 'in1';
+    if (norm === 'in2') return 'in2';
+    if (norm === 'and' || norm === 'andout') return 'andOut';
+    if (norm === 'or' || norm === 'orout') return 'orOut';
+  } else if (mType === 'snapshot_ctrl') {
+    if (norm === 'slot1' || norm === 'slot1in' || norm === '1') return 'slot1In';
+    if (norm === 'slot2' || norm === 'slot2in' || norm === '2') return 'slot2In';
+    if (norm === 'slot3' || norm === 'slot3in' || norm === '3') return 'slot3In';
+    if (norm === 'slot4' || norm === 'slot4in' || norm === '4') return 'slot4In';
+    if (norm === 'slot5' || norm === 'slot5in' || norm === '5') return 'slot5In';
+    if (norm === 'next' || norm === 'nextin') return 'nextIn';
+    if (norm === 'reset' || norm === 'resetin') return 'resetIn';
   }
 
   // 6. Generische Fallbacks für Ports mit Typenangabe
