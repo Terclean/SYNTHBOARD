@@ -128,12 +128,13 @@
           </button>
 
           <div class="scope-widget" id="scope-widget">
-            <div class="scope-mode-pills" role="group" aria-label="Analyzer-Modus">
-              <button type="button" class="scope-pill active" data-scope-mode="wave" title="Triggered Oszilloskop">WAVE</button>
-              <button type="button" class="scope-pill" data-scope-mode="fft" title="Logarithmischer Spektrumanalysator">FFT</button>
-              <button type="button" class="scope-pill" data-scope-mode="xy" title="Stereo Lissajous Vectorscope">XY</button>
+            <div class="scope-mode-pills scope-pills-grid" role="group" aria-label="Analyzer-Modus">
+              <button type="button" class="scope-pill" data-scope-mode="wave" title="3D Ribbon Oszilloskop">WAVE</button>
+              <button type="button" class="scope-pill" data-scope-mode="fft" title="Multi-Color Spektrumanalysator">FFT</button>
+              <button type="button" class="scope-pill" data-scope-mode="xy" title="3D Multi-Band Lissajous">XY</button>
+              <button type="button" class="scope-pill active" data-scope-mode="3d" title="3D Spectral Waterfall">3D</button>
             </div>
-            <canvas id="scope" class="scope-compact" width="114" height="30" aria-label="Oszilloskop" title="Klicken zum Modus-Wechsel (WAVE / FFT / XY)"></canvas>
+            <canvas id="scope" class="scope-compact" width="170" height="30" aria-label="Oszilloskop" title="Klicken zum Modus-Wechsel (WAVE / FFT / XY / 3D)"></canvas>
             <button type="button" id="btn-scope-expand" class="scope-expand-btn" title="Großansicht ein-/ausblenden">⤢</button>
           </div>
 
@@ -210,6 +211,30 @@
 
           <div class="perf-board-scroll">
             <div id="perf-tab-play" class="perf-tab-content">
+              <!-- Bereich 0: Großes Studio 3D Timbre Display -->
+              <section class="perf-card-section perf-scope-section">
+                <div class="perf-card-head">
+                  <div class="perf-card-title-group">
+                    <span class="scope-led"></span>
+                    <span class="perf-card-title">3D TIMBRE ANALYZER</span>
+                  </div>
+                  <span class="perf-timbre-badge" id="perf-scope-timbre">SILENT</span>
+                </div>
+                <div class="perf-scope-pills" role="group" aria-label="Analyzer-Modus">
+                  <button type="button" class="scope-pill" data-scope-mode="wave">WAVE</button>
+                  <button type="button" class="scope-pill" data-scope-mode="fft">FFT</button>
+                  <button type="button" class="scope-pill" data-scope-mode="xy">XY</button>
+                  <button type="button" class="scope-pill active" data-scope-mode="3d">3D</button>
+                </div>
+                <canvas id="perf-scope-canvas" class="perf-scope-canvas" width="320" height="190" title="Klicken zum Modus-Wechsel"></canvas>
+                <div class="perf-timbre-legend">
+                  <span class="tl-item"><i style="background:#a855f7"></i>SUB</span>
+                  <span class="tl-item"><i style="background:#10b981"></i>WARM</span>
+                  <span class="tl-item"><i style="background:#fbbf24"></i>PRES</span>
+                  <span class="tl-item"><i style="background:#ec4899"></i>AIR</span>
+                </div>
+              </section>
+
               <!-- Bereich A: 5 frei zuweisbare Live-Controls -->
               <section class="perf-card-section">
                 <div class="perf-card-head">
@@ -277,13 +302,14 @@
           <span>STUDIO ANALYZER</span>
         </div>
         <div class="scope-mode-pills popout-pills" role="group" aria-label="Analyzer-Modus">
-          <button type="button" class="scope-pill active" data-scope-mode="wave">WAVE</button>
+          <button type="button" class="scope-pill" data-scope-mode="wave">WAVE</button>
           <button type="button" class="scope-pill" data-scope-mode="fft">FFT</button>
           <button type="button" class="scope-pill" data-scope-mode="xy">XY</button>
+          <button type="button" class="scope-pill active" data-scope-mode="3d">3D</button>
         </div>
         <button type="button" id="btn-scope-close" class="scope-close-btn" title="Schließen">✕</button>
       </div>
-      <canvas id="scope-popout-canvas" class="scope-popout-canvas" width="480" height="240"></canvas>
+      <canvas id="scope-popout-canvas" class="scope-popout-canvas" width="680" height="380"></canvas>
       <div class="scope-popout-readouts">
         <div class="scope-readout">
           <span class="ro-lbl">PEAK</span>
@@ -294,8 +320,12 @@
           <span class="ro-val" id="scope-ro-note">—</span>
         </div>
         <div class="scope-readout">
+          <span class="ro-lbl">KLANGFARBE</span>
+          <span class="ro-val" id="scope-ro-timbre">SILENT</span>
+        </div>
+        <div class="scope-readout">
           <span class="ro-lbl">MODUS</span>
-          <span class="ro-val" id="scope-ro-mode">TRIGGERED WAVE</span>
+          <span class="ro-val" id="scope-ro-mode">3D WATERFALL</span>
         </div>
       </div>
     </div>

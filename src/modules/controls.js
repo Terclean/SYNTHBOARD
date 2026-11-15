@@ -1162,7 +1162,7 @@ export class SnapshotControllerModule extends ModuleBase {
     else if (portId === 'slot5In') targetSlot = 5;
     else if (portId === 'resetIn') targetSlot = 1;
     else if (portId === 'nextIn') {
-      const cur = snapSys.activeSlot || 1;
+      const cur = snapSys.activeSlot || 0;
       targetSlot = (cur % 5) + 1;
     }
 

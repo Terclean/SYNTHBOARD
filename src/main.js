@@ -156,18 +156,32 @@ const masterKnob = new Knob($('#knob-master'), {
 });
 
 const scopeModeLabels = {
-  wave: 'TRIGGERED WAVE',
-  fft: 'LOG FFT (20Hz-16k)',
-  xy: 'STEREO XY',
+  wave: '3D WAVE RIBBON',
+  fft: 'TIMBRE FFT (20Hz-16k)',
+  xy: '3D LISSAJOUS',
+  '3d': '3D WATERFALL',
 };
 const scope = new Oscilloscope($('#scope'), engine.analyser, {
   analyserL: engine.analyserL,
   analyserR: engine.analyserR,
-  onReadout: ({ peakDb, note }) => {
+  initialMode: '3d',
+  onReadout: ({ peakDb, note, timbre }) => {
     const peakEl = $('#scope-ro-peak');
     const noteEl = $('#scope-ro-note');
+    const timbreEl = $('#scope-ro-timbre');
+    const perfTimbreEl = $('#perf-scope-timbre');
     if (peakEl) peakEl.textContent = peakDb <= -60 ? '-∞ dB' : `${peakDb.toFixed(1)} dB`;
     if (noteEl) noteEl.textContent = note || '—';
+    if (timbre) {
+      if (timbreEl) {
+        timbreEl.textContent = timbre.label;
+        timbreEl.style.color = timbre.color;
+      }
+      if (perfTimbreEl) {
+        perfTimbreEl.textContent = timbre.label;
+        perfTimbreEl.style.color = timbre.color;
+      }
+    }
   },
   onModeChange: (mode) => {
     document.querySelectorAll('.scope-pill[data-scope-mode]').forEach((btn) => {
@@ -177,6 +191,10 @@ const scope = new Oscilloscope($('#scope'), engine.analyser, {
     if (modeEl) modeEl.textContent = scopeModeLabels[mode] || mode.toUpperCase();
   },
 });
+if ($('#perf-scope-canvas')) {
+  scope.registerCanvas('perf', $('#perf-scope-canvas'));
+  $('#perf-scope-canvas')?.addEventListener('click', () => scope.cycleMode());
+}
 scope.start();
 
 $('#scope')?.addEventListener('click', () => scope.cycleMode());
@@ -611,13 +629,36 @@ function createCard(mod, index = -1) {
   // Regler nachziehen bei interner Änderung
   mod.refreshKnobs = () => {
     knobRefs.forEach(({ p, knob, valEl }) => {
-      knob.setValue(mod.values[p.id]);
-      valEl.textContent = fmt(p, mod.values[p.id]);
-      focusDock.syncFromRack(mod.id, p.id, mod.values[p.id]);
+      const val = mod.values[p.id];
+      if (val !== undefined) {
+        knob.setValue(val);
+        valEl.textContent = fmt(p, val);
+        focusDock.syncFromRack(mod.id, p.id, val);
+      }
     });
     card.querySelectorAll('select[data-opt]').forEach((sel) => {
-      sel.value = String(mod.values[sel.dataset.opt]);
+      if (mod.values[sel.dataset.opt] !== undefined) {
+        sel.value = String(mod.values[sel.dataset.opt]);
+      }
     });
+    card.querySelectorAll('.strip-slider').forEach((slider) => {
+      const type = slider.dataset.strip;
+      const valEl = card.querySelector(`.strip-val[data-val="${type}"]`);
+      if (type === 'pan') {
+        const v = mod.chPan ?? 0;
+        slider.value = String(v);
+        if (valEl) valEl.textContent = Math.abs(v) < 0.01 ? 'C' : v < 0 ? `${Math.round(Math.abs(v) * 100)}L` : `${Math.round(v * 100)}R`;
+      } else if (type === 'delay') {
+        const v = mod.chDelay ?? 0;
+        slider.value = String(v);
+        if (valEl) valEl.textContent = `${Math.round(v * 100)}%`;
+      } else if (type === 'reverb') {
+        const v = mod.chReverb ?? 0;
+        slider.value = String(v);
+        if (valEl) valEl.textContent = `${Math.round(v * 100)}%`;
+      }
+    });
+    card.classList.toggle('is-off', !mod.enabled);
   };
   mod.notifyChanged = changed;
 
@@ -1059,8 +1100,11 @@ $('#file-import')?.addEventListener('change', async (e) => {
     const state = data.state || data;
     if (!Array.isArray(state.modules)) throw new Error('Kein gültiges Board');
 
-    // Wenn kein explizites snapshots-Objekt im JSON vorhanden ist, Snapshots zurücksetzen
-    if (!state.snapshots || typeof state.snapshots !== 'object' || !state.snapshots.slots) {
+    // Snapshots sowohl auf Root-Ebene (data.snapshots) als auch innerhalb von data.state.snapshots akzeptieren
+    const rawSnapshots = (data.state && data.state.snapshots) || data.snapshots || state.snapshots || null;
+    if (rawSnapshots && typeof rawSnapshots === 'object' && (rawSnapshots.slots || rawSnapshots[1] || rawSnapshots['1'])) {
+      state.snapshots = rawSnapshots.slots ? rawSnapshots : { slots: rawSnapshots };
+    } else {
       state.snapshots = null;
     }
 
@@ -1368,7 +1412,138 @@ function normalizePatchState(state) {
     });
   }
 
+  // Snapshots normalisieren & partielle Slot-Definitionen mit Basis-Modulwerten auffüllen
+  if (state.snapshots && typeof state.snapshots === 'object' && state.snapshots.slots) {
+    normalizeSnapshots(state);
+  }
+
   return state;
+}
+
+function normalizeSnapshots(state) {
+  const snaps = state.snapshots;
+  if (!snaps || typeof snaps !== 'object' || !snaps.slots) return;
+
+  // Basis-Abbild aller Module im Patch berechnen (Defaults aus MODULES + mod.values)
+  const baseModules = state.modules.map((mod, idx) => {
+    const def = MODULES[mod.type];
+    const baseValues = {};
+    def?.params?.forEach((p) => { baseValues[p.id] = p.value; });
+    def?.options?.forEach((o) => { baseValues[o.id] = o.value; });
+    Object.assign(baseValues, mod.values || {});
+
+    const modId = mod.id || `mod_${idx + 1}`;
+    return {
+      id: modId,
+      type: mod.type,
+      title: def?.title || mod.type,
+      values: baseValues,
+      enabled: mod.enabled !== undefined ? Boolean(mod.enabled) : true,
+      channelStrip: {
+        chPan: mod.chPan ?? 0,
+        chDelay: mod.chDelay ?? 0,
+        chReverb: mod.chReverb ?? 0,
+        chLevel: mod.chLevel ?? 0.8,
+      },
+      extra: mod.extra ? structuredClone(mod.extra) : null,
+      paramIds: new Set([
+        ...(def?.params?.map((p) => p.id) || []),
+        ...(def?.options?.map((o) => o.id) || []),
+      ]),
+    };
+  });
+
+  const normalizedSlots = { 1: null, 2: null, 3: null, 4: null, 5: null };
+  const stripKeys = new Set(['chPan', 'chDelay', 'chReverb', 'chLevel', 'pan', 'delay', 'reverb']);
+  const metaKeys = new Set(['type', 'title', 'enabled', 'channelStrip', 'extra', 'values']);
+
+  for (const slotKey of ['1', '2', '3', '4', '5']) {
+    const rawSlot = snaps.slots[slotKey] ?? snaps.slots[Number(slotKey)] ?? null;
+    if (!rawSlot || typeof rawSlot !== 'object') {
+      normalizedSlots[slotKey] = null;
+      continue;
+    }
+
+    const rawMap = rawSlot.snapshot || rawSlot.values || rawSlot.modules || rawSlot;
+    if (!rawMap || typeof rawMap !== 'object') {
+      normalizedSlots[slotKey] = null;
+      continue;
+    }
+
+    const rawKeys = Object.keys(rawMap);
+    const fullSnapshot = {};
+
+    for (const base of baseModules) {
+      // Override per exakter ID, case-insensitiver ID oder Modul-Type finden
+      let override = rawMap[base.id];
+      if (!override) {
+        const lowerId = base.id.toLowerCase();
+        const matchedKey = rawKeys.find((k) => k.toLowerCase() === lowerId);
+        if (matchedKey) override = rawMap[matchedKey];
+      }
+      if (!override && rawMap[base.type]) {
+        override = rawMap[base.type];
+      }
+
+      const mergedValues = { ...base.values };
+      const mergedStrip = { ...base.channelStrip };
+      let mergedEnabled = base.enabled;
+      let mergedExtra = base.extra ? structuredClone(base.extra) : null;
+
+      if (override && typeof override === 'object') {
+        if (typeof override.enabled === 'boolean') {
+          mergedEnabled = override.enabled;
+        }
+        if (override.channelStrip && typeof override.channelStrip === 'object') {
+          Object.assign(mergedStrip, override.channelStrip);
+        }
+        if (override.extra && typeof override.extra === 'object') {
+          mergedExtra = structuredClone(override.extra);
+        }
+
+        const paramSource = (override.values && typeof override.values === 'object')
+          ? override.values
+          : override;
+
+        for (const [k, v] of Object.entries(paramSource)) {
+          if (metaKeys.has(k)) continue;
+          if (stripKeys.has(k) && !base.paramIds.has(k)) {
+            if (k === 'pan' || k === 'chPan') mergedStrip.chPan = Number(v);
+            else if (k === 'delay' || k === 'chDelay') mergedStrip.chDelay = Number(v);
+            else if (k === 'reverb' || k === 'chReverb') mergedStrip.chReverb = Number(v);
+            else if (k === 'chLevel') mergedStrip.chLevel = Number(v);
+          } else {
+            mergedValues[k] = v;
+          }
+        }
+      }
+
+      fullSnapshot[base.id] = {
+        type: base.type,
+        title: base.title,
+        values: mergedValues,
+        enabled: mergedEnabled,
+        channelStrip: mergedStrip,
+        extra: mergedExtra,
+      };
+    }
+
+    normalizedSlots[slotKey] = {
+      savedAt: rawSlot.savedAt || Date.now(),
+      moduleCount: Object.keys(fullSnapshot).length,
+      filter: rawSlot.filter || 'all',
+      snapshot: fullSnapshot,
+    };
+    if (rawSlot.name || rawSlot.label) {
+      normalizedSlots[slotKey].name = rawSlot.name || rawSlot.label;
+    }
+  }
+
+  snaps.slots = normalizedSlots;
+  const parsedActive = Number(snaps.activeSlot);
+  snaps.activeSlot = (parsedActive >= 1 && parsedActive <= 5) ? parsedActive : null;
+  const parsedSpeed = Number(snaps.currentSpeed);
+  snaps.currentSpeed = (parsedSpeed === 6 || parsedSpeed === 7 || parsedSpeed === 8) ? parsedSpeed : 7;
 }
 
 // ── Virtuelles Eurorack („Distant Lights“) & Hauptnavigation (Top-Level) ──

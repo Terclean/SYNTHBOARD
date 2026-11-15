@@ -294,9 +294,13 @@ export class SnapshotSystem {
     const allModules = [...this.engine.controls, ...this.engine.sources, ...this.engine.effects];
     const targetModuleMap = new Map();
 
-    // Finde alle Module, die im Snapshot hinterlegt sind
-    Object.entries(slot.snapshot).forEach(([modId, savedData]) => {
-      const mod = allModules.find((m) => m.id === modId);
+    // Finde alle Module, die im Snapshot hinterlegt sind (primär per id, Fallback per type)
+    Object.entries(slot.snapshot).forEach(([modKey, savedData]) => {
+      let mod = allModules.find((m) => m.id === modKey);
+      if (!mod) {
+        const targetType = savedData?.type || modKey;
+        mod = allModules.find((m) => m.meta?.type === targetType && !targetModuleMap.has(m));
+      }
       if (mod) {
         targetModuleMap.set(mod, savedData);
       }
@@ -547,6 +551,13 @@ export class SnapshotSystem {
         countLbl.textContent = `${this.selectedModulesFilter.size} Blöcke`;
       }
     }
+
+    // Snapshot-Controller-Module im Rack synchron halten
+    this.engine?.controls?.forEach((m) => {
+      if (m.meta?.type === 'snapshot_ctrl') {
+        m.updateActiveUi?.(this.activeSlot);
+      }
+    });
   }
 
   getState() {
