@@ -1,5 +1,6 @@
 // SYNTHBOARD – Schlichtes, visuelles Studio-Handbuch (In-App + Druck/PDF & HTML-Export)
-// Ausschließlich echte deutsche UI-Bezeichnungen – keinerlei interne Code-IDs im Text.
+// Ausschließlich echte deutsche UI-Bezeichnungen – keinerlei interne Code-IDs im Handbuch-Text.
+import { MODULES } from '../modules/index.js';
 
 const SIG_COLORS = {
   clock: '#06b6d4',
@@ -506,10 +507,11 @@ const EXAMPLE_RACKS = [
 ];
 
 export class ManualModal {
-  constructor({ onLoadRackState, onToast, onStartAudio } = {}) {
+  constructor({ onLoadRackState, onToast, onStartAudio, getCurrentState } = {}) {
     this.onLoadRackState = onLoadRackState;
     this.onToast = onToast;
     this.onStartAudio = onStartAudio;
+    this.getCurrentState = getCurrentState || null;
     this.el = null;
     this.activeCat = 'all';
     this.createModal();
@@ -554,9 +556,11 @@ export class ManualModal {
       });
     });
 
-    // Download / PDF Druckansicht
+    // Download / PDF Druckansicht / KI-Referenz (.md)
     modal.querySelector('#man-download-pdf')?.addEventListener('click', () => this.openPrintView());
     modal.querySelector('#man-download-html')?.addEventListener('click', () => this.downloadStandaloneHtml());
+    modal.querySelector('#man-download-ai-md')?.addEventListener('click', () => this.downloadAiReferenceMd());
+    modal.querySelector('#man-download-rack-md')?.addEventListener('click', () => this.downloadCurrentRackForAiMd());
 
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && !this.el.classList.contains('hidden')) {
@@ -758,7 +762,9 @@ export class ManualModal {
             <h1>Studio-Handbuch</h1>
           </div>
           <div class="man-header-actions">
-            <button type="button" id="man-download-pdf" class="man-btn-primary" title="Öffnet die druckfertige PDF-Ansicht">⬇ Handbuch herunterladen (PDF / Druckansicht)</button>
+            <button type="button" id="man-download-ai-md" class="man-btn-secondary" title="Komplette technische KI-Referenz als Markdown (.md) herunterladen">🤖 KI-Referenz (.md)</button>
+            <button type="button" id="man-download-rack-md" class="man-btn-secondary" title="KI-Referenz + aktuelles Rack als JSON in einer .md-Datei herunterladen">📋 Aktuelles Rack + KI-Doku (.md)</button>
+            <button type="button" id="man-download-pdf" class="man-btn-primary" title="Öffnet die druckfertige PDF-Ansicht">⬇ PDF / Druck</button>
             <button type="button" id="man-download-html" class="man-btn-secondary" title="Eigenständige HTML-Datei speichern">HTML</button>
             <button type="button" id="man-close-btn" class="man-close-btn" title="Schließen [Esc]">✕</button>
           </div>
@@ -861,5 +867,146 @@ export class ManualModal {
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     this.onToast?.('Handbuch als SYNTHBOARD-Handbuch.html gespeichert');
+  }
+
+  buildAiReferenceMarkdown() {
+    const lines = [];
+    lines.push('# SYNTHBOARD – Technische KI-Referenz (JSON-Spec & Echte Modul-IDs)');
+    lines.push('');
+    lines.push('Diese Datei wurde direkt aus den laufenden `MODULES`-Definitionen von SYNTHBOARD generiert.');
+    lines.push('');
+    lines.push('## 1. JSON-Preset-Spezifikation (`version: 2`)');
+    lines.push('');
+    lines.push('```json');
+    lines.push('{');
+    lines.push('  "name": "Mein Cinematic Patch",');
+    lines.push('  "state": {');
+    lines.push('    "version": 2,');
+    lines.push('    "master": 0.82,');
+    lines.push('    "modules": [');
+    lines.push('      {');
+    lines.push('        "id": "clk1",');
+    lines.push('        "type": "master_clock",');
+    lines.push('        "enabled": true,');
+    lines.push('        "values": { "tempo": 96, "swing": 0.08 },');
+    lines.push('        "pos": { "x": 80, "y": 80 }');
+    lines.push('      }');
+    lines.push('    ],');
+    lines.push('    "cables": [');
+    lines.push('      { "from": "clk1:1/16", "to": "euc1:clockIn", "depth": 1.0 }');
+    lines.push('    ],');
+    lines.push('    "snapshots": {');
+    lines.push('      "activeSlot": 1,');
+    lines.push('      "currentSpeed": 8,');
+    lines.push('      "slots": {');
+    lines.push('        "1": { "name": "Intro", "values": { "chord_glide": { "cutoff": 700, "level": 0.45 } } },');
+    lines.push('        "2": { "name": "Drop", "values": { "chord_glide": { "cutoff": 2400, "level": 0.8 } } }');
+    lines.push('      }');
+    lines.push('    }');
+    lines.push('  }');
+    lines.push('}');
+    lines.push('```');
+    lines.push('');
+    lines.push('- **Wichtig:** `snapshots` wird sowohl unter `data.snapshots` als auch unter `data.state.snapshots` erkannt.');
+    lines.push('- Partielle `values` pro Snapshot-Slot (nur geänderte Parameter pro Modul-`id` oder Modul-`type`) werden beim Import automatisch mit den Basiswerten aller geladenen Module aufgefüllt.');
+    lines.push('');
+    lines.push('## 2. Verifizierte Jack- & Parameter-Hinweise (`patchSystem.js` & Aliase)');
+    lines.push('');
+    lines.push('- `euclidean`: Ausgänge `trigOut` (TRIG), `invOut` (INV). Eingänge: `clockIn`, `resetIn`.');
+    lines.push('- `prob_gate`: Eingänge `trigIn` (TRIG IN), `probCv` (PROB CV). Ausgänge: `trigOut` (PASSED), `altOut` (SKIPPED).');
+    lines.push('- `slow_random`: Ausgänge `cvOut` (CV OUT, Alias `modOut`), `invOut` (INV CV).');
+    lines.push('- `pluck`: Filter-Cutoff-Modulation heißt `modCutoff` (`mod` IN).');
+    lines.push('- `noise`: Parameter `ftype` (Filtertyp) und `color` (Klangfarbe).');
+    lines.push('- `slope_generator`: `mode` ist `"loop"` | `"trig"` | `"gate"`. Ausgänge: `envOut`, `invOut`, `eofOut` (End-of-Fall Gate).');
+    lines.push('');
+    lines.push('## 3. Best-Practice-Rezepte für KIs');
+    lines.push('');
+    lines.push('- **Sidechain-Ducking:** `master_clock:1/4` -> `slope_generator:trigIn` (`mode: "trig"`), `slope_generator:invOut` -> `instrument:vcaCv` (mit negativem oder passendem `depth`).');
+    lines.push('- **Kaskadierende Trigger-Ketten:** `slope_generator:eofOut` -> `next_slope:trigIn` (löst am Ende der Fall-Phase das nächste Modul aus).');
+    lines.push('- **A/B-Gate-Routing:** `logic_switch` mit `gateIn` + `ctrlCv` (z. B. von `slow_random:cvOut`) verteilt Triggers dynamisch auf `passOut` vs. `invPassOut`.');
+    lines.push('- **Polyphone Harmonie-Kette:** `chord_glide:pitchOut` -> `chord_arp:pitchIn`, `chord_arp:pitchOut` -> `felt_piano:pitchIn` (oder `pluck:pitchIn`), `chord_arp:gateOut` -> `felt_piano:gateIn`.');
+    lines.push('- **Performance-Automation:** `clock_divider:barOut` -> `snapshot_ctrl:nextIn` schaltet automatisch durch die 5 Performance-Snapshots.');
+    lines.push('');
+    lines.push(`## 4. Alle ${Object.keys(MODULES).length} Module (Exakte Code-IDs)`);
+    lines.push('');
+
+    const byCat = { control: [], source: [], effect: [] };
+    for (const [type, def] of Object.entries(MODULES)) {
+      const bucket = byCat[def.category] || byCat.control;
+      bucket.push([type, def]);
+    }
+
+    const catNames = {
+      control: 'Steuerung & Rhythmus (`control`)',
+      source: 'Instrumente & Klangquellen (`source`)',
+      effect: 'Master-Effekte (`effect`)',
+    };
+
+    for (const catKey of ['control', 'source', 'effect']) {
+      lines.push(`### ${catNames[catKey]}`);
+      lines.push('');
+      for (const [type, def] of byCat[catKey]) {
+        lines.push(`#### ${def.title} (\`${type}\`)`);
+        if (def.description) lines.push(`- *${def.description}*`);
+        if (def.params?.length) {
+          const pStr = def.params
+            .map((p) => `\`${p.id}\` (${p.min}..${p.max}, default \`${p.value}\`)`)
+            .join(', ');
+          lines.push(`- **Params (\`values\`):** ${pStr}`);
+        }
+        if (def.options?.length) {
+          const oStr = def.options
+            .map((o) => `\`${o.id}\` [${o.choices.map((c) => `\`${c[0]}\``).join(' | ')}] (default \`${o.value}\`)`)
+            .join(', ');
+          lines.push(`- **Options (\`values\`):** ${oStr}`);
+        }
+        if (def.jacks?.length) {
+          const ins = def.jacks.filter((j) => j.type === 'in').map((j) => `\`${j.id}\` (${j.signal}, "${j.label}")`).join(', ');
+          const outs = def.jacks.filter((j) => j.type === 'out').map((j) => `\`${j.id}\` (${j.signal}, "${j.label}")`).join(', ');
+          if (ins) lines.push(`- **Inputs:** ${ins}`);
+          if (outs) lines.push(`- **Outputs:** ${outs}`);
+        }
+        lines.push('');
+      }
+    }
+
+    return lines.join('\n');
+  }
+
+  downloadMarkdownFile(filename, content) {
+    const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  downloadAiReferenceMd() {
+    const md = this.buildAiReferenceMarkdown();
+    this.downloadMarkdownFile('SYNTHBOARD_AI_REFERENCE.md', md);
+    this.onToast?.('KI-Referenz als SYNTHBOARD_AI_REFERENCE.md heruntergeladen');
+  }
+
+  downloadCurrentRackForAiMd() {
+    const refMd = this.buildAiReferenceMarkdown();
+    const state = this.getCurrentState ? this.getCurrentState() : null;
+    const rackSection = [
+      '',
+      '---',
+      '',
+      '## 5. Aktuell geladenes Rack (JSON-Export)',
+      '',
+      '```json',
+      JSON.stringify({ name: 'Aktuelles SYNTHBOARD Rack', state }, null, 2),
+      '```',
+      '',
+    ].join('\n');
+
+    this.downloadMarkdownFile('SYNTHBOARD_RACK_AND_AI_DOC.md', refMd + rackSection);
+    this.onToast?.('Aktuelles Rack + KI-Doku als SYNTHBOARD_RACK_AND_AI_DOC.md heruntergeladen');
   }
 }

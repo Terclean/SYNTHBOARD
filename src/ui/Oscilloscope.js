@@ -1,7 +1,8 @@
 // SYNTHBOARD – Studio-Oszilloskop & 3D Multi-Color Timbre Analyzer
-// 4 Modi: 'wave' (3D Ribbon), 'fft' (Multi-Color Spectrum), 'xy' (3D Multi-Band Lissajous), '3d' (40-Frame Spectral Waterfall)
+// 5 Modi: 'wave' (3D Ribbon), 'fft' (Multi-Color Spectrum), 'xy' (3D Multi-Band Lissajous),
+//         '3d' (40-Frame Spectral Waterfall), 'radial' (3D Sound-Vortex)
 
-const MODES = ['wave', 'fft', 'xy', '3d'];
+const MODES = ['wave', 'fft', 'xy', '3d', 'radial'];
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
@@ -41,7 +42,6 @@ function estimatePitchHz(buf, sampleRate) {
   return sampleRate / bestLag;
 }
 
-/** Farbe für eine Frequenz nach dem 4-Zonen Timbre-Mapping */
 function colorForFreq(hz, alpha = 1) {
   if (hz < 160) return `rgba(168, 85, 247, ${alpha})`;      // Sub / Bass: Violett
   if (hz < 800) return `rgba(16, 185, 129, ${alpha})`;      // Low-Mid / Warmth: Smaragd
@@ -49,7 +49,6 @@ function colorForFreq(hz, alpha = 1) {
   return `rgba(236, 72, 153, ${alpha})`;                    // Air / Shimmer: Neon-Pink
 }
 
-/** Dynamische Klangfarben-Info aus Spectral Centroid */
 function timbreFromCentroid(hz) {
   if (!hz || hz < 1) return { color: '#38bdf8', label: 'SILENT' };
   if (hz < 180) return { color: '#a855f7', label: 'SUB / BASS' };
@@ -71,6 +70,7 @@ export class Oscilloscope {
 
     this.mode = options.initialMode || '3d';
     this.running = false;
+    this.paused = false;
     this.rafId = null;
 
     if (this.analyser) {
@@ -88,12 +88,20 @@ export class Oscilloscope {
     this.waterfallHistory = [];
     this.waterfallMaxFrames = 40;
     this.waterfallBins = 64;
+    // Ringbuffer für Radial-3D (nutzt bis zu 22 Frames × 48 Bins)
+    this.radialMaxFrames = 22;
+    this.radialBins = 48;
+    this.radialAngle = 0;
     // Ringbuffer für 3D-Wave-Ribbon (letzte 5 Trigger-Wellen)
     this.waveHistory = [];
     this.waveMaxEchoes = 5;
 
+    // Gradient-Cache pro (canvasKey + size) -> kein createLinearGradient in der Zeichenschleife
+    this.gradientCache = new Map();
+
     this.lastReadoutAt = 0;
     this.lastWaterfallAt = 0;
+    this.lastSlowDrawAt = 0;
     this.centroidHz = 0;
     this.bands = [0, 0, 0, 0];
   }
@@ -104,6 +112,7 @@ export class Oscilloscope {
       return;
     }
     this.canvases.set(key, {
+      key,
       canvas,
       ctx: canvas.getContext('2d'),
     });
@@ -130,15 +139,34 @@ export class Oscilloscope {
     this.setMode(next);
   }
 
+  setPaused(paused) {
+    this.paused = !!paused;
+    if (this.paused) {
+      if (this.rafId) {
+        cancelAnimationFrame(this.rafId);
+        this.rafId = null;
+      }
+    } else if (this.running && !this.rafId) {
+      const loop = (now) => {
+        if (!this.running || this.paused) return;
+        this.drawFrame(now);
+        this.rafId = requestAnimationFrame(loop);
+      };
+      this.rafId = requestAnimationFrame(loop);
+    }
+  }
+
   start() {
     if (this.running) return;
     this.running = true;
-    const loop = (now) => {
-      if (!this.running) return;
-      this.drawFrame(now);
+    if (!this.paused) {
+      const loop = (now) => {
+        if (!this.running || this.paused) return;
+        this.drawFrame(now);
+        this.rafId = requestAnimationFrame(loop);
+      };
       this.rafId = requestAnimationFrame(loop);
-    };
-    this.rafId = requestAnimationFrame(loop);
+    }
   }
 
   stop() {
@@ -147,7 +175,7 @@ export class Oscilloscope {
     this.rafId = null;
   }
 
-  syncCanvasSize(canvas, ctx) {
+  syncCanvasSize(key, canvas, ctx) {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const rectW = canvas.clientWidth || parseInt(canvas.getAttribute('width'), 10) || 170;
     const rectH = canvas.clientHeight || parseInt(canvas.getAttribute('height'), 10) || 30;
@@ -156,9 +184,28 @@ export class Oscilloscope {
     if (canvas.width !== targetW || canvas.height !== targetH) {
       canvas.width = targetW;
       canvas.height = targetH;
+      // Cache für diesen Canvas bei Resize invalidieren
+      for (const ck of this.gradientCache.keys()) {
+        if (ck.startsWith(`${key}:`)) this.gradientCache.delete(ck);
+      }
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     return { w: rectW, h: rectH };
+  }
+
+  getCachedHorizontalGradient(key, ctx, x0, x1) {
+    const cacheKey = `${key}:horiz:${Math.round(x0)}:${Math.round(x1)}`;
+    let grad = this.gradientCache.get(cacheKey);
+    if (!grad) {
+      grad = ctx.createLinearGradient(x0, 0, x1, 0);
+      grad.addColorStop(0.0, '#a855f7');
+      grad.addColorStop(0.28, '#10b981');
+      grad.addColorStop(0.58, '#fbbf24');
+      grad.addColorStop(0.82, '#ec4899');
+      grad.addColorStop(1.0, '#67e8f9');
+      this.gradientCache.set(cacheKey, grad);
+    }
+    return grad;
   }
 
   analyzeTimbre(now) {
@@ -193,7 +240,6 @@ export class Oscilloscope {
       c3 ? Math.min(1, (b3 / c3) * 2.0) : 0,
     ];
 
-    // 3D-Waterfall Ringbuffer alle ~33ms aktualisieren (~30 FPS Tiefe)
     if (now - this.lastWaterfallAt >= 32) {
       this.lastWaterfallAt = now;
       const frame = new Float32Array(this.waterfallBins);
@@ -217,9 +263,22 @@ export class Oscilloscope {
     }
   }
 
-  drawFrame(now) {
-    if (!this.analyser) return;
+  isCanvasVisible(entry) {
+    if (!entry || !entry.canvas.isConnected) return false;
+    return !(entry.canvas.offsetParent === null && entry.canvas.clientWidth === 0);
+  }
 
+  drawFrame(now) {
+    if (!this.analyser || this.paused) return;
+
+    // 30 FPS Capping für 3D / RADIAL / XY
+    const isHeavyMode = this.mode === '3d' || this.mode === 'radial' || this.mode === 'xy';
+    if (isHeavyMode && now - this.lastSlowDrawAt < 32) {
+      return;
+    }
+    this.lastSlowDrawAt = now;
+
+    // Single-Pass Audio-Daten & Timbre-Analyse
     this.analyser.getFloatTimeDomainData(this.timeData);
     this.analyser.getByteFrequencyData(this.freqData);
     this.analyzeTimbre(now);
@@ -229,7 +288,6 @@ export class Oscilloscope {
       this.analyserR.getFloatTimeDomainData(this.timeR);
     }
 
-    // Readouts gedrosselt auf ~10 Hz
     if (this.onReadout && now - this.lastReadoutAt > 95) {
       this.lastReadoutAt = now;
       let peak = 0;
@@ -245,9 +303,8 @@ export class Oscilloscope {
       this.onReadout({ peakDb, note, freq: pitchHz, centroidHz: this.centroidHz, timbre });
     }
 
-    // Wave-History aktualisieren (für 3D-Ribbon im WAVE-Modus)
-    const trigIdx = this.findRisingZeroCrossing();
     if (this.mode === 'wave') {
+      const trigIdx = this.findRisingZeroCrossing();
       const snap = new Float32Array(128);
       const span = Math.min(512, this.timeData.length - trigIdx);
       for (let i = 0; i < 128; i++) {
@@ -258,23 +315,55 @@ export class Oscilloscope {
       if (this.waveHistory.length > this.waveMaxEchoes) this.waveHistory.pop();
     }
 
-    this.canvases.forEach(({ canvas, ctx }) => {
-      if (!canvas.isConnected) return;
-      // Unsichtbare Popouts oder eingeklappte Sidebars überspringen
-      if (canvas.offsetParent === null && canvas.clientWidth === 0) return;
-      const { w, h } = this.syncCanvasSize(canvas, ctx);
+    if (this.mode === 'radial') {
+      this.radialAngle += 0.008;
+    }
+
+    // Primär-Canvas bestimmen (Popout > Perf > Topbar)
+    const popoutEntry = this.canvases.get('popout');
+    const perfEntry = this.canvases.get('perf');
+    const topbarEntry = this.canvases.get('topbar');
+
+    let primaryRenderedCanvas = null;
+
+    const renderEntry = (entry) => {
+      if (!this.isCanvasVisible(entry)) return false;
+      const { key, canvas, ctx } = entry;
+      const { w, h } = this.syncCanvasSize(key, canvas, ctx);
       const isCompact = h <= 46;
 
       if (this.mode === 'wave') {
-        this.drawWave(ctx, w, h, isCompact);
+        this.drawWave(key, ctx, w, h, isCompact);
       } else if (this.mode === 'fft') {
         this.drawFft(ctx, w, h, isCompact);
       } else if (this.mode === 'xy') {
         this.drawXy(ctx, w, h, isCompact);
+      } else if (this.mode === 'radial') {
+        this.drawRadial(ctx, w, h, isCompact);
       } else {
-        this.draw3DWaterfall(ctx, w, h, isCompact);
+        this.draw3DWaterfall(key, ctx, w, h, isCompact);
       }
-    });
+      return true;
+    };
+
+    if (renderEntry(popoutEntry)) {
+      primaryRenderedCanvas = popoutEntry.canvas;
+    }
+    if (renderEntry(perfEntry)) {
+      primaryRenderedCanvas = primaryRenderedCanvas || perfEntry.canvas;
+    }
+
+    // Topbar-Scope: Wenn bereits auf großem Display gerendert wurde, per drawImage() spiegeln!
+    if (this.isCanvasVisible(topbarEntry)) {
+      if (primaryRenderedCanvas) {
+        const { key, canvas, ctx } = topbarEntry;
+        const { w, h } = this.syncCanvasSize(key, canvas, ctx);
+        ctx.clearRect(0, 0, w, h);
+        ctx.drawImage(primaryRenderedCanvas, 0, 0, w, h);
+      } else {
+        renderEntry(topbarEntry);
+      }
+    }
   }
 
   findRisingZeroCrossing() {
@@ -286,16 +375,6 @@ export class Oscilloscope {
       }
     }
     return 0;
-  }
-
-  createTimbreGradient(ctx, w) {
-    const grad = ctx.createLinearGradient(0, 0, w, 0);
-    grad.addColorStop(0.0, '#a855f7');   // Bass: Violett
-    grad.addColorStop(0.28, '#10b981');  // Warmth: Smaragd
-    grad.addColorStop(0.58, '#fbbf24');  // Presence: Gold
-    grad.addColorStop(0.82, '#ec4899');  // Shimmer: Neon-Pink
-    grad.addColorStop(1.0, '#67e8f9');   // Air: Kristall-Cyan
-    return grad;
   }
 
   drawSubGrid(ctx, w, h, isCompact) {
@@ -317,15 +396,15 @@ export class Oscilloscope {
     ctx.stroke();
   }
 
-  drawWave(ctx, w, h, isCompact) {
-    ctx.fillStyle = 'rgba(6, 9, 15, 0.42)';
+  drawWave(key, ctx, w, h, isCompact) {
+    ctx.fillStyle = 'rgba(6, 9, 15, 0.45)';
     ctx.fillRect(0, 0, w, h);
     this.drawSubGrid(ctx, w, h, isCompact);
 
     const midY = h * 0.5;
     const amp = h * (isCompact ? 0.42 : 0.36);
 
-    // 3D-Ribbon Echo-Spuren hinter der Hauptwelle
+    // Hintere 3D-Ribbon-Spuren ohne shadowBlur
     const echoCount = isCompact ? 2 : this.waveHistory.length;
     for (let e = echoCount - 1; e >= 1; e--) {
       const hist = this.waveHistory[e];
@@ -345,7 +424,6 @@ export class Oscilloscope {
       ctx.stroke();
     }
 
-    // Hauptwelle mit dynamischer Klangfarbe
     const front = this.waveHistory[0];
     if (!front) return;
     const timbre = timbreFromCentroid(this.centroidHz);
@@ -358,25 +436,9 @@ export class Oscilloscope {
       else ctx.lineTo(x, y);
     }
 
-    // Gradient-Fill unter der Welle
-    ctx.save();
-    ctx.lineTo(w, midY);
-    ctx.lineTo(0, midY);
-    ctx.closePath();
-    const fillGrad = ctx.createLinearGradient(0, 0, 0, h);
-    fillGrad.addColorStop(0, `${timbre.color}33`);
-    fillGrad.addColorStop(0.5, `${timbre.color}0a`);
-    fillGrad.addColorStop(1, `${timbre.color}33`);
-    ctx.fillStyle = fillGrad;
-    ctx.fill();
-    ctx.restore();
-
-    ctx.strokeStyle = isCompact ? timbre.color : this.createTimbreGradient(ctx, w);
+    ctx.strokeStyle = isCompact ? timbre.color : this.getCachedHorizontalGradient(key, ctx, 0, w);
     ctx.lineWidth = isCompact ? 1.6 : 2.1;
-    ctx.shadowColor = timbre.color;
-    ctx.shadowBlur = isCompact ? 4 : 10;
     ctx.stroke();
-    ctx.shadowBlur = 0;
   }
 
   drawFft(ctx, w, h, isCompact) {
@@ -418,11 +480,7 @@ export class Oscilloscope {
       const x = i * (barW + barGap);
       const y = h - barH;
 
-      // 3D-Balkenkörper + heller Oberrand
-      const grad = ctx.createLinearGradient(x, y, x, h);
-      grad.addColorStop(0, colorForFreq(fMid, 0.96));
-      grad.addColorStop(1, colorForFreq(fMid, 0.22));
-      ctx.fillStyle = grad;
+      ctx.fillStyle = colorForFreq(fMid, 0.78);
       ctx.fillRect(x, y, barW, barH);
 
       if (!isCompact && barH > 2) {
@@ -430,7 +488,6 @@ export class Oscilloscope {
         ctx.fillRect(x, y, barW, 2);
       }
 
-      // Peak-Hold
       if (norm > this.fftPeaks[i]) this.fftPeaks[i] = norm;
       else this.fftPeaks[i] = Math.max(0, this.fftPeaks[i] - 0.008);
 
@@ -443,7 +500,6 @@ export class Oscilloscope {
   }
 
   drawXy(ctx, w, h, isCompact) {
-    // 3D-Nachleuchten
     ctx.fillStyle = 'rgba(6, 9, 15, 0.24)';
     ctx.fillRect(0, 0, w, h);
 
@@ -451,21 +507,18 @@ export class Oscilloscope {
     const cy = h / 2;
     const scale = Math.min(w, h) * 0.44;
 
-    // Fadenkreuz
     ctx.strokeStyle = 'rgba(148, 163, 184, 0.09)';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(cx, 0); ctx.lineTo(cx, h);
     ctx.moveTo(0, cy); ctx.lineTo(w, cy);
-    if (!isCompact) {
-      ctx.arc(cx, cy, scale * 0.65, 0, Math.PI * 2);
-    }
+    if (!isCompact) ctx.arc(cx, cy, scale * 0.65, 0, Math.PI * 2);
     ctx.stroke();
 
     const len = this.analyserL && this.analyserR ? this.timeL.length : this.timeData.length;
     const step = isCompact ? 4 : 2;
 
-    // 1. Geglätteter Bass-Kern (Tiefpass -> Violett/Indigo)
+    // 1. Geglätteter Bass-Kern (Violett/Indigo)
     let lpL = 0;
     let lpR = 0;
     ctx.beginPath();
@@ -481,14 +534,11 @@ export class Oscilloscope {
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     }
-    ctx.strokeStyle = 'rgba(168, 85, 247, 0.72)';
-    ctx.lineWidth = isCompact ? 1.8 : 3.2;
-    ctx.shadowColor = '#a855f7';
-    ctx.shadowBlur = isCompact ? 4 : 12;
+    ctx.strokeStyle = 'rgba(168, 85, 247, 0.75)';
+    ctx.lineWidth = isCompact ? 1.8 : 3.0;
     ctx.stroke();
-    ctx.shadowBlur = 0;
 
-    // 2. Mittelton-Klangwolke (Smaragd / Gold)
+    // 2. Mittelton-Schicht (Smaragd / Gold)
     ctx.beginPath();
     let midLpL = 0;
     let midLpR = 0;
@@ -506,7 +556,7 @@ export class Oscilloscope {
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     }
-    ctx.strokeStyle = this.bands[2] > this.bands[1] ? 'rgba(251, 191, 36, 0.65)' : 'rgba(16, 185, 129, 0.65)';
+    ctx.strokeStyle = this.bands[2] > this.bands[1] ? 'rgba(251, 191, 36, 0.68)' : 'rgba(16, 185, 129, 0.68)';
     ctx.lineWidth = isCompact ? 1.0 : 1.4;
     ctx.stroke();
 
@@ -532,7 +582,7 @@ export class Oscilloscope {
     }
   }
 
-  draw3DWaterfall(ctx, w, h, isCompact) {
+  draw3DWaterfall(key, ctx, w, h, isCompact) {
     ctx.fillStyle = '#05080f';
     ctx.fillRect(0, 0, w, h);
 
@@ -548,13 +598,11 @@ export class Oscilloscope {
     const backY = isCompact ? 6 : 22;
     const peakHeight = isCompact ? h * 0.55 : h * 0.42;
 
-    // Painter's Algorithm: von hinten (älteste) nach vorne (neueste)
     for (let z = total - 1; z >= 0; z--) {
       const frame = frames[z];
-      const depth = total > 1 ? z / (total - 1) : 0; // 0 = vorne, 1 = hinten
+      const depth = total > 1 ? z / (total - 1) : 0;
       const baseY = frontY - depth * (frontY - backY);
 
-      // Leichte 3D-Perspektiv-Verjüngung nach hinten-oben
       const marginX = depth * w * 0.14;
       const spanW = w - marginX * 2;
       const ampScale = peakHeight * (1 - depth * 0.42);
@@ -570,11 +618,9 @@ export class Oscilloscope {
       ctx.lineTo(marginX + spanW, baseY);
       ctx.closePath();
 
-      // Dunkler Polygon-Fill für echte 3D-Verdeckung
       ctx.fillStyle = z === 0 ? 'rgba(8, 12, 22, 0.94)' : 'rgba(5, 8, 15, 0.92)';
       ctx.fill();
 
-      // Farbige Klangfarben-Konturlinie entlang der X-Achse
       ctx.beginPath();
       for (let i = 0; i < bins; i++) {
         const x = marginX + (i / (bins - 1)) * spanW;
@@ -585,16 +631,79 @@ export class Oscilloscope {
       }
 
       const alpha = Math.max(0.18, 1 - depth * 0.78);
-      const grad = ctx.createLinearGradient(marginX, 0, marginX + spanW, 0);
-      grad.addColorStop(0.0, `rgba(168, 85, 247, ${alpha})`);
-      grad.addColorStop(0.28, `rgba(16, 185, 129, ${alpha})`);
-      grad.addColorStop(0.58, `rgba(251, 191, 36, ${alpha})`);
-      grad.addColorStop(0.82, `rgba(236, 72, 153, ${alpha})`);
-      grad.addColorStop(1.0, `rgba(103, 232, 249, ${alpha})`);
-
-      ctx.strokeStyle = grad;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = this.getCachedHorizontalGradient(key, ctx, 0, w);
       ctx.lineWidth = z === 0 ? (isCompact ? 1.5 : 2.0) : (isCompact ? 0.8 : 1.15);
       ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  /** Radialer 3D-Sound-Vortex (konzentrische, rotierende FFT-Ringe mit Timbre-Farbcode) */
+  drawRadial(ctx, w, h, isCompact) {
+    ctx.fillStyle = '#05080f';
+    ctx.fillRect(0, 0, w, h);
+
+    const cx = w * 0.5;
+    const cy = h * 0.5;
+    const maxR = Math.min(w, h) * 0.41;
+
+    // Dezente Tunnel-Fadenkreuze
+    if (!isCompact) {
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.06)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(cx, cy, maxR * 0.35, 0, Math.PI * 2);
+      ctx.arc(cx, cy, maxR * 0.72, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    const frames = this.waterfallHistory;
+    if (!frames.length) return;
+
+    const total = Math.min(isCompact ? 10 : this.radialMaxFrames, frames.length);
+    const pts = this.radialBins;
+    const zoneColors = ['#a855f7', '#10b981', '#fbbf24', '#ec4899'];
+
+    // Von hinten (inneres Zentrum) nach vorne (äußerer Ring) zeichnen
+    for (let z = total - 1; z >= 0; z--) {
+      const frame = frames[z];
+      const depth = total > 1 ? z / (total - 1) : 0; // 0 = vorne/außen, 1 = hinten/innen
+      const scale = 1 - depth * 0.82;
+      const baseR = maxR * scale * 0.72;
+      const radialGain = maxR * scale * 0.46;
+      const rot = this.radialAngle + depth * 0.55;
+      const alpha = Math.max(0.16, 1 - depth * 0.78);
+
+      // Spiegelsymmetrische geschlossene Kurve (0..2π ohne Nahtstelle)
+      ctx.beginPath();
+      for (let i = 0; i <= pts; i++) {
+        const frac = i / pts;
+        const theta = frac * Math.PI * 2 + rot;
+        // Symmetrie: 0..π -> Bass..Air, π..2π -> Air..Bass
+        const mirrorFrac = frac <= 0.5 ? frac * 2 : (1 - frac) * 2;
+        const binIdx = Math.min(this.waterfallBins - 1, Math.floor(mirrorFrac * (this.waterfallBins - 1)));
+        const amp = frame[binIdx] || 0;
+        const r = baseR + amp * radialGain;
+        const x = cx + Math.cos(theta) * r;
+        const y = cy + Math.sin(theta) * r;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+
+      // Klangfarbe pro Ring anhand der dominanten Energie-Zone wählen
+      const zIdx = z % 4;
+      const dominantBand = this.bands.indexOf(Math.max(...this.bands));
+      const ringColor = z === 0 ? zoneColors[dominantBand >= 0 ? dominantBand : 0] : zoneColors[zIdx];
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = ringColor;
+      ctx.lineWidth = z === 0 ? (isCompact ? 1.5 : 2.1) : (isCompact ? 0.8 : 1.15);
+      ctx.stroke();
+      ctx.restore();
     }
   }
 }

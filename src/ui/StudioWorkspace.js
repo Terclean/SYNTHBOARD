@@ -142,6 +142,20 @@ export class StudioWorkspace {
     const topVal = document.getElementById('zoom-val');
     if (topVal) topVal.textContent = pct;
 
+    // 3-stufiges Zoom-LOD (Level of Detail)
+    const lod = this.zoom < 0.5 ? 'low' : this.zoom < 0.75 ? 'medium' : 'high';
+    if (this.currentLod !== lod) {
+      this.currentLod = lod;
+      this.viewportEl.classList?.toggle?.('lod-medium', lod === 'medium');
+      this.viewportEl.classList?.toggle?.('lod-low', lod === 'low');
+      if (typeof document !== 'undefined' && document.body?.classList?.toggle) {
+        document.body.classList.toggle('lod-medium', lod === 'medium');
+        document.body.classList.toggle('lod-low', lod === 'low');
+      }
+      if (this.engine) this.engine.renderLod = lod;
+      this.patchBay?.setLod?.(lod);
+    }
+
     this.patchBay?.requestDraw?.();
   }
 

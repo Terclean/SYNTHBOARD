@@ -943,18 +943,24 @@ export class ChordGlideModule extends SourceBase {
       }
     };
 
-    // Playhead-Animation (animierte Abspielpositions-Nadel mit 30 FPS Throttling & Cleanup)
+    // Playhead-Animation (animierte Abspielpositions-Nadel mit LOD-, Offscreen- & Tab-Sleep)
     if (this.animPlayhead) {
       cancelAnimationFrame(this.animPlayhead);
       this.animPlayhead = null;
     }
     let lastPlayheadUpdate = 0;
     const updatePlayhead = (now) => {
+      if (document.hidden) {
+        this.animPlayhead = null;
+        return;
+      }
       this.animPlayhead = requestAnimationFrame(updatePlayhead);
-      if (now - lastPlayheadUpdate < 33) return; // 30 FPS Limit
+      if (this._isOffscreen || this.engine?.renderLod === 'low') return;
+      const minInterval = this.engine?.renderLod === 'medium' ? 66 : 33;
+      if (now - lastPlayheadUpdate < minInterval) return;
       lastPlayheadUpdate = now;
 
-      if (this.running && this.steps.length && !document.hidden && this.ctx.state === 'running') {
+      if (this.running && this.steps.length && this.ctx.state === 'running') {
         const t = this.ctx.currentTime;
         const progress = Math.max(0, Math.min(1, (t - this.stepStartTime) / Math.max(0.1, this.stepDurationSec)));
         const colW = 100 / this.steps.length;
@@ -965,7 +971,14 @@ export class ChordGlideModule extends SourceBase {
         playhead.style.opacity = '0';
       }
     };
-    this.animPlayhead = requestAnimationFrame(updatePlayhead);
+    this._resumePlayhead = () => {
+      if (!document.hidden && !this.animPlayhead && this.running !== undefined) {
+        this.animPlayhead = requestAnimationFrame(updatePlayhead);
+      }
+    };
+    if (!document.hidden) {
+      this.animPlayhead = requestAnimationFrame(updatePlayhead);
+    }
 
     // Callback zur Markierung der aktiven Karte bei Taktwechsel
     this.updateActiveCardUi = (activeIdx) => {

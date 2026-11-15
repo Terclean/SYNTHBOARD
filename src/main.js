@@ -160,6 +160,7 @@ const scopeModeLabels = {
   fft: 'TIMBRE FFT (20Hz-16k)',
   xy: '3D LISSAJOUS',
   '3d': '3D WATERFALL',
+  radial: '3D VORTEX',
 };
 const scope = new Oscilloscope($('#scope'), engine.analyser, {
   analyserL: engine.analyserL,
@@ -221,8 +222,31 @@ $('#btn-scope-expand')?.addEventListener('click', (e) => {
 $('#btn-scope-close')?.addEventListener('click', () => setScopePopoutOpen(false));
 scopePopoutCanvas?.addEventListener('click', () => scope.cycleMode());
 
+// ───────────────────────── Globaler Tab-Switch & Offscreen-Sleep ──
+document.addEventListener('visibilitychange', () => {
+  const hidden = document.hidden;
+  scope.setPaused(hidden);
+  if (!hidden) {
+    engine.controls?.forEach((m) => m._resumePlayhead?.());
+    patchBay?.requestDraw?.();
+  }
+});
+
+const canvasModuleTypes = new Set(['chord_glide', 'euclidean', 'resonator_garden', 'spectral_swarm']);
+const cardVisibilityObserver = typeof IntersectionObserver !== 'undefined'
+  ? new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        const modId = entry.target?.dataset?.id;
+        if (!modId) continue;
+        const mod = [...engine.controls, ...engine.sources, ...engine.effects].find((m) => m.id === modId);
+        if (mod) mod._isOffscreen = !entry.isIntersecting;
+      }
+    }, { rootMargin: '120px' })
+  : null;
+
 // ───────────────────────── ManualModal ─────────────────────────
 const manualModal = new ManualModal({
+  getCurrentState: () => engine.getState(),
   onLoadRackState: (state) => {
     focusDock?.clear();
     normalizePatchState(state);
@@ -419,6 +443,7 @@ function addModule(type, posOrIndex = -1) {
 function renderRack(highlightId) {
   patchBay?.clearJacks();
   workspace?.clear();
+  cardVisibilityObserver?.disconnect();
 
   const countControls = $('#count-controls');
   const countSources = $('#count-sources');
@@ -433,6 +458,9 @@ function renderRack(highlightId) {
   allMods.forEach((m, i) => {
     const card = createCard(m, i);
     workspace?.registerCard(m, card, m.pos);
+    if (cardVisibilityObserver && canvasModuleTypes.has(m.meta?.type)) {
+      cardVisibilityObserver.observe(card);
+    }
   });
 
   // Modulauswahl wiederherstellen oder erstes Modul wählen

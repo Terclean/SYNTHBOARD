@@ -253,6 +253,7 @@ export class EuclideanModule extends ModuleBase {
     const ratioEl = el.querySelector('.txt-ratio');
 
     const draw = (activeIdx = -1, isHit = false) => {
+      if (document.hidden || this._isOffscreen || this.engine?.renderLod === 'low') return;
       const w = canvas.width, h = canvas.height;
       ctx.clearRect(0, 0, w, h);
       const cx = w / 2, cy = h / 2;

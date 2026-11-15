@@ -128,13 +128,14 @@
           </button>
 
           <div class="scope-widget" id="scope-widget">
-            <div class="scope-mode-pills scope-pills-grid" role="group" aria-label="Analyzer-Modus">
+            <div class="scope-mode-pills scope-pills-grid scope-pills-5" role="group" aria-label="Analyzer-Modus">
               <button type="button" class="scope-pill" data-scope-mode="wave" title="3D Ribbon Oszilloskop">WAVE</button>
               <button type="button" class="scope-pill" data-scope-mode="fft" title="Multi-Color Spektrumanalysator">FFT</button>
               <button type="button" class="scope-pill" data-scope-mode="xy" title="3D Multi-Band Lissajous">XY</button>
               <button type="button" class="scope-pill active" data-scope-mode="3d" title="3D Spectral Waterfall">3D</button>
+              <button type="button" class="scope-pill" data-scope-mode="radial" title="3D Radial Sound-Vortex">RAD</button>
             </div>
-            <canvas id="scope" class="scope-compact" width="170" height="30" aria-label="Oszilloskop" title="Klicken zum Modus-Wechsel (WAVE / FFT / XY / 3D)"></canvas>
+            <canvas id="scope" class="scope-compact" width="170" height="30" aria-label="Oszilloskop" title="Klicken zum Modus-Wechsel (WAVE / FFT / XY / 3D / RADIAL)"></canvas>
             <button type="button" id="btn-scope-expand" class="scope-expand-btn" title="Großansicht ein-/ausblenden">⤢</button>
           </div>
 
@@ -225,6 +226,7 @@
                   <button type="button" class="scope-pill" data-scope-mode="fft">FFT</button>
                   <button type="button" class="scope-pill" data-scope-mode="xy">XY</button>
                   <button type="button" class="scope-pill active" data-scope-mode="3d">3D</button>
+                  <button type="button" class="scope-pill" data-scope-mode="radial">RADIAL</button>
                 </div>
                 <canvas id="perf-scope-canvas" class="perf-scope-canvas" width="320" height="190" title="Klicken zum Modus-Wechsel"></canvas>
                 <div class="perf-timbre-legend">
@@ -306,6 +308,7 @@
           <button type="button" class="scope-pill" data-scope-mode="fft">FFT</button>
           <button type="button" class="scope-pill" data-scope-mode="xy">XY</button>
           <button type="button" class="scope-pill active" data-scope-mode="3d">3D</button>
+          <button type="button" class="scope-pill" data-scope-mode="radial">RADIAL</button>
         </div>
         <button type="button" id="btn-scope-close" class="scope-close-btn" title="Schließen">✕</button>
       </div>

@@ -17,6 +17,7 @@ export class PatchBay {
     this.drawScheduled = false;
     this.badges = []; // Stärke-Plaketten der Modulationskabel { id, x, y }
     this.depthDrag = null;
+    this.lod = 'high'; // 'high' | 'medium' | 'low'
 
     this.initCanvas();
     this.bindEvents();
@@ -415,8 +416,14 @@ export class PatchBay {
     return this.visible;
   }
 
+  setLod(lod) {
+    if (this.lod === lod) return;
+    this.lod = lod;
+    this.requestDraw();
+  }
+
   requestDraw() {
-    if (this.drawScheduled) return;
+    if (this.drawScheduled || document.hidden) return;
     this.drawScheduled = true;
     requestAnimationFrame(() => {
       this.drawScheduled = false;
@@ -450,7 +457,7 @@ export class PatchBay {
         if (p1 && p2) {
           const isConnectedToSelected = !selId || (c.fromModuleId === selId || c.toModuleId === selId);
           this.drawDroopingCord(p1.x, p1.y, p2.x, p2.y, c.color, false, isConnectedToSelected);
-          if (c.signal === 'mod') {
+          if (c.signal === 'mod' && this.lod !== 'low') {
             const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
             const sag = Math.min(80, 10 + dist * 0.12);
             this.badges.push({
@@ -464,7 +471,11 @@ export class PatchBay {
           }
         }
       });
-      this.badges.forEach((b) => this.drawDepthBadge(b));
+      if (this.lod === 'high') {
+        this.badges.forEach((b) => this.drawDepthBadge(b));
+      } else if (this.lod === 'medium' && selId) {
+        this.badges.filter((b) => b.isFocus).forEach((b) => this.drawDepthBadge(b));
+      }
     }
 
     // 2. Aktuell gezogenes Kabel zeichnen
@@ -528,16 +539,30 @@ export class PatchBay {
       ctx.globalAlpha = 0.42;
     }
 
-    // Weicher, dezenter Schattenwurf
-    ctx.beginPath();
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
-    ctx.lineWidth = isFocus ? 4.5 : 2.5;
-    ctx.lineCap = 'round';
-    ctx.moveTo(x1, y1 + 4);
-    ctx.quadraticCurveTo(midX, midY + 6, x2, y2 + 4);
-    ctx.stroke();
+    // Low-LOD (Overview Mode): Direkte Linien ohne Schattenwurf und ohne Stecker-Details
+    if (this.lod === 'low' && !isDragging) {
+      ctx.beginPath();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = isFocus ? 1.8 : 1.2;
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
 
-    // Matter, technischer Kabel-Körper (Dünner, ohne künstlichen Plastikglanz)
+    // Weicher, dezenter Schattenwurf (nur im High-LOD)
+    if (this.lod === 'high') {
+      ctx.beginPath();
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
+      ctx.lineWidth = isFocus ? 4.5 : 2.5;
+      ctx.lineCap = 'round';
+      ctx.moveTo(x1, y1 + 4);
+      ctx.quadraticCurveTo(midX, midY + 6, x2, y2 + 4);
+      ctx.stroke();
+    }
+
+    // Matter, technischer Kabel-Körper
     ctx.beginPath();
     ctx.strokeStyle = color;
     ctx.lineWidth = isDragging ? 3.4 : isFocus ? 2.6 : 1.8;
@@ -582,8 +607,10 @@ export class PatchBay {
   drawFloatingPlugHead(x, y, color) {
     const ctx = this.ctx;
     ctx.save();
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 12;
+    if (this.lod === 'high') {
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 12;
+    }
     this.drawPlugHead(x, y, color);
     ctx.restore();
   }

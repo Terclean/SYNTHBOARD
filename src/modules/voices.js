@@ -836,7 +836,12 @@ export class ResonatorGardenModule extends VoiceBase {
     cv.width = 240; cv.height = 44;
     el.appendChild(cv);
     const c = cv.getContext('2d');
+    let lastDraw = 0;
     this.drawModes = (modes) => {
+      if (document.hidden || this._isOffscreen || this.engine?.renderLod === 'low') return;
+      const now = performance.now();
+      if (this.engine?.renderLod === 'medium' && now - lastDraw < 66) return;
+      lastDraw = now;
       c.clearRect(0, 0, cv.width, cv.height);
       const lo = Math.log(40), hi = Math.log(16000);
       modes.forEach((m, i) => {
@@ -1074,7 +1079,12 @@ export class SpectralSwarmModule extends VoiceBase {
 
     const c = cv.getContext('2d');
     const lo = Math.log(25), hi = Math.log(14000);
+    let lastDraw = 0;
     this.drawUi = (count, norm) => {
+      if (document.hidden || this._isOffscreen || this.engine?.renderLod === 'low') return;
+      const now = performance.now();
+      if (this.engine?.renderLod === 'medium' && now - lastDraw < 66) return;
+      lastDraw = now;
       c.clearRect(0, 0, cv.width, cv.height);
       for (let i = 0; i < count; i++) {
         const { f, a } = this.parts[i].shape;

@@ -7177,6 +7177,10 @@ body.view-eurorack .panel-toggles {
   gap: 2px;
 }
 
+.scope-mode-pills.scope-pills-5 {
+  grid-template-columns: repeat(3, auto);
+}
+
 .scope-pill {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -7256,7 +7260,7 @@ body.view-eurorack .panel-toggles {
 
 .perf-scope-pills {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 4px;
 }
 
@@ -7879,4 +7883,22 @@ body.view-eurorack .panel-toggles {
   .man-op-card {
     break-inside: avoid;
   }
+}
+
+/* ==========================================================================
+   3-stufiges Zoom-LOD (Level of Detail) für hohe Framerates bei 40+ Modulen
+   ========================================================================== */
+.lod-medium .module-card,
+.lod-low .module-card {
+  backdrop-filter: none !important;
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+.lod-low .module-card .k-val,
+.lod-low .module-card .knob-scale,
+.lod-low .module-card .mod-desc,
+.lod-low .module-card .strip-header,
+.lod-low .module-card .jack-lbl {
+  display: none !important;
 }
