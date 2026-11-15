@@ -738,6 +738,39 @@ export class SlopeGeneratorModule extends ModuleBase {
     this.timer = setInterval(() => this.tick(), 25);
   }
 
+  static normalizeMode(rawMode, rawLoop) {
+    if (rawMode !== undefined && rawMode !== null) {
+      const m = String(rawMode).trim().toLowerCase();
+      if (m === 'trigger' || m === 'trig' || m === 'oneshot' || m === 'one-shot' || m === 'ad' || m === 'env' || m === 'single') return 'trig';
+      if (m === 'loop' || m === 'cycle' || m === 'lfo') return 'loop';
+      if (m === 'gate' || m === 'asr' || m === 'hold') return 'gate';
+    }
+    if (rawLoop !== undefined && rawLoop !== null) {
+      return (Number(rawLoop) === 0 || rawLoop === false) ? 'trig' : 'loop';
+    }
+    return undefined;
+  }
+
+  initValues(state = {}) {
+    const saved = { ...(state.values || {}) };
+    const normMode = SlopeGeneratorModule.normalizeMode(saved.mode, saved.loop);
+    if (normMode) saved.mode = normMode;
+    super.initValues({ ...state, values: saved });
+  }
+
+  setParam(id, value) {
+    if (id === 'mode') {
+      value = SlopeGeneratorModule.normalizeMode(value) || value;
+    } else if (id === 'loop') {
+      const normMode = SlopeGeneratorModule.normalizeMode(undefined, value);
+      if (normMode) {
+        super.setParam('mode', normMode);
+        return;
+      }
+    }
+    super.setParam(id, value);
+  }
+
   triggerRise(time = null) {
     this.stage = 'rise';
     this.stageStartTime = time || this.ctx.currentTime;

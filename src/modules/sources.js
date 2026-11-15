@@ -582,7 +582,7 @@ export class NoiseModule extends SourceBase {
     { id: 'crackle', label: 'Vinyl', min: 0, max: 1, value: 0.25, fmt: 'pct' },
   ];
   static options = [
-    { id: 'color', label: 'Farbe', choices: [['pink', 'Pink'], ['white', 'Weiß']], value: 'pink' },
+    { id: 'color', label: 'Farbe', choices: [['pink', 'Pink'], ['white', 'Weiß'], ['red', 'Rot (Brown)'], ['tape', 'Tonband (Tape)']], value: 'pink' },
     { id: 'ftype', label: 'Filter', choices: [['lowpass', 'Lowpass'], ['bandpass', 'Bandpass'], ['highpass', 'Highpass']], value: 'bandpass' },
   ];
   static jacks = [
@@ -617,6 +617,28 @@ export class NoiseModule extends SourceBase {
 
     this.src = null;
     this.initValues(state);
+  }
+
+  initValues(state = {}) {
+    const saved = { ...(state.values || {}) };
+    if (saved.mode !== undefined && saved.ftype === undefined) {
+      saved.ftype = saved.mode;
+    }
+    if (saved.type !== undefined && saved.color === undefined) {
+      saved.color = saved.type;
+    }
+    if (typeof saved.color === 'string') saved.color = saved.color.trim().toLowerCase();
+    if (typeof saved.ftype === 'string') saved.ftype = saved.ftype.trim().toLowerCase();
+    super.initValues({ ...state, values: saved });
+  }
+
+  setParam(id, value) {
+    if (id === 'mode') id = 'ftype';
+    else if (id === 'type') id = 'color';
+    if ((id === 'color' || id === 'ftype') && typeof value === 'string') {
+      value = value.trim().toLowerCase();
+    }
+    super.setParam(id, value);
   }
 
   setColor(color) {

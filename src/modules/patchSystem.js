@@ -62,6 +62,25 @@ export function resolveJackId(mod, portId, expectedType = null) {
     if (norm === 'reset' || norm === 'resetin') return 'resetIn';
     if (norm === 'pitch' || norm === 'pitchout' || norm === 'cv') return 'pitchOut';
     if (norm === 'gate' || norm === 'gateout') return 'gateOut';
+  } else if (mType === 'slow_random') {
+    if (norm === 'trig' || norm === 'trigin' || norm === 'clock' || norm === 'clockin' || norm === 'shclk' || norm === 'shclock') return 'trigIn';
+    if (norm === 'cv' || norm === 'cvout' || norm === 'mod' || norm === 'modout' || norm === 'smooth' || norm === 'smoothcv' || norm === 'sh' || norm === 'shout' || norm === 'shcv') return 'cvOut';
+    if (norm === 'inv' || norm === 'invout' || norm === 'invcv') return 'invOut';
+  } else if (mType === 'euclidean') {
+    if (norm === 'clock' || norm === 'clockin') return 'clockIn';
+    if (norm === 'reset' || norm === 'resetin') return 'resetIn';
+    if (norm === 'trig' || norm === 'trigout' || norm === 'gate' || norm === 'gateout') return 'trigOut';
+    if (norm === 'inv' || norm === 'invout' || norm === 'offbeat' || norm === 'accent' || norm === 'accentout') return 'invOut';
+  } else if (mType === 'prob_gate') {
+    if (norm === 'trig' || norm === 'trigin' || norm === 'gate' || norm === 'gatein') return 'trigIn';
+    if (norm === 'passed' || norm === 'passedout' || norm === 'trigout' || norm === 'gatea' || norm === 'gateout' || norm === 'outa' || norm === 'pass' || norm === 'passout') return 'trigOut';
+    if (norm === 'dropped' || norm === 'droppedout' || norm === 'alt' || norm === 'altout' || norm === 'gateb' || norm === 'outb') return 'altOut';
+  } else if (mType === 'pluck') {
+    if (norm === 'gate' || norm === 'gatein' || norm === 'trig' || norm === 'trigin') return 'gateIn';
+    if (norm === 'pitch' || norm === 'pitchin') return 'pitchIn';
+    if (norm === 'vca' || norm === 'vcacv') return 'vcaCv';
+    if (norm === 'pan' || norm === 'pancv') return 'panCv';
+    if (norm === 'tone' || norm === 'tonecv' || norm === 'filter' || norm === 'filtercv' || norm === 'damp' || norm === 'dampcv' || norm === 'cutoff' || norm === 'cutoffcv' || norm === 'modcutoff') return 'modCutoff';
   } else if (mType === 'chord_glide') {
     if (norm === 'clock' || norm === 'clockin') return 'clockIn';
     if (norm === 'reset' || norm === 'resetin') return 'resetIn';
@@ -136,7 +155,7 @@ export function resolveJackId(mod, portId, expectedType = null) {
       const j = jacks.find((x) => x.type === 'in' && x.signal === 'clock');
       if (j) return j.id;
     }
-    if (norm === 'gate' || norm === 'gatein') {
+    if (norm === 'gate' || norm === 'gatein' || norm === 'trig' || norm === 'trigin') {
       const j = jacks.find((x) => x.type === 'in' && x.signal === 'gate');
       if (j) return j.id;
     }
@@ -150,6 +169,12 @@ export function resolveJackId(mod, portId, expectedType = null) {
     }
     if (norm === 'pan' || norm === 'pancv') {
       const j = jacks.find((x) => x.type === 'in' && x.id === 'panCv');
+      if (j) return j.id;
+    }
+  }
+  if (expectedType === 'out') {
+    if (norm === 'gate' || norm === 'gateout' || norm === 'trig' || norm === 'trigout') {
+      const j = jacks.find((x) => x.type === 'out' && x.signal === 'gate');
       if (j) return j.id;
     }
   }

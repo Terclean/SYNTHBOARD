@@ -489,7 +489,7 @@ export class PatchBay {
     const w = 38, h = 16;
     const active = this.depthDrag?.id === b.id;
     ctx.save();
-    if (!b.isFocus) ctx.globalAlpha = 0.22;
+    if (!b.isFocus) ctx.globalAlpha = 0.42;
     ctx.beginPath();
     ctx.roundRect(b.x - w / 2, b.y - h / 2, w, h, 6);
     ctx.fillStyle = active ? '#0b0d12' : 'rgba(18, 20, 26, 0.92)';
@@ -523,9 +523,9 @@ export class PatchBay {
 
     ctx.save();
 
-    // Dimmung: nicht-ausgewählte Kabel werden dezent abgeblendet
+    // Dimmung: nicht-ausgewählte Kabel werden dezent abgeblendet, bleiben aber klar sichtbar
     if (!isFocus) {
-      ctx.globalAlpha = 0.20;
+      ctx.globalAlpha = 0.42;
     }
 
     // Weicher, dezenter Schattenwurf

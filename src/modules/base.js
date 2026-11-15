@@ -44,9 +44,15 @@ export function getNoiseBuffers(ctx) {
   const len = 2 * ctx.sampleRate;
   const white = ctx.createBuffer(1, len, ctx.sampleRate);
   const pink = ctx.createBuffer(1, len, ctx.sampleRate);
+  const red = ctx.createBuffer(1, len, ctx.sampleRate);
+  const tape = ctx.createBuffer(1, len, ctx.sampleRate);
   const w = white.getChannelData(0);
   const p = pink.getChannelData(0);
+  const rd = red.getChannelData(0);
+  const tp = tape.getChannelData(0);
   let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+  let lastRed = 0;
+  let lastTape = 0;
   for (let i = 0; i < len; i++) {
     const r = Math.random() * 2 - 1;
     w[i] = r * 0.5;
@@ -56,10 +62,18 @@ export function getNoiseBuffers(ctx) {
     b3 = 0.8665 * b3 + r * 0.3104856;
     b4 = 0.55 * b4 + r * 0.5329522;
     b5 = -0.7616 * b5 - r * 0.016898;
-    p[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + r * 0.5362) * 0.11;
+    const pinkVal = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + r * 0.5362) * 0.11;
+    p[i] = pinkVal;
     b6 = r * 0.115926;
+
+    lastRed = (lastRed + 0.02 * r) / 1.02;
+    rd[i] = Math.max(-0.8, Math.min(0.8, lastRed * 2.6));
+
+    // Warmes Tonbandrauschen: gedämpftes Pink-Rauschen + leichter High-Rolloff
+    lastTape = lastTape * 0.72 + (pinkVal * 0.85 + r * 0.08) * 0.28;
+    tp[i] = lastTape;
   }
-  const res = { white, pink };
+  const res = { white, pink, red, tape };
   noiseCache.set(ctx, res);
   return res;
 }
