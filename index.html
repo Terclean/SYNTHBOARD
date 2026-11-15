@@ -118,12 +118,24 @@
 
         <!-- Rechts: Overview-Button, Scope, Master-Knob & Sidebar-Toggles -->
         <div class="topbar-right">
+          <button id="btn-manual-topbar" class="overview-topbar-btn manual-topbar-btn" title="Visuelles Studio-Handbuch öffnen [Taste H]">
+            <span>📖 Handbuch</span>
+          </button>
+
           <button id="btn-studio-overview" class="overview-topbar-btn" title="Alles auf einen Blick: Passt alle Studio-Geräte optimal in den Bildschirm ein [Taste O]">
             <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>
             <span>ALLES IM BLICK</span>
           </button>
 
-          <canvas id="scope" class="scope-compact" width="110" height="30" aria-label="Oszilloskop"></canvas>
+          <div class="scope-widget" id="scope-widget">
+            <div class="scope-mode-pills" role="group" aria-label="Analyzer-Modus">
+              <button type="button" class="scope-pill active" data-scope-mode="wave" title="Triggered Oszilloskop">WAVE</button>
+              <button type="button" class="scope-pill" data-scope-mode="fft" title="Logarithmischer Spektrumanalysator">FFT</button>
+              <button type="button" class="scope-pill" data-scope-mode="xy" title="Stereo Lissajous Vectorscope">XY</button>
+            </div>
+            <canvas id="scope" class="scope-compact" width="114" height="30" aria-label="Oszilloskop" title="Klicken zum Modus-Wechsel (WAVE / FFT / XY)"></canvas>
+            <button type="button" id="btn-scope-expand" class="scope-expand-btn" title="Großansicht ein-/ausblenden">⤢</button>
+          </div>
 
           <div class="master-fader-cell" title="Master-Lautstärke">
             <span class="master-lbl">MASTER</span>
@@ -255,6 +267,37 @@
       <span id="status-text"></span>
       <div id="inspector-panel"></div>
       <div id="performance-bar"></div>
+    </div>
+
+    <!-- Schwebendes Studio-Oszilloskop (Großansicht) -->
+    <div id="scope-popout" class="scope-popout hidden" role="dialog" aria-label="Studio-Oszilloskop Großansicht">
+      <div class="scope-popout-head">
+        <div class="scope-popout-title">
+          <span class="scope-led"></span>
+          <span>STUDIO ANALYZER</span>
+        </div>
+        <div class="scope-mode-pills popout-pills" role="group" aria-label="Analyzer-Modus">
+          <button type="button" class="scope-pill active" data-scope-mode="wave">WAVE</button>
+          <button type="button" class="scope-pill" data-scope-mode="fft">FFT</button>
+          <button type="button" class="scope-pill" data-scope-mode="xy">XY</button>
+        </div>
+        <button type="button" id="btn-scope-close" class="scope-close-btn" title="Schließen">✕</button>
+      </div>
+      <canvas id="scope-popout-canvas" class="scope-popout-canvas" width="480" height="240"></canvas>
+      <div class="scope-popout-readouts">
+        <div class="scope-readout">
+          <span class="ro-lbl">PEAK</span>
+          <span class="ro-val" id="scope-ro-peak">-∞ dB</span>
+        </div>
+        <div class="scope-readout">
+          <span class="ro-lbl">GRUNDTON</span>
+          <span class="ro-val" id="scope-ro-note">—</span>
+        </div>
+        <div class="scope-readout">
+          <span class="ro-lbl">MODUS</span>
+          <span class="ro-val" id="scope-ro-mode">TRIGGERED WAVE</span>
+        </div>
+      </div>
     </div>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>

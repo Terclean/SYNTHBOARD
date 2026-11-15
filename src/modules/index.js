@@ -56,7 +56,17 @@ export class RackEngine {
     this.masterGain.gain.value = this.masterValue;
     this.analyser = this.ctx.createAnalyser();
     this.analyser.fftSize = 2048;
-    this.analyser.smoothingTimeConstant = 0.8;
+    this.analyser.smoothingTimeConstant = 0.78;
+
+    // Stereo L/R Analysatoren für das XY-Lissajous-Vectorscope
+    this.splitter = this.ctx.createChannelSplitter ? this.ctx.createChannelSplitter(2) : null;
+    this.analyserL = this.ctx.createAnalyser();
+    this.analyserL.fftSize = 1024;
+    this.analyserL.smoothingTimeConstant = 0.75;
+    this.analyserR = this.ctx.createAnalyser();
+    this.analyserR.fftSize = 1024;
+    this.analyserR.smoothingTimeConstant = 0.75;
+
     this.chainGate.connect(this.studioViewGate);
     this.studioViewGate.connect(this.masterGain);
     this.buildLimiter();
@@ -72,7 +82,14 @@ export class RackEngine {
   }
 
   buildLimiter() {
-    if (this.limiter) { try { this.masterGain.disconnect(); this.limiter.disconnect(); this.analyser.disconnect(); } catch { /* ignore */ } }
+    if (this.limiter) {
+      try {
+        this.masterGain.disconnect();
+        this.limiter.disconnect();
+        this.analyser.disconnect();
+        this.splitter?.disconnect();
+      } catch { /* ignore */ }
+    }
     this.limiter = this.ctx.createDynamicsCompressor();
     const t = this.ctx.currentTime;
     this.limiter.threshold.setValueAtTime(-8, t);
@@ -82,6 +99,11 @@ export class RackEngine {
     this.limiter.release.setValueAtTime(0.25, t);
     this.masterGain.connect(this.limiter);
     this.limiter.connect(this.analyser);
+    if (this.splitter) {
+      this.limiter.connect(this.splitter);
+      this.splitter.connect(this.analyserL, 0);
+      this.splitter.connect(this.analyserR, 1);
+    }
     this.analyser.connect(this.ctx.destination);
   }
 

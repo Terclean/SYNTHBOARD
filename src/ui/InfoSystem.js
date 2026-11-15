@@ -652,6 +652,7 @@ export class InfoSystem {
     this.onRackModified = options.onRackModified || null;
     this.onToast = options.onToast || null;
     this.onStartAudio = options.onStartAudio || null;
+    this.onOpenManual = options.onOpenManual || null;
     this.enabled = localStorage.getItem('synthboard:infoboxes') !== 'false';
 
     this.tooltipEl = null;
@@ -756,7 +757,10 @@ export class InfoSystem {
     // Handbuch / Guide Button
     const btnGuide = document.querySelector('#btn-guide');
     if (btnGuide) {
-      btnGuide.addEventListener('click', () => this.openGuide('tab-tutorials'));
+      btnGuide.addEventListener('click', () => {
+        if (this.onOpenManual) this.onOpenManual();
+        else this.openGuide('tab-tutorials');
+      });
     }
 
     // Footer Guide Link
@@ -764,7 +768,8 @@ export class InfoSystem {
     if (footerGuide) {
       footerGuide.addEventListener('click', (e) => {
         e.preventDefault();
-        this.openGuide('tab-tutorials');
+        if (this.onOpenManual) this.onOpenManual();
+        else this.openGuide('tab-tutorials');
       });
     }
 
@@ -779,7 +784,8 @@ export class InfoSystem {
         this.toggle();
       } else if (k === 'h' || e.key === '?') {
         e.preventDefault();
-        this.openGuide('tab-cables');
+        if (this.onOpenManual) this.onOpenManual();
+        else this.openGuide('tab-cables');
       } else if (k === 't') {
         e.preventDefault();
         this.openGuide('tab-tutorials');

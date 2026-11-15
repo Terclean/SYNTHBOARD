@@ -9,6 +9,7 @@ import { FocusDock } from './ui/FocusDock.js';
 import { getModuleIcon, ICONS } from './ui/icons.js';
 import { EurorackUI } from './eurorack/ui.js';
 import { StudioWorkspace } from './ui/StudioWorkspace.js';
+import { ManualModal } from './ui/ManualModal.js';
 
 const LS_BOARDS = 'synthboard:boards';
 const LS_AUTO = 'synthboard:autosave';
@@ -154,7 +155,69 @@ const masterKnob = new Knob($('#knob-master'), {
   onChange: (v) => { engine.setMaster(v); changed(); },
 });
 
-new Oscilloscope($('#scope'), engine.analyser).start();
+const scopeModeLabels = {
+  wave: 'TRIGGERED WAVE',
+  fft: 'LOG FFT (20Hz-16k)',
+  xy: 'STEREO XY',
+};
+const scope = new Oscilloscope($('#scope'), engine.analyser, {
+  analyserL: engine.analyserL,
+  analyserR: engine.analyserR,
+  onReadout: ({ peakDb, note }) => {
+    const peakEl = $('#scope-ro-peak');
+    const noteEl = $('#scope-ro-note');
+    if (peakEl) peakEl.textContent = peakDb <= -60 ? '-∞ dB' : `${peakDb.toFixed(1)} dB`;
+    if (noteEl) noteEl.textContent = note || '—';
+  },
+  onModeChange: (mode) => {
+    document.querySelectorAll('.scope-pill[data-scope-mode]').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.scopeMode === mode);
+    });
+    const modeEl = $('#scope-ro-mode');
+    if (modeEl) modeEl.textContent = scopeModeLabels[mode] || mode.toUpperCase();
+  },
+});
+scope.start();
+
+$('#scope')?.addEventListener('click', () => scope.cycleMode());
+document.querySelectorAll('.scope-pill[data-scope-mode]').forEach((btn) => {
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    scope.setMode(btn.dataset.scopeMode);
+  });
+});
+
+const scopePopout = $('#scope-popout');
+const scopePopoutCanvas = $('#scope-popout-canvas');
+const setScopePopoutOpen = (open) => {
+  if (!scopePopout) return;
+  scopePopout.classList.toggle('hidden', !open);
+  scope.setPopoutCanvas(open ? scopePopoutCanvas : null);
+  $('#btn-scope-expand')?.classList.toggle('active', open);
+};
+$('#btn-scope-expand')?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  const isHidden = scopePopout?.classList.contains('hidden');
+  setScopePopoutOpen(Boolean(isHidden));
+});
+$('#btn-scope-close')?.addEventListener('click', () => setScopePopoutOpen(false));
+scopePopoutCanvas?.addEventListener('click', () => scope.cycleMode());
+
+// ───────────────────────── ManualModal ─────────────────────────
+const manualModal = new ManualModal({
+  onLoadRackState: (state) => {
+    focusDock?.clear();
+    normalizePatchState(state);
+    engine.load(state);
+    masterKnob.setValue(engine.masterValue);
+    current = { kind: 'tpl', key: 'empty' };
+    renderRack();
+    snapshotSystem?.updateVisuals();
+    changed();
+  },
+  onToast: (msg) => toast(msg),
+  onStartAudio: () => startAudio(),
+});
 
 // ───────────────────────── PatchBay, FocusDock & SnapshotSystem ──
 const patchCanvas = $('#patch-canvas');
@@ -167,6 +230,7 @@ const infoSystem = new InfoSystem(engine, patchBay, {
   onToast: (msg) => toast(msg),
   onStartAudio: () => startAudio(),
   onLoadTemplate: (key) => loadBoard('tpl', key),
+  onOpenManual: () => manualModal.open(),
 });
 
 const snapshotSystem = new SnapshotSystem(engine, {
@@ -199,7 +263,8 @@ engine.workspace = workspace;
 
 $('#btn-boards-gallery')?.addEventListener('click', () => infoSystem.openGuide('tab-boards'));
 $('#btn-tutorials')?.addEventListener('click', () => infoSystem.openGuide('tab-tutorials'));
-$('#btn-guide')?.addEventListener('click', () => infoSystem.openGuide('tab-guide'));
+$('#btn-guide')?.addEventListener('click', () => manualModal.open());
+$('#btn-manual-topbar')?.addEventListener('click', () => manualModal.open());
 $('#btn-info')?.addEventListener('click', () => {
   const active = infoSystem.toggleTooltips();
   toast(active ? 'Info-Tooltips aktiviert' : 'Info-Tooltips deaktiviert');
