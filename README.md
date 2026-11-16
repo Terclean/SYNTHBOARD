@@ -3,8 +3,7 @@
 SYNTHBOARD is a browser-based modular synthesizer and ambient studio powered by the Web Audio API and built with Vite and vanilla JavaScript. It combines a zoomable freeform Studio workspace with a dedicated virtual Eurorack mode.
 
 ## Live Demo
-
-- GitHub Pages URL: Not yet published (configure in GitHub repository settings under **Settings > Pages > Source: GitHub Actions**, then update this link once deployed).
+ -> live
 
 ## Key Features
 
