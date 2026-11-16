@@ -3,6 +3,7 @@ import { EurorackEngine, MACROS, MACRO_KEYS } from './engine.js';
 import { SIGNAL_COLORS, clamp, dbToGain } from './modules.js';
 import { buildDistantLights, buildStandardPatch, buildEmptyPatch } from './distantLights.js';
 import { Knob } from '../ui/Knob.js';
+import { t } from '../ui/i18n.js';
 
 const LS_EURORACK_KEY = 'synthboard:eurorack:custom_patch_v2';
 const NOTE_NAMES_DE = ['C', 'Cis', 'D', 'Dis', 'E', 'F', 'Fis', 'G', 'Gis', 'A', 'B', 'H'];
@@ -334,6 +335,31 @@ export class EurorackUI {
 
         <!-- Hinweis-Banner für CV-Kabel-Tiefe oder Warnungen -->
         <div class="er-cable-inspector hidden" id="er-cable-inspector"></div>
+
+        <!-- Work-in-Progress & Community-Eurorack-Karussell -->
+        <div class="er-carousel-bar" id="er-carousel-bar">
+          <div class="er-wip-notice">
+            <span class="er-wip-badge">WORK IN PROGRESS</span>
+            <span class="er-wip-text">${t(
+              'Der Eurorack-Bereich befindet sich noch in Entwicklung – reiche gerne eigene Euroracks per Pull Request ein!',
+              'Eurorack mode is still in development – feel free to submit your own Eurorack racks via Pull Request!'
+            )}</span>
+            <a class="er-wip-link" href="https://github.com/Terclean/SYNTHBOARD" target="_blank" rel="noopener noreferrer">${t('Auf GitHub einreichen ↗', 'Submit on GitHub ↗')}</a>
+          </div>
+          <div class="er-carousel-nav">
+            <button type="button" class="er-car-arrow" id="er-car-prev" title="${t('Vorheriges Case', 'Previous Case')}">◀</button>
+            <div class="er-car-pills" id="er-car-pills">
+              <button type="button" class="er-car-pill active" data-case-idx="0">01 · Distant Lights (Live)</button>
+              <button type="button" class="er-car-pill" data-case-idx="1">02 · West-Coast Skiff (WIP)</button>
+              <button type="button" class="er-car-pill" data-case-idx="2">03 · Techno 104HP (WIP)</button>
+              <button type="button" class="er-car-pill" data-case-idx="3">04 · Community Slot (WIP)</button>
+            </div>
+            <button type="button" class="er-car-arrow" id="er-car-next" title="${t('Nächstes Case', 'Next Case')}">▶</button>
+          </div>
+        </div>
+
+        <!-- Physische WIP-Platzhalter-Cases (Karussell-Ansicht) -->
+        <div class="er-wip-case-view hidden" id="er-wip-case-view"></div>
 
         <!-- Zweizeiliges Eurorack-Gehäuse mit Walnussholz-Seitenteilen und Performance-Konsole -->
         <div class="er-case-assembly" id="er-case-assembly">
@@ -1548,6 +1574,112 @@ export class EurorackUI {
     window.addEventListener('resize', () => {
       if (this.isActiveView) this.drawCables();
     });
+
+    // Eurorack-Karussell Navigation
+    this.carouselIndex = this.carouselIndex || 0;
+    this.hostEl.querySelector('#er-car-prev')?.addEventListener('click', () => {
+      this.setCarouselCase((this.carouselIndex + 3) % 4);
+    });
+    this.hostEl.querySelector('#er-car-next')?.addEventListener('click', () => {
+      this.setCarouselCase((this.carouselIndex + 1) % 4);
+    });
+    this.hostEl.querySelectorAll('.er-car-pill').forEach((btn) => {
+      btn.addEventListener('click', () => this.setCarouselCase(Number(btn.dataset.caseIdx)));
+    });
+    this.setCarouselCase(this.carouselIndex);
+  }
+
+  setCarouselCase(idx) {
+    this.carouselIndex = idx;
+    const caseEl = this.hostEl.querySelector('#er-case-assembly');
+    const wipEl = this.hostEl.querySelector('#er-wip-case-view');
+    this.hostEl.querySelectorAll('.er-car-pill').forEach((p) => {
+      p.classList.toggle('active', Number(p.dataset.caseIdx) === idx);
+    });
+
+    if (idx === 0) {
+      caseEl?.classList.remove('hidden');
+      wipEl?.classList.add('hidden');
+      requestAnimationFrame(() => this.drawCables());
+      return;
+    }
+
+    caseEl?.classList.add('hidden');
+    if (!wipEl) return;
+    wipEl.classList.remove('hidden');
+
+    const cases = {
+      1: {
+        name: 'West-Coast Skiff · 3U 84HP',
+        wood: '#92400e',
+        panel: '#e2e8f0',
+        ink: '#0f172a',
+        modules: [
+          { title: 'COMPLEX OSC', hp: '18HP', knobs: ['FREQ', 'TIMBRE', 'FOLD', 'MOD'], jacks: 6 },
+          { title: 'DUAL LPG', hp: '10HP', knobs: ['CUTOFF', 'RES', 'VCA'], jacks: 4 },
+          { title: 'RANDOM SOURCE', hp: '14HP', knobs: ['RATE', 'SLEW', 'STEP'], jacks: 5 },
+          { title: 'SPRING VERB', hp: '12HP', knobs: ['MIX', 'DRIVE', 'TONE'], jacks: 4 },
+        ],
+      },
+      2: {
+        name: 'Techno & Industrial · 6U 104HP',
+        wood: '#1e293b',
+        panel: '#111827',
+        ink: '#f8fafc',
+        modules: [
+          { title: 'EUCLID TRIG', hp: '16HP', knobs: ['STEPS', 'HITS', 'ROT'], jacks: 6 },
+          { title: 'FM PERC', hp: '14HP', knobs: ['PITCH', 'MOD', 'DECAY', 'SNAP'], jacks: 5 },
+          { title: 'ACID BASS', hp: '18HP', knobs: ['CUTOFF', 'RES', 'ENV', 'ACC'], jacks: 5 },
+          { title: 'WAVE SHAPER', hp: '12HP', knobs: ['DRIVE', 'FOLD', 'MIX'], jacks: 4 },
+        ],
+      },
+      3: {
+        name: 'Community Eurorack · Open Slot',
+        wood: '#78350f',
+        panel: '#1e293b',
+        ink: '#cbd5e1',
+        modules: [
+          { title: 'OPEN 16HP', hp: '16HP', knobs: ['PARAM 1', 'PARAM 2'], jacks: 4, blank: true },
+          { title: 'YOUR MODULE', hp: '20HP', knobs: ['CV A', 'CV B', 'OUT'], jacks: 5, blank: true },
+          { title: 'OPEN 18HP', hp: '18HP', knobs: ['IN', 'MIX'], jacks: 4, blank: true },
+        ],
+      },
+    };
+
+    const spec = cases[idx] || cases[1];
+    wipEl.innerHTML = `
+      <div class="er-wip-hardware" style="--wip-wood:${spec.wood};--wip-panel:${spec.panel};--wip-ink:${spec.ink}">
+        <div class="er-wood-cheek er-wood-left"></div>
+        <div class="er-wip-rack-body">
+          <div class="er-wip-rail er-wip-rail-top">
+            <span>${spec.name}</span>
+            <span class="er-wip-tag">PLACEHOLDER CASE</span>
+          </div>
+          <div class="er-wip-modules-row">
+            ${spec.modules.map((m) => `
+              <div class="er-wip-mod ${m.blank ? 'is-blank' : ''}">
+                <div class="er-wip-screws"><i></i><i></i></div>
+                <div class="er-wip-mod-title">${m.title} <small>${m.hp}</small></div>
+                <div class="er-wip-knobs">
+                  ${m.knobs.map((k) => `<div class="er-wip-knob"><span></span><small>${k}</small></div>`).join('')}
+                </div>
+                <div class="er-wip-jacks">
+                  ${Array.from({ length: m.jacks }).map(() => `<span class="er-wip-jack"></span>`).join('')}
+                </div>
+                <div class="er-wip-screws"><i></i><i></i></div>
+              </div>
+            `).join('')}
+          </div>
+          <div class="er-wip-rail er-wip-rail-bottom">
+            <span class="er-wip-footer-txt">WORK IN PROGRESS · ${t(
+              'Reiche gerne dein eigenes Eurorack via GitHub Pull Request ein!',
+              'Submit your own Eurorack via GitHub Pull Request!'
+            )}</span>
+          </div>
+        </div>
+        <div class="er-wood-cheek er-wood-right"></div>
+      </div>
+    `;
   }
 
   fitToScreen() {
