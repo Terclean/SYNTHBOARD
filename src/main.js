@@ -11,6 +11,7 @@ import { EurorackUI } from './eurorack/ui.js';
 import { StudioWorkspace } from './ui/StudioWorkspace.js';
 import { ManualModal } from './ui/ManualModal.js';
 import { MAX_IMPORT_BYTES, validateFileSize, validateAndSanitizePatchState } from './modules/patchValidator.js';
+import { getLang, setLang, onLangChange, applyTranslations, t } from './ui/i18n.js';
 
 const LS_BOARDS = 'synthboard:boards';
 const LS_AUTO = 'synthboard:autosave';
@@ -105,22 +106,22 @@ function updateStatus() {
   if (btnPower) {
     btnPower.classList.toggle('on', running);
     const txt = btnPower.querySelector('.txt');
-    if (txt) txt.textContent = running ? 'AN' : 'AUS';
+    if (txt) txt.textContent = running ? t('AN', 'ON') : t('AUS', 'OFF');
     btnPower.title = running
-      ? 'Audio-Engine pausieren [Space]'
+      ? t('Audio-Engine pausieren [Space]', 'Pause audio engine [Space]')
       : ctxState === 'interrupted'
-        ? 'Audio unterbrochen – Klicken zum Fortsetzen'
-        : 'Audio-Engine starten [Space]';
+        ? t('Audio unterbrochen – Klicken zum Fortsetzen', 'Audio interrupted – Click to resume')
+        : t('Audio-Engine starten [Space]', 'Start audio engine [Space]');
   }
   $('#status-led')?.classList.toggle('on', running);
   const n = engine.controls.length + engine.sources.length + engine.effects.length;
   const statusTxt = $('#status-text');
   if (statusTxt) {
     statusTxt.textContent = running
-      ? `Audio aktiv · ${engine.ctx.sampleRate / 1000} kHz · ${n} Module`
+      ? t(`Audio aktiv · ${engine.ctx.sampleRate / 1000} kHz · ${n} Module`, `Audio active · ${engine.ctx.sampleRate / 1000} kHz · ${n} modules`)
       : ctxState === 'interrupted'
-        ? 'Audio unterbrochen – Klicken zum Fortsetzen'
-        : 'Audio pausiert – Klicken oder [Space] zum Starten';
+        ? t('Audio unterbrochen – Klicken zum Fortsetzen', 'Audio interrupted – Click to resume')
+        : t('Audio pausiert – Klicken oder [Space] zum Starten', 'Audio paused – Click or [Space] to start');
   }
 }
 
@@ -322,10 +323,28 @@ const workspace = new StudioWorkspace({
 });
 engine.workspace = workspace;
 
-$('#btn-boards-gallery')?.addEventListener('click', () => infoSystem.openGuide('tab-boards'));
-$('#btn-tutorials')?.addEventListener('click', () => infoSystem.openGuide('tab-tutorials'));
-$('#btn-guide')?.addEventListener('click', () => manualModal.open());
-$('#btn-manual-topbar')?.addEventListener('click', () => manualModal.open());
+$('#btn-boards-gallery')?.addEventListener('click', () => { infoSystem.openGuide('tab-boards'); applyTranslations(document); });
+$('#btn-tutorials')?.addEventListener('click', () => { infoSystem.openGuide('tab-tutorials'); applyTranslations(document); });
+$('#btn-guide')?.addEventListener('click', () => { manualModal.open(); applyTranslations(document.getElementById('manual-modal')); });
+$('#btn-manual-topbar')?.addEventListener('click', () => { manualModal.open(); applyTranslations(document.getElementById('manual-modal')); });
+$('#btn-lang-toggle')?.addEventListener('click', () => {
+  setLang(getLang() === 'de' ? 'en' : 'de');
+});
+
+onLangChange(() => {
+  renderLibrary();
+  populateBoards();
+  renderRack();
+  updateStatus();
+  snapshotSystem?.updateVisuals();
+  focusDock?.render?.();
+  if (eurorackUI) {
+    eurorackUI.render();
+    eurorackUI.renderCabinet?.();
+    eurorackUI.syncAllUI?.();
+  }
+  applyTranslations(document);
+});
 $('#btn-info')?.addEventListener('click', () => {
   const active = infoSystem.toggleTooltips();
   toast(active ? 'Info-Tooltips aktiviert' : 'Info-Tooltips deaktiviert');
@@ -507,6 +526,7 @@ function renderRack(highlightId) {
   focusDock?.updateRackBadges();
   updateStatus();
   syncTransportBpm();
+  applyTranslations(document);
 }
 
 function createCard(mod, index = -1) {
@@ -1808,6 +1828,7 @@ function boot() {
 
   // EurorackUI vorab initialisieren & zuletzt geöffnete Ansicht (Eurorack oder Studio) wiederherstellen
   const ui = ensureEurorackUI();
+  applyTranslations(document);
   let savedView = 'studio';
   try {
     if (window.location?.hash === '#eurorack' || localStorage.getItem(LS_ACTIVE_VIEW) === 'eurorack') {

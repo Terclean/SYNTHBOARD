@@ -1,6 +1,7 @@
 // SYNTHBOARD – Schlichtes, visuelles Studio-Handbuch (In-App + Druck/PDF & HTML-Export)
 // Ausschließlich echte deutsche UI-Bezeichnungen – keinerlei interne Code-IDs im Handbuch-Text.
 import { MODULES } from '../modules/index.js';
+import { applyTranslations, onLangChange, t } from './i18n.js';
 
 const SIG_COLORS = {
   clock: '#06b6d4',
@@ -515,6 +516,14 @@ export class ManualModal {
     this.el = null;
     this.activeCat = 'all';
     this.createModal();
+    onLangChange(() => this.refreshLanguage());
+  }
+
+  refreshLanguage() {
+    if (!this.el) return;
+    this.el.innerHTML = this.buildModalHtml();
+    this.bindModalEvents();
+    applyTranslations(this.el);
   }
 
   createModal() {
@@ -522,10 +531,23 @@ export class ManualModal {
     modal.id = 'manual-modal';
     modal.className = 'manual-modal hidden';
     modal.setAttribute('role', 'dialog');
-    modal.setAttribute('aria-label', 'SYNTHBOARD Studio-Handbuch');
+    modal.setAttribute('aria-label', t('SYNTHBOARD Studio-Handbuch', 'SYNTHBOARD Studio Manual'));
     modal.innerHTML = this.buildModalHtml();
     document.body.appendChild(modal);
     this.el = modal;
+
+    this.bindModalEvents();
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !this.el.classList.contains('hidden')) {
+        this.close();
+      }
+    });
+  }
+
+  bindModalEvents() {
+    const modal = this.el;
+    if (!modal) return;
 
     modal.querySelector('#man-close-btn')?.addEventListener('click', () => this.close());
     modal.addEventListener('click', (e) => {
@@ -561,16 +583,11 @@ export class ManualModal {
     modal.querySelector('#man-download-html')?.addEventListener('click', () => this.downloadStandaloneHtml());
     modal.querySelector('#man-download-ai-md')?.addEventListener('click', () => this.downloadAiReferenceMd());
     modal.querySelector('#man-download-rack-md')?.addEventListener('click', () => this.downloadCurrentRackForAiMd());
-
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && !this.el.classList.contains('hidden')) {
-        this.close();
-      }
-    });
   }
 
   open() {
     this.el?.classList.remove('hidden');
+    if (this.el) applyTranslations(this.el);
   }
 
   close() {
@@ -648,7 +665,7 @@ export class ManualModal {
           <h4>${m.title}</h4>
           <p class="man-mod-purpose">${m.purpose}</p>
           <div class="man-mod-patch">
-            <span class="man-patch-lbl">TYPISCHES PATCH:</span>
+            <span class="man-patch-lbl">${t('TYPISCHES PATCH:', 'TYPICAL PATCH:')}</span>
             <span class="man-patch-val">${m.patch}</span>
           </div>
         </div>
@@ -662,7 +679,7 @@ export class ManualModal {
             <h4>${r.title}</h4>
             <p>${r.summary}</p>
           </div>
-          <button type="button" class="man-load-rack-btn no-print" data-rack-id="${r.id}">▶ Direkt ins Rack laden</button>
+          <button type="button" class="man-load-rack-btn no-print" data-rack-id="${r.id}">${t('▶ Direkt ins Rack laden', '▶ Load into Rack')}</button>
         </div>
         <div class="man-rack-diagram">${r.diagram}</div>
         <ol class="man-rack-steps">
@@ -676,37 +693,49 @@ export class ManualModal {
         <!-- 1. Grundprinzip & Signalfluss -->
         <section class="man-section">
           <div class="man-sec-num">01</div>
-          <h2>Grundprinzip &amp; Signalfluss</h2>
-          <p class="man-lead">SYNTHBOARD funktioniert wie ein echtes Modular-Studio: Oben entstehen Takt und Bewegung, in der Mitte spielen die Instrumente, und rechts veredeln Effekte den Gesamtklang.</p>
+          <h2>${t('Grundprinzip &amp; Signalfluss', 'Core Principles &amp; Signal Flow')}</h2>
+          <p class="man-lead">${t(
+            'SYNTHBOARD funktioniert wie ein echtes Modular-Studio: Oben entstehen Takt und Bewegung, in der Mitte spielen die Instrumente, und rechts veredeln Effekte den Gesamtklang.',
+            'SYNTHBOARD works like a hardware modular studio: clock and modulation originate at the top, instruments generate sound in the middle, and master effects shape the final mix on the right.'
+          )}</p>
           ${this.buildSignalFlowSvg()}
           <div class="man-cable-legend">
-            <div class="man-leg-item"><span class="man-dot" style="background:#06b6d4"></span><strong>Clock (Cyan)</strong><span>Takt &amp; Tempo</span></div>
-            <div class="man-leg-item"><span class="man-dot" style="background:#d97706"></span><strong>Gate (Gold)</strong><span>Noten-Start &amp; Trigger</span></div>
-            <div class="man-leg-item"><span class="man-dot" style="background:#9333ea"></span><strong>Pitch (Violett)</strong><span>Tonhöhen &amp; Akkorde</span></div>
-            <div class="man-leg-item"><span class="man-dot" style="background:#059669"></span><strong>Modulation (Grün)</strong><span>Bewegte Regler (CV)</span></div>
-            <div class="man-leg-item"><span class="man-dot" style="background:#2563eb"></span><strong>Audio (Blau)</strong><span>Hörbarer Klangweg</span></div>
+            <div class="man-leg-item"><span class="man-dot" style="background:#06b6d4"></span><strong>Clock (Cyan)</strong><span>${t('Takt &amp; Tempo', 'Timing &amp; Tempo')}</span></div>
+            <div class="man-leg-item"><span class="man-dot" style="background:#d97706"></span><strong>Gate (Gold)</strong><span>${t('Noten-Start &amp; Trigger', 'Note Triggers &amp; Gates')}</span></div>
+            <div class="man-leg-item"><span class="man-dot" style="background:#9333ea"></span><strong>Pitch (${t('Violett', 'Violet')})</strong><span>${t('Tonhöhen &amp; Akkorde', 'Pitch &amp; Chords')}</span></div>
+            <div class="man-leg-item"><span class="man-dot" style="background:#059669"></span><strong>Modulation (${t('Grün', 'Green')})</strong><span>${t('Bewegte Regler (CV)', 'Animated Knobs (CV)')}</span></div>
+            <div class="man-leg-item"><span class="man-dot" style="background:#2563eb"></span><strong>Audio (${t('Blau', 'Blue')})</strong><span>${t('Hörbarer Klangweg', 'Audible Signal Path')}</span></div>
           </div>
         </section>
 
         <!-- 2. Bedienung & Performance -->
         <section class="man-section">
           <div class="man-sec-num">02</div>
-          <h2>Bedienung &amp; Performance</h2>
+          <h2>${t('Bedienung &amp; Performance', 'Operation &amp; Performance')}</h2>
           <div class="man-ops-grid">
             <div class="man-op-card">
-              <div class="man-op-tag">DREHREGLER</div>
-              <h4>Präzise Klangformung</h4>
-              <p>Regler senkrecht ziehen oder mit dem Mausrad drehen. <strong>Doppelklick</strong> setzt jeden Regler sofort auf seinen Werkswert zurück. Über ein gestecktes Kabel-Badge lässt sich die Modulationsstärke (0–200%) direkt einstellen.</p>
+              <div class="man-op-tag">${t('DREHREGLER', 'KNOBS')}</div>
+              <h4>${t('Präzise Klangformung', 'Precise Sound Shaping')}</h4>
+              <p>${t(
+                'Regler senkrecht ziehen oder mit dem Mausrad drehen. <strong>Doppelklick</strong> setzt jeden Regler sofort auf seinen Werkswert zurück. Über ein gestecktes Kabel-Badge lässt sich die Modulationsstärke (0–200%) direkt einstellen.',
+                'Drag knobs vertically or use the mouse wheel. <strong>Double-click</strong> resets any knob to its default value. Dragging a modulation cable badge adjusts modulation depth (0–200%).'
+              )}</p>
             </div>
             <div class="man-op-card">
-              <div class="man-op-tag">SHIFT + KLICK</div>
+              <div class="man-op-tag">${t('SHIFT + KLICK', 'SHIFT + CLICK')}</div>
               <h4>5-Slot Focus-Dock</h4>
-              <p>Halte <strong>Shift</strong> gedrückt und klicke auf bis zu 5 beliebige Regler im Rack. Sie landen rechts im Performance-Board als Live-Controls und lassen sich blitzschnell per Maus oder Pfeiltasten steuern.</p>
+              <p>${t(
+                'Halte <strong>Shift</strong> gedrückt und klicke auf bis zu 5 beliebige Regler im Rack. Sie landen rechts im Performance-Board als Live-Controls und lassen sich blitzschnell per Maus oder Pfeiltasten steuern.',
+                'Hold <strong>Shift</strong> and click up to 5 knobs anywhere in the rack to pin them into the right-hand Performance Board as Live Controls.'
+              )}</p>
             </div>
             <div class="man-op-card">
-              <div class="man-op-tag">TASTEN 1–5 &amp; 6–8</div>
+              <div class="man-op-tag">${t('TASTEN 1–5 &amp; 6–8', 'KEYS 1–5 &amp; 6–8')}</div>
               <h4>Performance-Snapshots</h4>
-              <p>Speichere bis zu 5 komplette Regler-Szenen auf den Slots <strong>1–5</strong>. Mit den Morph-Tasten <strong>6 (Direkt)</strong>, <strong>7 (Glide)</strong> und <strong>8 (Slow)</strong> blendet SYNTHBOARD alle Parameter weich ineinander über.</p>
+              <p>${t(
+                'Speichere bis zu 5 komplette Regler-Szenen auf den Slots <strong>1–5</strong>. Mit den Morph-Tasten <strong>6 (Direkt)</strong>, <strong>7 (Glide)</strong> und <strong>8 (Slow)</strong> blendet SYNTHBOARD alle Parameter weich ineinander über.',
+                'Store up to 5 complete parameter scenes in slots <strong>1–5</strong>. Use speed keys <strong>6 (Direct)</strong>, <strong>7 (Glide)</strong>, and <strong>8 (Slow)</strong> to morph smoothly between scenes.'
+              )}</p>
             </div>
           </div>
         </section>
@@ -715,27 +744,27 @@ export class ManualModal {
         <section class="man-section">
           <div class="man-sec-num">03</div>
           <div class="man-sec-head-row">
-            <h2>Die Bausteine</h2>
+            <h2>${t('Die Bausteine', 'Building Blocks')}</h2>
             <div class="man-cat-tabs no-print">
-              <button type="button" class="man-cat-btn active" data-cat="all">Alle</button>
-              <button type="button" class="man-cat-btn" data-cat="control">Steuerung</button>
-              <button type="button" class="man-cat-btn" data-cat="source">Instrumente</button>
-              <button type="button" class="man-cat-btn" data-cat="effect">Effekte</button>
+              <button type="button" class="man-cat-btn active" data-cat="all">${t('Alle', 'All')}</button>
+              <button type="button" class="man-cat-btn" data-cat="control">${t('Steuerung', 'Control')}</button>
+              <button type="button" class="man-cat-btn" data-cat="source">${t('Instrumente', 'Instruments')}</button>
+              <button type="button" class="man-cat-btn" data-cat="effect">${t('Effekte', 'Effects')}</button>
             </div>
           </div>
 
           <div class="man-cat-section" data-cat="control">
-            <h3 class="man-cat-title">Steuerung &amp; Rhythmus</h3>
+            <h3 class="man-cat-title">${t('Steuerung &amp; Rhythmus', 'Control &amp; Rhythm')}</h3>
             <div class="man-mod-grid">${renderCards('control')}</div>
           </div>
 
           <div class="man-cat-section" data-cat="source">
-            <h3 class="man-cat-title">Instrumente &amp; Klangquellen</h3>
+            <h3 class="man-cat-title">${t('Instrumente &amp; Klangquellen', 'Instruments &amp; Sound Sources')}</h3>
             <div class="man-mod-grid">${renderCards('source')}</div>
           </div>
 
           <div class="man-cat-section" data-cat="effect">
-            <h3 class="man-cat-title">Master-Effekte</h3>
+            <h3 class="man-cat-title">${t('Master-Effekte', 'Master Effects')}</h3>
             <div class="man-mod-grid">${renderCards('effect')}</div>
           </div>
         </section>
@@ -743,8 +772,11 @@ export class ManualModal {
         <!-- 4. 5 Beispiel-Racks -->
         <section class="man-section">
           <div class="man-sec-num">04</div>
-          <h2>5 Beispiel-Racks mit Schaltplänen</h2>
-          <p class="man-lead">Jeder dieser fünf Aufbauten zeigt ein konkretes Klangkonzept. Klicke auf <strong>Direkt ins Rack laden</strong>, um den Patch sofort anzuhören und weiterzuentwickeln.</p>
+          <h2>${t('5 Beispiel-Racks mit Schaltplänen', '5 Example Racks with Patch Diagrams')}</h2>
+          <p class="man-lead">${t(
+            'Jeder dieser fünf Aufbauten zeigt ein konkretes Klangkonzept. Klicke auf <strong>Direkt ins Rack laden</strong>, um den Patch sofort anzuhören und weiterzuentwickeln.',
+            'Each of these five setups demonstrates a distinct sound design concept. Click <strong>Load into Rack</strong> to audition and customize it immediately.'
+          )}</p>
           <div class="man-racks-list">
             ${racksHtml}
           </div>

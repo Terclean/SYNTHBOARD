@@ -7435,6 +7435,27 @@ body.view-eurorack .panel-toggles {
   color: #ffffff;
 }
 
+.lang-toggle-btn {
+  min-width: 34px;
+  justify-content: center;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 6px 8px;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: #cbd5e1;
+  cursor: pointer;
+}
+
+.lang-toggle-btn.is-en {
+  border-color: rgba(56, 189, 248, 0.5);
+  background: rgba(56, 189, 248, 0.16);
+  color: #38bdf8;
+}
+
 .manual-modal {
   position: fixed;
   inset: 0;
