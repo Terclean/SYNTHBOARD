@@ -10,6 +10,7 @@ import { getModuleIcon, ICONS } from './ui/icons.js';
 import { EurorackUI } from './eurorack/ui.js';
 import { StudioWorkspace } from './ui/StudioWorkspace.js';
 import { ManualModal } from './ui/ManualModal.js';
+import { MAX_IMPORT_BYTES, validateFileSize, validateAndSanitizePatchState } from './modules/patchValidator.js';
 
 const LS_BOARDS = 'synthboard:boards';
 const LS_AUTO = 'synthboard:autosave';
@@ -98,13 +99,18 @@ async function startAudio() {
 }
 
 function updateStatus() {
-  const running = engine.ctx.state === 'running';
+  const ctxState = engine.ctx.state;
+  const running = ctxState === 'running';
   const btnPower = $('#btn-power');
   if (btnPower) {
     btnPower.classList.toggle('on', running);
     const txt = btnPower.querySelector('.txt');
     if (txt) txt.textContent = running ? 'AN' : 'AUS';
-    btnPower.title = running ? 'Audio-Engine pausieren [Space]' : 'Audio-Engine starten [Space]';
+    btnPower.title = running
+      ? 'Audio-Engine pausieren [Space]'
+      : ctxState === 'interrupted'
+        ? 'Audio unterbrochen – Klicken zum Fortsetzen'
+        : 'Audio-Engine starten [Space]';
   }
   $('#status-led')?.classList.toggle('on', running);
   const n = engine.controls.length + engine.sources.length + engine.effects.length;
@@ -112,24 +118,37 @@ function updateStatus() {
   if (statusTxt) {
     statusTxt.textContent = running
       ? `Audio aktiv · ${engine.ctx.sampleRate / 1000} kHz · ${n} Module`
-      : 'Audio pausiert';
+      : ctxState === 'interrupted'
+        ? 'Audio unterbrochen – Klicken zum Fortsetzen'
+        : 'Audio pausiert – Klicken oder [Space] zum Starten';
   }
 }
 
 engine.ctx.addEventListener('statechange', updateStatus);
 
 window.addEventListener('pointerdown', () => {
-  if (engine.ctx.state === 'suspended' && !$('#btn-power')?.dataset.userPaused) startAudio();
+  if ((engine.ctx.state === 'suspended' || engine.ctx.state === 'interrupted') && !$('#btn-power')?.dataset.userPaused) {
+    startAudio();
+  }
 }, { capture: true });
 
 $('#btn-power')?.addEventListener('click', async (e) => {
   e.stopPropagation();
   if (engine.ctx.state === 'running') {
     $('#btn-power').dataset.userPaused = '1';
-    await engine.ctx.suspend();
+    try {
+      engine.masterGain.gain.setTargetAtTime(0, engine.ctx.currentTime, 0.015);
+    } catch { /* ignore */ }
+    setTimeout(async () => {
+      if ($('#btn-power')?.dataset.userPaused && engine.ctx.state === 'running') {
+        await engine.ctx.suspend();
+        updateStatus();
+      }
+    }, 45);
   } else {
     delete $('#btn-power').dataset.userPaused;
     await engine.resume();
+    engine.setMaster(engine.masterValue);
   }
   updateStatus();
 });
@@ -1124,21 +1143,28 @@ $('#file-import')?.addEventListener('change', async (e) => {
   e.target.value = '';
   if (!file) return;
   try {
-    const data = JSON.parse(await file.text());
-    const state = data.state || data;
-    if (!Array.isArray(state.modules)) throw new Error('Kein gültiges Board');
+    const sizeCheck = validateFileSize(file.size, MAX_IMPORT_BYTES);
+    if (!sizeCheck.ok) throw new Error(sizeCheck.error);
 
-    // Snapshots sowohl auf Root-Ebene (data.snapshots) als auch innerhalb von data.state.snapshots akzeptieren
-    const rawSnapshots = (data.state && data.state.snapshots) || data.snapshots || state.snapshots || null;
-    if (rawSnapshots && typeof rawSnapshots === 'object' && (rawSnapshots.slots || rawSnapshots[1] || rawSnapshots['1'])) {
-      state.snapshots = rawSnapshots.slots ? rawSnapshots : { slots: rawSnapshots };
-    } else {
-      state.snapshots = null;
+    const rawText = await file.text();
+    let data;
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      throw new Error('Ungültiges JSON-Format.');
     }
 
+    const fallbackName = file.name.replace(/\.[^.]+$/, '').trim() || 'Importiertes Board';
+    const validated = validateAndSanitizePatchState(data, { fallbackName });
+    if (!validated.ok) throw new Error(validated.error);
+
+    const state = validated.state;
     normalizePatchState(state);
+
+    if (!confirmDiscard()) return;
+
     const boards = loadBoards();
-    const baseName = (data.name || file.name.replace(/\..*$/, '')).trim();
+    const baseName = validated.name;
     let name = baseName;
     if (boards[name]) {
       let counter = 2;
@@ -1147,7 +1173,6 @@ $('#file-import')?.addEventListener('change', async (e) => {
     }
     boards[name] = state;
     storeBoards(boards);
-    if (!confirmDiscard()) { populateBoards(); return; }
     loadBoard('my', name);
     toast(`„${name}“ importiert`);
   } catch (err) {
@@ -1762,12 +1787,9 @@ function boot() {
       }
     } catch { /* ignore */ }
   } else {
-    // 1. LEERE ARBEITSFLÄCHE: Ein neues Studio startet als leere, großzügige Fläche
-    engine.clear();
-    current = { kind: 'new', key: '' };
-    renderRack();
-    populateBoards();
-    setDirty(false);
+    // Erster Start: „Start Here“-Lernpatch laden für sofortigen Einstieg
+    loadBoard('tpl', 'start_here');
+    toast('Start Here geladen · Klicke irgendwo oder auf AN für Audio (Space: Start/Stop, MASTER rechts)');
   }
 
   try {

@@ -1515,6 +1515,9 @@ export class EurorackUI {
       const file = e.target.files?.[0];
       if (!file) return;
       try {
+        if (file.size > 2 * 1024 * 1024) {
+          throw new Error('Datei ist zu groß (maximal 2 MiB erlaubt).');
+        }
         const text = await file.text();
         const data = JSON.parse(text);
         const res = this.engine.loadState(data);

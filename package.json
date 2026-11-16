@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node src/modules/patchValidator.test.js && node src/eurorack/verify.test.js && node src/ui/workspace.test.js"
   },
   "devDependencies": {
     "vite": "^8.3.0"

@@ -314,9 +314,17 @@ export class RackEngine {
 
   load(state) {
     this.clear();
+    const now = this.ctx.currentTime;
+    try {
+      this.chainGate.gain.cancelScheduledValues(now);
+      this.chainGate.gain.setValueAtTime(0.0001, now);
+    } catch { /* ignore */ }
     (state?.modules || []).forEach((s) => this.add(s.type, s, -1, true));
     this.rewire(true);
     this.setMaster(state?.master ?? 0.8);
+    try {
+      this.chainGate.gain.setTargetAtTime(1.0, this.ctx.currentTime + 0.02, 0.03);
+    } catch { /* ignore */ }
     if (state?.cables) {
       this.patchSystem.loadState(state.cables);
       setTimeout(() => this.patchSystem.onConnectionsChanged?.(), 30);
@@ -379,6 +387,25 @@ export class RackEngine {
 const m = (type, values = {}, extra) => ({ type, values, ...(extra ? { extra } : {}) });
 
 export const TEMPLATES = {
+  start_here: {
+    name: 'Start Here – Erster Ton',
+    category: 'Einstieg & Lernen',
+    description: 'Übersichtlicher 4-Modul-Einstieg: Ein warmes Drone-Pad wird rhythmisch von einem Slope Generator moduliert und in Hall gebettet.',
+    state: {
+      version: 2,
+      master: 0.78,
+      modules: [
+        { id: 'clk_start', type: 'master_clock', values: { tempo: 84, swing: 0, running: 1 }, pos: { x: 60, y: 60 } },
+        { id: 'slp_start', type: 'slope_generator', values: { rise: 1.4, fall: 2.2, curve: 0.5, scale: 0.85, offset: 0.15, mode: 'trig' }, pos: { x: 350, y: 60 } },
+        { id: 'drn_start', type: 'drone', values: { level: 0.55, tone: 900, detune: 8, sub: 0.35, fm: 0.03, drift: 0.3, root: 36, chord: 'fifths', wave: 'triangle' }, extra: { voices: [true, true, false, false, false, false] }, pos: { x: 640, y: 60 } },
+        { id: 'rev_start', type: 'reverb', values: { decay: 6.5, damp: 0.4, predelay: 0.02, tone: 3600, mix: 0.42 }, pos: { x: 960, y: 60 } },
+      ],
+      cables: [
+        { from: 'clk_start:barOut', to: 'slp_start:trigIn', depth: 1.0 },
+        { from: 'slp_start:envOut', to: 'drn_start:cvTone', depth: 0.65 },
+      ],
+    },
+  },
   zwischen_den_sternen: {
     name: 'Zwischen den Sternen – Chord Glide',
     category: 'Harmonisch & Akustisch',
@@ -453,7 +480,7 @@ export const TEMPLATES = {
           fm: 0.02,
           drift: 0.6,
           root: 33,
-          chord: 'fifth',
+          chord: 'fifths',
           wave: 'triangle',
         }, { voices: [true, false, true, false, false, false] }),
         m('filter', { cutoff: 4200, reso: 1.2, drive: 0.05, lfoDepth: 0.05 }),
@@ -470,7 +497,7 @@ export const TEMPLATES = {
         { from: 'chord_glide:gateOut', to: 'bass:gateIn', color: '#fbbf24' },
         { from: 'chord_glide:rootOut', to: 'violin:pitchIn', color: '#a855f7' },
         { from: 'chord_glide:gateOut', to: 'violin:gateIn', color: '#fbbf24' },
-        { from: 'slow_random:cvOut', to: 'violin:vibDepthCv', color: '#10b981' },
+        { from: 'slow_random:cvOut', to: 'violin:vibratoCv', color: '#10b981' },
       ],
     },
   },
@@ -496,18 +523,18 @@ export const TEMPLATES = {
       ],
       cables: [
         { from: 'master_clock:clockOut', to: 'clock_divider:clockIn', color: '#06b6d4' },
-        { from: 'clock_divider:div1Out', to: 'hybrid_perc:gateIn', color: '#fbbf24' },
+        { from: 'master_clock:clockOut', to: 'hybrid_perc:gateIn', color: '#fbbf24' },
         { from: 'clock_divider:div2Out', to: 'drum_rack:trigSnare', color: '#fbbf24' },
         { from: 'clock_divider:div4Out', to: 'drum_rack:trigHat', color: '#fbbf24' },
         { from: 'euclidean:gateOut', to: 'resonator_garden:gateIn', color: '#fbbf24' },
-        { from: 'clock_divider:div1Out', to: 'bass:gateIn', color: '#fbbf24' },
+        { from: 'master_clock:clockOut', to: 'bass:gateIn', color: '#fbbf24' },
         { from: 'euclidean:gateOut', to: 'morph_voice:gateIn', color: '#fbbf24' },
       ],
     },
   },
 
   felt_piano_ambient: {
-    name: 'Nils Frahm Felt Piano & Melodic Ambient',
+    name: 'Felt Piano & Melodic Ambient',
     category: 'Piano & Melodie',
     description: 'Intimes Filzklavier mit Melodie-Sequenz, analogen Bassnoten, Raum-Hall und fertigen Snapshot-Presets (Tasten 1–5 switchbar, 6–8 Speed).',
     state: {
@@ -520,7 +547,7 @@ export const TEMPLATES = {
         m('slow_random', { rate: 0.08, smooth: 0.85, depth: 0.65, mode: 'smooth' }),
         m('felt_piano', { level: 0.82, felt: 0.7, decay: 3.2, color: 3200, body: 0.65, hammer: 0.45, chord: 'single' }),
         m('bass', { level: 0.75, cutoff: 480, reso: 3.8, env: 0.55, decay: 0.45, sub: 0.55 }),
-        m('drone', { level: 0.22, tone: 520, detune: 4, sub: 0.4, fm: 0.01, drift: 0.6, root: 33, chord: 'fifth', wave: 'triangle' }, { voices: [true, false, true, false, false, false] }),
+        m('drone', { level: 0.22, tone: 520, detune: 4, sub: 0.4, fm: 0.01, drift: 0.6, root: 33, chord: 'fifths', wave: 'triangle' }, { voices: [true, false, true, false, false, false] }),
         m('chorus', { rate: 0.12, depth: 0.4, delay: 0.02, mix: 0.35 }),
         m('delay', { time: 0.52, feedback: 0.55, tone: 2200, mod: 0.25, mix: 0.38, mode: 'pingpong' }),
         m('reverb', { decay: 8.5, damp: 0.5, predelay: 0.04, tone: 3200, mix: 0.48 }),
@@ -630,7 +657,7 @@ export const TEMPLATES = {
         m('clock_divider', {}),
         m('euclidean', { steps: 12, pulses: 4, rotation: 1 }),
         m('prob_gate', { chance: 0.75, burst: 1 }),
-        m('random_walk', { stepSize: 2, range: 2, repeat: 6, mutation: 0.2, key: 2, scale: 'hirajoshi', octave: 50 }),
+        m('random_walk', { stepSize: 2, range: 2, repeat: 6, mutation: 0.2, key: 2, scale: 'hirajoshi', octave: 48 }),
         m('quantizer', { key: 2, scale: 'hirajoshi', transpose: 0 }),
         m('slow_random', { rate: 0.08, smooth: 0.9, depth: 0.75, mode: 'smooth' }),
         m('resonator_garden', { level: 0.75, material: 0.72, size: 0.38, damp: 0.35, pos: 0.3, spread: 0.65, decay: 3.8, modes: 8 }),
@@ -642,8 +669,8 @@ export const TEMPLATES = {
           sub: 0.45,
           fm: 0.02,
           drift: 0.8,
-          root: 26,
-          chord: 'fifth',
+          root: 28,
+          chord: 'fifths',
           wave: 'triangle',
         }, { voices: [true, true, false, false, true, false] }),
         m('noise', { level: 0.12, tone: 1400, reso: 1.2, motion: 0.5, rate: 0.06, crackle: 0.04, color: 'pink', ftype: 'bandpass' }),
@@ -662,7 +689,7 @@ export const TEMPLATES = {
         { from: 'quantizer:pitchOut', to: 'pluck:pitchIn', color: '#a855f7' },
         { from: 'quantizer:pitchOut', to: 'resonator_garden:pitchIn', color: '#a855f7' },
         { from: 'slow_random:cvOut', to: 'filter:cvCutoff', color: '#10b981' },
-        { from: 'slow_random:invOut', to: 'resonator_garden:posCv', color: '#10b981' },
+        { from: 'slow_random:invOut', to: 'resonator_garden:dampCv', color: '#10b981' },
         { from: 'slow_random:cvOut', to: 'drone:cvTone', color: '#10b981' },
       ],
     },
@@ -689,7 +716,7 @@ export const TEMPLATES = {
           fm: 0.12,
           drift: 0.85,
           root: 28,
-          chord: 'minor',
+          chord: 'minor9',
           wave: 'sine',
         }, { voices: [true, true, true, false, false, false] }),
         m('noise', { level: 0.16, tone: 800, reso: 2.2, motion: 0.4, rate: 0.04, crackle: 0.08, color: 'pink', ftype: 'lowpass' }),
@@ -699,12 +726,11 @@ export const TEMPLATES = {
         m('reverb', { decay: 15.0, damp: 0.6, predelay: 0.05, tone: 3200, mix: 0.6 }),
       ],
       cables: [
-        { from: 'slow_random:cvOut', to: 'attenuverter:in1', color: '#10b981' },
-        { from: 'attenuverter:out1', to: 'pluck:pitchIn', color: '#a855f7' },
+        { from: 'slow_random:cvOut', to: 'attenuverter:inA', color: '#10b981' },
+        { from: 'attenuverter:outA', to: 'pluck:pitchIn', color: '#a855f7' },
         { from: 'slow_random:invOut', to: 'spectral_swarm:scatterIn', color: '#10b981' },
         { from: 'slope_generator:envOut', to: 'filter:cvCutoff', color: '#10b981' },
         { from: 'slope_generator:eorOut', to: 'pluck:gateIn', color: '#fbbf24' },
-        { from: 'random_walk:pitchOut', to: 'drone:pitchIn', color: '#a855f7' },
       ],
     },
   },
@@ -719,11 +745,11 @@ export const TEMPLATES = {
         m('master_clock', { tempo: 122, swing: 0.08, running: 1 }),
         m('clock_divider', {}),
         m('sequencer', { tempo: 122, decay: 0.35 }),
-        m('slope_generator', { rise: 0.02, fall: 0.25, curve: 0.8, cycle: 0, mode: 'env' }),
+        m('slope_generator', { rise: 0.05, fall: 0.25, curve: 0.8, cycle: 0, mode: 'trig' }),
         m('bass', { level: 0.82, cutoff: 820, reso: 5.5, env: 0.72, decay: 0.32, sub: 0.55 }),
         m('fm_voice', { level: 0.58, ratio: 3.0, index: 2.2, decay: 0.45, feedback: 0.2 }),
         m('drum_rack', { level: 0.65, kDecay: 0.36, sSnap: 0.6, hDecay: 0.08, pTune: 320 }),
-        m('drone', { level: 0.25, tone: 650, detune: 4, sub: 0.5, fm: 0.02, drift: 0.5, root: 33, chord: 'octaves', wave: 'saw' }, { voices: [true, false, true, false, false, false] }),
+        m('drone', { level: 0.25, tone: 650, detune: 4, sub: 0.5, fm: 0.02, drift: 0.5, root: 33, chord: 'octaves', wave: 'sawtooth' }, { voices: [true, false, true, false, false, false] }),
         m('filter', { cutoff: 1600, reso: 3.2, drive: 0.25, lfoRate: 0.1, lfoDepth: 0.15 }),
         m('delay', { time: 0.37, feedback: 0.64, tone: 2200, mod: 0.2, mix: 0.42, mode: 'pingpong' }),
         m('reverb', { decay: 6.2, damp: 0.5, tone: 3400, mix: 0.38 }),
@@ -785,7 +811,7 @@ export const TEMPLATES = {
       modules: [
         m('master_clock', { tempo: 68, swing: 0.08, running: 1 }),
         m('slow_random', { rate: 0.09, smooth: 0.88, depth: 0.7, mode: 'smooth' }),
-        m('random_walk', { stepSize: 2, range: 2, repeat: 8, mutation: 0.3, key: 0, scale: 'majorPenta', octave: 52 }),
+        m('random_walk', { stepSize: 2, range: 2, repeat: 8, mutation: 0.3, key: 0, scale: 'majorPenta', octave: 48 }),
         m('quantizer', { key: 0, scale: 'majorPenta', transpose: 0 }),
         m('resonator_garden', { level: 0.7, material: 0.35, size: 0.52, damp: 0.42, pos: 0.35, spread: 0.7, decay: 4.2, modes: 8 }),
         m('keys', { level: 0.65, cutoff: 1400, reso: 1.2, attack: 0.9, release: 2.8, detune: 6, wave: 'triangle', key: 0, scale: 'majorPenta', octave: 48 }),
@@ -803,7 +829,7 @@ export const TEMPLATES = {
         { from: 'random_walk:gateOut', to: 'keys:gateIn', color: '#fbbf24' },
         { from: 'slow_random:cvOut', to: 'resonator_garden:gateIn', color: '#fbbf24' },
         { from: 'quantizer:pitchOut', to: 'resonator_garden:pitchIn', color: '#a855f7' },
-        { from: 'slow_random:invOut', to: 'resonator_garden:posCv', color: '#10b981' },
+        { from: 'slow_random:invOut', to: 'resonator_garden:dampCv', color: '#10b981' },
       ],
     },
   },
@@ -817,11 +843,11 @@ export const TEMPLATES = {
       modules: [
         m('master_clock', { tempo: 88, swing: 0.1, running: 1 }),
         m('clock_divider', {}),
-        m('random_walk', { stepSize: 2, range: 2, repeat: 8, mutation: 0.25, key: 6, scale: 'majorPenta', octave: 54 }),
-        m('quantizer', { key: 6, scale: 'majorPenta', transpose: 0 }),
+        m('random_walk', { stepSize: 2, range: 2, repeat: 8, mutation: 0.25, key: 5, scale: 'majorPenta', octave: 48 }),
+        m('quantizer', { key: 5, scale: 'majorPenta', transpose: 0 }),
         m('pluck', { level: 0.72, tone: 4200, damp: 1.1, bright: 0.88, body: 0.4 }),
         m('spectral_swarm', { level: 0.6, count: 16, inharm: 0.12, scatter: 0.32, motion: 0.2, depth: 0.5, bright: 0.65, cohesion: 0.6 }),
-        m('keys', { level: 0.55, cutoff: 1800, reso: 1.4, attack: 1.1, release: 3.2, detune: 8, wave: 'saw', key: 6, scale: 'majorPenta', octave: 48 }),
+        m('keys', { level: 0.55, cutoff: 1800, reso: 1.4, attack: 1.1, release: 3.2, detune: 8, wave: 'sawtooth', key: 5, scale: 'majorPenta', octave: 48 }),
         m('chorus', { rate: 0.18, depth: 0.55, delay: 0.024, mix: 0.48 }),
         m('delay', { time: 0.48, feedback: 0.58, tone: 2800, mod: 0.3, mix: 0.42, mode: 'pingpong' }),
         m('reverb', { decay: 12.0, damp: 0.45, predelay: 0.03, tone: 4200, mix: 0.55 }),
@@ -867,8 +893,8 @@ export const TEMPLATES = {
         { from: 'clock_divider:div4Out', to: 'bass:gateIn', color: '#fbbf24' },
         { from: 'euclidean:trigOut', to: 'fm_voice:gateIn', color: '#fbbf24' },
         { from: 'slow_random:cvOut', to: 'filter:cvCutoff', color: '#10b981' },
-        { from: 'slow_random:invOut', to: 'fm_voice:cvIndex', color: '#10b981' },
-        { from: 'slow_random:cvOut', to: 'delay:feedbackCv', color: '#10b981' },
+        { from: 'slow_random:invOut', to: 'fm_voice:modIndex', color: '#10b981' },
+        { from: 'slow_random:cvOut', to: 'delay:cvTime', color: '#10b981' },
       ],
     },
   },
@@ -943,9 +969,7 @@ export const TEMPLATES = {
           mix: 0.55,
         }),
       ],
-      cables: [
-        { from: 'filter:cvCutoff', to: 'drone:cvTone', color: '#10b981' },
-      ],
+      cables: [],
     },
   },
 
@@ -965,7 +989,7 @@ export const TEMPLATES = {
           fm: 0.16,
           drift: 0.85,
           root: 33,
-          chord: 'solarchord',
+          chord: 'major',
           wave: 'triangle',
         }, { voices: [true, true, true, false, true, false] }),
         m('keys', { level: 0.45, cutoff: 1100, reso: 1.2, attack: 1.5, release: 3.5, detune: 8, wave: 'sine', key: 9, scale: 'dorian', octave: 48 }),
@@ -978,7 +1002,7 @@ export const TEMPLATES = {
       cables: [
         { from: 'slow_random:cvOut', to: 'filter:cvCutoff', color: '#10b981' },
         { from: 'slow_random:invOut', to: 'drone:cvTone', color: '#10b981' },
-        { from: 'slow_random:cvOut', to: 'drone:cvDetune', color: '#10b981' },
+        { from: 'slow_random:cvOut', to: 'drone:cvFm', color: '#10b981' },
       ],
     },
   },
@@ -1020,7 +1044,7 @@ export const TEMPLATES = {
       master: 0.85,
       modules: [
         m('master_clock', { tempo: 78, swing: 0.16, running: 1 }),
-        m('random_walk', { stepSize: 2, range: 2, repeat: 8, mutation: 0.3, key: 5, scale: 'majorPenta', octave: 50 }),
+        m('random_walk', { stepSize: 2, range: 2, repeat: 8, mutation: 0.3, key: 5, scale: 'majorPenta', octave: 48 }),
         m('quantizer', { key: 5, scale: 'majorPenta', transpose: 0 }),
         m('keys', { level: 0.7, cutoff: 1800, reso: 1.1, attack: 0.05, release: 2.2, detune: 7, wave: 'triangle', key: 5, scale: 'majorPenta', octave: 48 }),
         m('fm_voice', { level: 0.52, ratio: 2.0, index: 1.6, decay: 1.2, feedback: 0.15 }),

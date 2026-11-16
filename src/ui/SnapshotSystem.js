@@ -570,6 +570,11 @@ export class SnapshotSystem {
   }
 
   clear() {
+    if (this.activeMorphAnim) {
+      cancelAnimationFrame(this.activeMorphAnim);
+      this.activeMorphAnim = null;
+    }
+    if (this.engine) this.engine.isMorphing = false;
     this.slots = {
       1: null,
       2: null,
