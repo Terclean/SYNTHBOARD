@@ -949,7 +949,9 @@ export class ManualModal {
     lines.push('- `slow_random`: Ausgänge `cvOut` (CV OUT, Alias `modOut`), `invOut` (INV CV).');
     lines.push('- `pluck`: Filter-Cutoff-Modulation heißt `modCutoff` (`mod` IN).');
     lines.push('- `noise`: Parameter `ftype` (Filtertyp) und `color` (Klangfarbe).');
-    lines.push('- `slope_generator`: `mode` ist `"loop"` | `"trig"` | `"gate"`. Ausgänge: `envOut`, `invOut`, `eofOut` (End-of-Fall Gate).');
+    lines.push('- `slope_generator`: `mode` ist `"loop"` | `"trig"` | `"gate"`. Ausgänge: `envOut`, `invOut`, `eofOut` (End-of-Fall Gate). **Wichtig:** `curve` liegt strikt im Bereich `[0, 1]` (keine negativen Werte wie `-0.2` für exponentielle/logarithmische Kurven verwenden).');
+    lines.push('- **Zeit-Einheiten in Sekunden:** Parameter wie `chorus.delay`, `reverb.predelay` und `delay.time` müssen immer in **Sekunden** (z. B. `0.018` statt `18` ms) angegeben werden.');
+    lines.push('- **Parameter-Ablage:** Alle Regler und Optionen gehören gemeinsam in `values` (falls dennoch `options` separat übergeben wird, führt der Importer beide Objekte automatisch zusammen).');
     lines.push('');
     lines.push('## 3. Best-Practice-Rezepte für KIs');
     lines.push('');

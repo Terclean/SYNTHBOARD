@@ -45,25 +45,30 @@ assert.equal(dupIds.ok, false);
 assert.match(dupIds.error, /Doppelte Modul-ID/i);
 console.log('✓ Unbekannte Modultypen und doppelte IDs werden abgewiesen');
 
-console.log('--- TEST 5: Nicht endliche & unzulässige Parameterwerte ---');
+console.log('--- TEST 5: Nicht endliche Werte, Clamping & options/values Merge ---');
 const nonFinite = validateAndSanitizePatchState({
   modules: [{ id: 'clk1', type: 'master_clock', values: { tempo: Infinity } }],
 });
 assert.equal(nonFinite.ok, false);
 assert.match(nonFinite.error, /endliche Zahl/i);
 
-const outOfRange = validateAndSanitizePatchState({
-  modules: [{ id: 'clk1', type: 'master_clock', values: { tempo: 9999 } }],
+const clampedImport = validateAndSanitizePatchState({
+  modules: [
+    { id: 'clk1', type: 'master_clock', values: { tempo: 9999 } },
+    { id: 'sl1', type: 'slope_generator', values: { curve: -0.2 }, options: { mode: 'trig' } },
+  ],
 });
-assert.equal(outOfRange.ok, false);
-assert.match(outOfRange.error, /außerhalb/i);
+assert.equal(clampedImport.ok, true);
+assert.equal(clampedImport.state.modules[0].values.tempo, 200);
+assert.equal(clampedImport.state.modules[1].values.curve, 0);
+assert.equal(clampedImport.state.modules[1].values.mode, 'trig');
 
 const badOption = validateAndSanitizePatchState({
   modules: [{ id: 'sl1', type: 'slope_generator', values: { mode: 'invalid_mode' } }],
 });
 assert.equal(badOption.ok, false);
 assert.match(badOption.error, /Auswahlwert/i);
-console.log('✓ Nicht endliche, Bereichs- und Optionsfehler werden abgewiesen');
+console.log('✓ Nicht endliche & Optionsfehler abgewiesen, Bereichsüberschreitungen geclampt & options gemerged');
 
 console.log('--- TEST 6: Ungültige Kabelverbindungen ---');
 const badCableMod = validateAndSanitizePatchState({

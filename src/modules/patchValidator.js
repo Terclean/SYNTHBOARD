@@ -88,13 +88,13 @@ function validateModuleValues(modType, def, rawValues, ctxLabel) {
       if (typeof rawVal !== 'number' || !Number.isFinite(rawVal)) {
         return { ok: false, error: `${ctxLabel}: Parameter „${key}“ muss eine endliche Zahl sein.` };
       }
-      if (rawVal < pDef.min - 1e-6 || rawVal > pDef.max + 1e-6) {
-        return {
-          ok: false,
-          error: `${ctxLabel}: Parameter „${key}“ (${rawVal}) liegt außerhalb von [${pDef.min}, ${pDef.max}].`,
-        };
+      if (rawVal < pDef.min || rawVal > pDef.max) {
+        const clamped = Math.max(pDef.min, Math.min(pDef.max, rawVal));
+        console.warn(`[SYNTHBOARD Import] ${ctxLabel}: Parameter „${key}“ (${rawVal}) wurde auf [${pDef.min}, ${pDef.max}] -> ${clamped} geclampt.`);
+        sanitized[key] = clamped;
+      } else {
+        sanitized[key] = rawVal;
       }
-      sanitized[key] = Math.max(pDef.min, Math.min(pDef.max, rawVal));
       continue;
     }
 
@@ -143,9 +143,16 @@ export function validateAndSanitizePatchState(rawData, { fallbackName = 'Importi
     }
   }
 
+  let master = 0.8;
   if (rawState.master !== undefined) {
-    if (typeof rawState.master !== 'number' || !Number.isFinite(rawState.master) || rawState.master < 0 || rawState.master > 1.5) {
-      return { ok: false, error: 'Ungültiger Master-Pegel (erlaubt: 0 bis 1.5).' };
+    if (typeof rawState.master !== 'number' || !Number.isFinite(rawState.master)) {
+      return { ok: false, error: 'Ungültiger Master-Pegel (muss eine endliche Zahl sein).' };
+    }
+    if (rawState.master < 0 || rawState.master > 1.5) {
+      master = Math.max(0, Math.min(1.5, rawState.master));
+      console.warn(`[SYNTHBOARD Import] Master-Pegel (${rawState.master}) wurde auf [0, 1.5] -> ${master} geclampt.`);
+    } else {
+      master = rawState.master;
     }
   }
 
@@ -187,7 +194,10 @@ export function validateAndSanitizePatchState(rawData, { fallbackName = 'Importi
     }
     seenIds.add(modId);
 
-    const valCheck = validateModuleValues(rawMod.type, def, rawMod.values, `Modul „${modId}“`);
+    const mergedRawValues = (isPlainObject(rawMod.options) || isPlainObject(rawMod.values))
+      ? { ...(isPlainObject(rawMod.options) ? rawMod.options : {}), ...(isPlainObject(rawMod.values) ? rawMod.values : {}) }
+      : rawMod.values;
+    const valCheck = validateModuleValues(rawMod.type, def, mergedRawValues, `Modul „${modId}“`);
     if (!valCheck.ok) return valCheck;
 
     const cleanMod = {
@@ -215,10 +225,16 @@ export function validateAndSanitizePatchState(rawData, { fallbackName = 'Importi
     ];
     for (const [k, min, max] of stripBounds) {
       if (rawMod[k] !== undefined) {
-        if (typeof rawMod[k] !== 'number' || !Number.isFinite(rawMod[k]) || rawMod[k] < min - 1e-6 || rawMod[k] > max + 1e-6) {
+        if (typeof rawMod[k] !== 'number' || !Number.isFinite(rawMod[k])) {
           return { ok: false, error: `Modul „${modId}“: Ungültiger Kanalzugwert „${k}“.` };
         }
-        cleanMod[k] = Math.max(min, Math.min(max, rawMod[k]));
+        if (rawMod[k] < min || rawMod[k] > max) {
+          const clamped = Math.max(min, Math.min(max, rawMod[k]));
+          console.warn(`[SYNTHBOARD Import] Modul „${modId}“: Kanalzugwert „${k}“ (${rawMod[k]}) wurde auf [${min}, ${max}] -> ${clamped} geclampt.`);
+          cleanMod[k] = clamped;
+        } else {
+          cleanMod[k] = rawMod[k];
+        }
       }
     }
 
@@ -277,10 +293,15 @@ export function validateAndSanitizePatchState(rawData, { fallbackName = 'Importi
 
       let depth = 1;
       if (c.depth !== undefined) {
-        if (typeof c.depth !== 'number' || !Number.isFinite(c.depth) || c.depth < 0 || c.depth > 2) {
-          return { ok: false, error: `Kabel #${i + 1}: „depth“ muss zwischen 0 und 2 liegen.` };
+        if (typeof c.depth !== 'number' || !Number.isFinite(c.depth)) {
+          return { ok: false, error: `Kabel #${i + 1}: „depth“ muss eine endliche Zahl sein.` };
         }
-        depth = c.depth;
+        if (c.depth < 0 || c.depth > 2) {
+          depth = Math.max(0, Math.min(2, c.depth));
+          console.warn(`[SYNTHBOARD Import] Kabel #${i + 1}: „depth“ (${c.depth}) wurde auf [0, 2] -> ${depth} geclampt.`);
+        } else {
+          depth = c.depth;
+        }
       }
 
       const toKey = `${toMod.id}:${toPort}`.toLowerCase();
@@ -361,7 +382,7 @@ export function validateAndSanitizePatchState(rawData, { fallbackName = 'Importi
   const cleanName = sanitizeText(rawData.name, fallbackName);
   const state = {
     version: rawState.version ?? 2,
-    master: rawState.master ?? 0.8,
+    master,
     modules,
     cables,
     snapshots,
