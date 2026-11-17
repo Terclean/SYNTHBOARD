@@ -626,6 +626,7 @@ function createCard(mod, index = -1) {
   const knobsEl = card.querySelector('.mod-knobs');
   const knobRefs = [];
   M.params.forEach((p) => {
+    if (p.hiddenUi) return;
     const cell = document.createElement('div');
     cell.className = 'knob-cell';
     cell.dataset.modId = mod.id;

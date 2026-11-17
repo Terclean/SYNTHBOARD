@@ -82,6 +82,7 @@ export class MorphVoiceModule extends VoiceBase {
     { id: 'release', label: 'Release', min: 0.05, max: 10, value: 1.6, log: true, fmt: 's' },
     { id: 'voices', label: 'Stimmen', min: 1, max: 6, value: 3, fmt: 'int' },
     { id: 'jump', label: 'Sprung', min: 0, max: 1, value: 0.15, fmt: 'pct' },
+    { id: 'glide', label: 'Glide', min: 0, max: 5, value: 0, log: true, fmt: 's' },
     ...COMMON_PARAMS,
   ];
   static options = [
@@ -92,6 +93,7 @@ export class MorphVoiceModule extends VoiceBase {
     { id: 'gateIn', type: 'in', signal: 'gate', label: 'GATE' },
     { id: 'pitchIn', type: 'in', signal: 'pitch', label: 'PITCH' },
     { id: 'jumpIn', type: 'in', signal: 'gate', label: 'JUMP' },
+    { id: 'glideCv', type: 'in', signal: 'mod', label: 'GLIDE CV' },
     { id: 'morphCv', type: 'in', signal: 'mod', label: 'MORPH CV' },
     { id: 'timbreCv', type: 'in', signal: 'mod', label: 'TIMBRE CV' },
     { id: 'envCv', type: 'in', signal: 'mod', label: 'ENV CV' },
@@ -105,6 +107,8 @@ export class MorphVoiceModule extends VoiceBase {
     super(ctx, state);
     this.currentMidi = 48; // C3
     this.cv = { morph: 0.5, timbre: 0.5, env: 0.5 };
+    this.glideModScale = 1.0;
+    this.lastFreq = null;
     this.jumpOffset = 0;
     this.notes = [];
     this.tables = getTables(ctx);
@@ -152,6 +156,7 @@ export class MorphVoiceModule extends VoiceBase {
     if (portId === 'morphCv') this.cv.morph = value;
     else if (portId === 'timbreCv') this.cv.timbre = value;
     else if (portId === 'envCv') { this.cv.env = value; return; }
+    else if (portId === 'glideCv') { this.glideModScale = Math.max(0.05, value * 2); return; }
     else return;
     this.updateLive();
   }
@@ -249,6 +254,16 @@ export class MorphVoiceModule extends VoiceBase {
     const metal = smoothstep(0.55, 1, mp);
     const mix = this.sourceMix(V.source || 'hybrid', rough, metal);
     const f = midiToFreq(midi);
+    const glideSec = Math.max(0, (V.glide || 0) * this.glideModScale);
+    const startFreq = (glideSec > 0.002 && this.lastFreq) ? this.lastFreq : f;
+    const glideTau = Math.max(0.003, glideSec / 3);
+    this.lastFreq = f;
+    const setOscFreq = (osc) => {
+      osc.frequency.setValueAtTime(startFreq, t);
+      if (glideSec > 0.002 && startFreq !== f) {
+        osc.frequency.setTargetAtTime(f, t, glideTau);
+      }
+    };
     const v = this.vel(velocity);
 
     const note = { oscA: [], oscB: [], gA: [], gB: [], tabA: -1, tabB: -1, mixTable: mix.table, end: 0 };
@@ -268,7 +283,7 @@ export class MorphVoiceModule extends VoiceBase {
       if (mix.table > 0) {
         for (const set of [note.oscA, note.oscB]) {
           const o = add(ctx.createOscillator());
-          o.frequency.value = f;
+          setOscFreq(o);
           o.detune.value = cents;
           const g = add(ctx.createGain());
           g.gain.value = 0;
@@ -280,7 +295,7 @@ export class MorphVoiceModule extends VoiceBase {
       if (mix.va > 0) {
         const o = add(ctx.createOscillator());
         o.type = 'sawtooth';
-        o.frequency.value = f;
+        setOscFreq(o);
         o.detune.value = cents * 1.3;
         const g = add(ctx.createGain());
         g.gain.value = mix.va * 0.5;
@@ -302,8 +317,11 @@ export class MorphVoiceModule extends VoiceBase {
       const index = 0.4 + rough * 2.5 + metal * 2;
       const car = add(ctx.createOscillator());
       const mod = add(ctx.createOscillator());
-      car.frequency.value = f;
-      mod.frequency.value = f * ratio;
+      setOscFreq(car);
+      mod.frequency.setValueAtTime(startFreq * ratio, t);
+      if (glideSec > 0.002 && startFreq !== f) {
+        mod.frequency.setTargetAtTime(f * ratio, t, glideTau);
+      }
       const modG = add(ctx.createGain());
       modG.gain.setValueAtTime(f * index, t);
       modG.gain.setTargetAtTime(f * index * 0.5, t, 0.4);

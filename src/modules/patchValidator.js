@@ -77,7 +77,26 @@ function validateModuleValues(modType, def, rawValues, ctxLabel) {
     return { ok: false, error: `${ctxLabel}: „values“ muss ein Objekt sein.` };
   }
 
-  for (const [k, rawVal] of Object.entries(rawValues)) {
+  // Sequencer-Array-Aliase (steps: [..], gates: [..]) in s1..s8 / g1..g8 umwandeln
+  const expandedValues = { ...rawValues };
+  if (modType === 'sequencer') {
+    if (Array.isArray(rawValues.steps)) {
+      rawValues.steps.slice(0, 8).forEach((deg, idx) => {
+        if (expandedValues[`s${idx + 1}`] === undefined && Number.isFinite(Number(deg))) {
+          expandedValues[`s${idx + 1}`] = Number(deg);
+        }
+      });
+    }
+    if (Array.isArray(rawValues.gates)) {
+      rawValues.gates.slice(0, 8).forEach((g, idx) => {
+        if (expandedValues[`g${idx + 1}`] === undefined && Number.isFinite(Number(g))) {
+          expandedValues[`g${idx + 1}`] = Number(g);
+        }
+      });
+    }
+  }
+
+  for (const [k, rawVal] of Object.entries(expandedValues)) {
     if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
 
     // Legacy-Alias für chord_glide: filter -> cutoff

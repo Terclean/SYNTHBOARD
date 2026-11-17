@@ -122,4 +122,33 @@ if (failedImport.ok) activeRack = failedImport.state;
 assert.strictEqual(activeRack, existingRack);
 console.log('✓ Bestehendes Rack bleibt bei fehlgeschlagenem Import erhalten');
 
-console.log('\nAlle 8 Patch-Import-Regressionstests erfolgreich bestanden!');
+console.log('--- TEST 9: Erweiterte Modul-Parameter (Glide, Sequencer-Steps, Chord-Progression, Drone, Oneshot, RandomWalk) ---');
+const extendedRes = validateAndSanitizePatchState({
+  name: 'Extended Architecture Test',
+  state: {
+    version: 2,
+    modules: [
+      { id: 'k1', type: 'keys', values: { glide: 1.2, polyphony: 'legato', key: 5 } },
+      { id: 'mv1', type: 'morph_voice', values: { glide: 2.0 } },
+      { id: 'seq1', type: 'sequencer', values: { glide: 0.4, key: 11, steps: [0, 4, 7, 11, 12, 11, 7, 4], gates: [1, 2, 1, 0, 1, 2, 1, 1] } },
+      { id: 'cg1', type: 'chord_glide', values: { key: 5, scale: 'major', progression: 'IV_V_vi_I', clockDiv: 64, voiceCount: 1, cutoff: 60 } },
+      { id: 'dr1', type: 'drone', values: { root: 29 } },
+      { id: 'sl1', type: 'slope_generator', values: { rise: 120, fall: 150, mode: 'oneshot', sustainHold: 1 } },
+      { id: 'rw1', type: 'random_walk', values: { octave: 72, glide: 1.5 } },
+    ],
+    cables: [
+      { from: 'cg1:rootOut', to: 'dr1:pitchIn' },
+      { from: 'sl1:envOut', to: 'k1:glideCv' },
+      { from: 'sl1:invOut', to: 'mv1:glideCv' },
+    ],
+  },
+});
+assert.equal(extendedRes.ok, true, extendedRes.error);
+assert.equal(extendedRes.state.modules[2].values.s2, 4);
+assert.equal(extendedRes.state.modules[2].values.g2, 2);
+assert.equal(extendedRes.state.modules[4].values.root, 29);
+assert.equal(extendedRes.state.modules[5].values.mode, 'oneshot');
+assert.equal(extendedRes.state.modules[6].values.octave, 72);
+console.log('✓ Alle 6 erweiterten Modul-Features werden sauber validiert');
+
+console.log('\nAlle 9 Patch-Import-Regressionstests erfolgreich bestanden!');

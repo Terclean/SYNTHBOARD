@@ -1,7 +1,7 @@
 import { ModuleBase, SourceBase, midiToFreq, midiToName, scaleNote, SCALES, getNoiseBuffers } from './base.js';
 
 const WAVES = [['sawtooth', 'Saw'], ['triangle', 'Tri'], ['square', 'Square'], ['sine', 'Sine']];
-const KEYS = [[0, 'C'], [2, 'D'], [4, 'E'], [5, 'F'], [7, 'G'], [9, 'A'], [10, 'B♭']];
+const KEYS = [[0, 'C'], [1, 'C#'], [2, 'D'], [3, 'D#'], [4, 'E'], [5, 'F'], [6, 'F#'], [7, 'G'], [8, 'G#'], [9, 'A'], [10, 'B♭'], [11, 'B']];
 const SCALE_CHOICES = Object.entries(SCALES).map(([k, s]) => [k, s.name]);
 const OCTAVES = [[36, 'Okt 2'], [48, 'Okt 3'], [60, 'Okt 4']];
 
@@ -33,13 +33,14 @@ export class DroneModule extends SourceBase {
     { id: 'sub', label: 'Sub', min: 0, max: 1, value: 0.35, fmt: 'pct' },
     { id: 'fm', label: 'FM', min: 0, max: 1, value: 0.06, fmt: 'pct' },
     { id: 'drift', label: 'Drift', min: 0, max: 1, value: 0.5, fmt: 'pct' },
+    { id: 'root', label: 'Grundton', min: 24, max: 48, value: 33, fmt: 'int' },
   ];
   static options = [
-    { id: 'root', label: 'Grundton', choices: [[28, 'E1'], [33, 'A1'], [35, 'B1'], [36, 'C2'], [38, 'D2'], [40, 'E2'], [42, 'F#2'], [43, 'G2'], [45, 'A2']], value: 33 },
     { id: 'chord', label: 'Akkord', choices: Object.entries(CHORDS).map(([k, c]) => [k, c.name]), value: 'fifths' },
     { id: 'wave', label: 'Welle', choices: WAVES, value: 'sawtooth' },
   ];
   static jacks = [
+    { id: 'pitchIn', type: 'in', signal: 'pitch', label: 'ROOT PITCH' },
     { id: 'vcaCv', type: 'in', signal: 'mod', label: 'VCA CV' },
     { id: 'panCv', type: 'in', signal: 'mod', label: 'PAN CV' },
     { id: 'cvFm', type: 'in', signal: 'mod', label: 'FM CV' },
@@ -48,6 +49,7 @@ export class DroneModule extends SourceBase {
 
   constructor(ctx, state = {}) {
     super(ctx, state);
+    this.extRootMidi = null;
     this.voicesOn = state.extra?.voices ?? [true, true, true, false, false, false];
 
     this.filter = ctx.createBiquadFilter();
@@ -104,8 +106,25 @@ export class DroneModule extends SourceBase {
     this.updateVoices();
   }
 
+  activeRoot() {
+    if (Number.isFinite(this.extRootMidi) && this.patchSystem?.hasIncoming(this.id, 'pitchIn')) {
+      return Math.max(12, Math.min(72, this.extRootMidi));
+    }
+    return Number(this.values.root ?? 33);
+  }
+
+  onPitch(portId, _time, midiNote) {
+    if (portId !== 'pitchIn') return;
+    const note = Array.isArray(midiNote) ? midiNote[0] : midiNote;
+    if (Number.isFinite(note)) {
+      this.extRootMidi = note;
+      this.retune();
+      this.refreshPads?.();
+    }
+  }
+
   retune() {
-    const root = Number(this.values.root ?? 33);
+    const root = this.activeRoot();
     const iv = (CHORDS[this.values.chord] || CHORDS.fifths).iv;
     const det = this.values.detune ?? 8;
     const fm = this.values.fm ?? 0;
@@ -122,7 +141,7 @@ export class DroneModule extends SourceBase {
   }
 
   noteName(i) {
-    const root = Number(this.values.root ?? 33);
+    const root = this.activeRoot();
     const iv = (CHORDS[this.values.chord] || CHORDS.fifths).iv;
     return midiToName(root + iv[i]);
   }
@@ -224,8 +243,10 @@ export class KeysModule extends SourceBase {
     { id: 'attack', label: 'Attack', min: 0.003, max: 2, value: 0.015, log: true, fmt: 's' },
     { id: 'release', label: 'Release', min: 0.05, max: 5, value: 1.2, log: true, fmt: 's' },
     { id: 'detune', label: 'Detune', min: 0, max: 30, value: 7, fmt: 'cents' },
+    { id: 'glide', label: 'Glide', min: 0, max: 5, value: 0, log: true, fmt: 's' },
   ];
   static options = [
+    { id: 'polyphony', label: 'Polyphonie', choices: [['poly', 'Poly'], ['mono', 'Mono'], ['legato', 'Legato']], value: 'poly' },
     { id: 'wave', label: 'Welle', choices: WAVES, value: 'sawtooth' },
     { id: 'key', label: 'Tonart', choices: KEYS, value: 9 },
     { id: 'scale', label: 'Skala', choices: SCALE_CHOICES, value: 'minorPenta' },
@@ -234,6 +255,7 @@ export class KeysModule extends SourceBase {
   static jacks = [
     { id: 'gateIn', type: 'in', signal: 'gate', label: 'GATE IN' },
     { id: 'pitchIn', type: 'in', signal: 'pitch', label: 'PITCH IN' },
+    { id: 'glideCv', type: 'in', signal: 'mod', label: 'GLIDE CV' },
     { id: 'vcaCv', type: 'in', signal: 'mod', label: 'VCA CV' },
     { id: 'panCv', type: 'in', signal: 'mod', label: 'PAN CV' },
     { id: 'gateOut', type: 'out', signal: 'gate', label: 'GATE OUT' },
@@ -243,6 +265,8 @@ export class KeysModule extends SourceBase {
   constructor(ctx, state = {}) {
     super(ctx, state);
     this.active = new Map();
+    this.monoVoice = null;
+    this.glideModScale = 1.0;
     this.extMidi = 57;
     this.filter = ctx.createBiquadFilter();
     this.filter.type = 'lowpass';
@@ -258,6 +282,7 @@ export class KeysModule extends SourceBase {
 
   onModulation(portId, val) {
     if (this.handleSourceModulation(portId, val)) return;
+    if (portId === 'glideCv') this.glideModScale = Math.max(0.05, val * 2);
   }
 
   onTrigger(portId, time, velocity = 1, duration = 0.3) {
@@ -268,12 +293,71 @@ export class KeysModule extends SourceBase {
 
   playExtNote(midi, time, velocity = 1, duration = 0.3) {
     if (Array.isArray(midi)) {
+      if (this.values.polyphony === 'mono' || this.values.polyphony === 'legato') {
+        this.playMonoExtNote(midi[0], time, velocity, duration);
+        return;
+      }
       midi.slice(0, 6).forEach((m, idx) => {
         this.playExtSingleNote(m, time + (idx * 0.008), velocity, duration);
       });
       return;
     }
+    if (this.values.polyphony === 'mono' || this.values.polyphony === 'legato') {
+      this.playMonoExtNote(midi, time, velocity, duration);
+      return;
+    }
     this.playExtSingleNote(midi, time, velocity, duration);
+  }
+
+  playMonoExtNote(midi, time, velocity = 1, duration = 0.3) {
+    const ctx = this.ctx;
+    const t = Math.max(time, ctx.currentTime);
+    const f = midiToFreq(midi);
+    const glideSec = Math.max(0, (this.values.glide || 0) * this.glideModScale);
+    const tau = Math.max(0.003, glideSec / 3);
+    const isLegato = this.values.polyphony === 'legato';
+
+    if (this.monoVoice && !this.monoVoice.released) {
+      clearTimeout(this.monoVoice.relTimer);
+      this.monoVoice.o1.frequency.setTargetAtTime(f, t, tau);
+      this.monoVoice.o2.frequency.setTargetAtTime(f, t, tau);
+      if (!isLegato) {
+        this.monoVoice.vca.gain.cancelScheduledValues(t);
+        this.monoVoice.vca.gain.setTargetAtTime(0.22 * velocity, t, Math.max(0.004, (this.values.attack || 0.015) / 2));
+      }
+    } else {
+      const o1 = ctx.createOscillator();
+      const o2 = ctx.createOscillator();
+      o1.type = o2.type = this.values.wave;
+      o1.frequency.setValueAtTime(f, t);
+      o2.frequency.setValueAtTime(f, t);
+      o1.detune.value = -this.values.detune / 2;
+      o2.detune.value = this.values.detune;
+      const vca = ctx.createGain();
+      vca.gain.setValueAtTime(0, t);
+      vca.gain.linearRampToValueAtTime(0.22 * velocity, t + Math.max(0.003, this.values.attack));
+      o1.connect(vca); o2.connect(vca);
+      vca.connect(this.filter);
+      o1.start(t); o2.start(t);
+      cleanupOnEnd(o1, [o1, o2, vca]);
+      this.monoVoice = { o1, o2, vca, released: false, relTimer: null };
+    }
+
+    const mv = this.monoVoice;
+    const relDelayMs = Math.max(10, (t + duration - ctx.currentTime) * 1000);
+    mv.relTimer = setTimeout(() => {
+      if (this.monoVoice !== mv) return;
+      mv.released = true;
+      const now = ctx.currentTime;
+      const rel = Math.max(0.05, this.values.release || 1.2);
+      try {
+        mv.vca.gain.cancelScheduledValues(now);
+        mv.vca.gain.setTargetAtTime(0, now, rel / 4);
+        mv.o1.stop(now + rel * 1.5 + 0.05);
+        mv.o2.stop(now + rel * 1.5 + 0.05);
+      } catch { /* ignore */ }
+      this.monoVoice = null;
+    }, relDelayMs);
   }
 
   playExtSingleNote(midi, time, velocity = 1, duration = 0.3) {
@@ -374,11 +458,29 @@ export class KeysModule extends SourceBase {
 
   setEnabled(on) {
     super.setEnabled(on);
-    if (!on) [...this.active.keys()].forEach((d) => this.noteOff(d));
+    if (!on) {
+      [...this.active.keys()].forEach((d) => this.noteOff(d));
+      this.stopMonoVoice();
+    }
+  }
+
+  stopMonoVoice() {
+    const mv = this.monoVoice;
+    if (!mv) return;
+    clearTimeout(mv.relTimer);
+    this.monoVoice = null;
+    const now = this.ctx.currentTime;
+    try {
+      mv.vca.gain.cancelScheduledValues(now);
+      mv.vca.gain.setTargetAtTime(0, now, 0.02);
+      mv.o1.stop(now + 0.1);
+      mv.o2.stop(now + 0.1);
+    } catch { /* ignore */ }
   }
 
   destroy() {
     [...this.active.keys()].forEach((d) => this.noteOff(d));
+    this.stopMonoVoice();
     super.destroy();
   }
 }
@@ -398,6 +500,9 @@ export class SequencerModule extends SourceBase {
     { id: 'reso', label: 'Reso', min: 0.5, max: 15, value: 5, fmt: 'num' },
     { id: 'env', label: 'Env', min: 0, max: 1, value: 0.55, fmt: 'pct' },
     { id: 'chance', label: 'Chance', min: 0, max: 1, value: 1, fmt: 'pct' },
+    { id: 'glide', label: 'Glide', min: 0, max: 2.5, value: 0, log: true, fmt: 's' },
+    ...[0, 2, 4, 7, 9, 7, 4, 2].map((def, i) => ({ id: `s${i + 1}`, label: `Step ${i + 1}`, min: -12, max: 24, value: def, fmt: 'int', hiddenUi: true })),
+    ...Array.from({ length: 8 }, (_, i) => ({ id: `g${i + 1}`, label: `Gate ${i + 1}`, min: 0, max: 2, value: 1, fmt: 'int', hiddenUi: true })),
   ];
   static options = [
     { id: 'wave', label: 'Welle', choices: WAVES, value: 'sawtooth' },
@@ -416,14 +521,30 @@ export class SequencerModule extends SourceBase {
 
   constructor(ctx, state = {}) {
     super(ctx, state);
-    this.steps = state.extra?.steps?.map((s) => ({ ...s })) ?? [
-      { on: true, deg: 0 }, { on: true, deg: 2 }, { on: false, deg: 4 }, { on: true, deg: 4 },
-      { on: true, deg: 7 }, { on: false, deg: 5 }, { on: true, deg: 3 }, { on: true, deg: 6 },
-    ];
+    const defaultDegs = [0, 2, 4, 7, 9, 7, 4, 2];
+    const v = state.values || {};
+    if (Array.isArray(state.extra?.steps) && state.extra.steps.length === 8) {
+      this.steps = state.extra.steps.map((s) => ({ on: s.on !== false, deg: Number(s.deg ?? 0), gate: s.gate ?? (s.on === false ? 0 : 1) }));
+    } else {
+      this.steps = defaultDegs.map((def, i) => {
+        const deg = Array.isArray(v.steps) && v.steps[i] !== undefined ? Number(v.steps[i]) : Number(v[`s${i + 1}`] ?? def);
+        const gate = Array.isArray(v.gates) && v.gates[i] !== undefined ? Number(v.gates[i]) : Number(v[`g${i + 1}`] ?? 1);
+        return { on: gate > 0, deg, gate };
+      });
+    }
     this.running = state.extra?.running ?? true;
+    this.lastPitchMidi = null;
+    this.slewTimer = null;
     this.levelGain = ctx.createGain();
     this.levelGain.connect(this.output);
-    this.initValues(state);
+    this.initValues({
+      ...state,
+      values: {
+        ...v,
+        ...Object.fromEntries(this.steps.map((s, i) => [`s${i + 1}`, s.deg])),
+        ...Object.fromEntries(this.steps.map((s, i) => [`g${i + 1}`, s.gate ?? (s.on ? 1 : 0)])),
+      },
+    });
 
     this.step = 0;
     this.nextTime = ctx.currentTime + 0.1;
@@ -432,6 +553,19 @@ export class SequencerModule extends SourceBase {
 
   applyParam(id, val) {
     if (id === 'level') this.ramp(this.levelGain.gain, val);
+    else if (/^s([1-8])$/.test(id)) {
+      const idx = Number(id.slice(1)) - 1;
+      if (this.steps?.[idx]) this.steps[idx].deg = Math.round(Number(val));
+      this.refreshSteps?.();
+    } else if (/^g([1-8])$/.test(id)) {
+      const idx = Number(id.slice(1)) - 1;
+      const g = Math.max(0, Math.min(2, Math.round(Number(val))));
+      if (this.steps?.[idx]) {
+        this.steps[idx].gate = g;
+        this.steps[idx].on = g > 0;
+      }
+      this.refreshSteps?.();
+    }
     if (['key', 'scale', 'octave'].includes(id) && this.refreshSteps) this.refreshSteps();
   }
 
@@ -445,13 +579,44 @@ export class SequencerModule extends SourceBase {
     if (this.handleSourceModulation(portId, val)) return;
   }
 
+  emitSlewedPitch(time, targetMidi, velocity, duration) {
+    const glide = Math.max(0, Number(this.values.glide || 0));
+    if (glide <= 0.005 || this.lastPitchMidi === null || Math.abs(targetMidi - this.lastPitchMidi) < 0.01) {
+      this.lastPitchMidi = targetMidi;
+      this.emitPitch('pitchOut', time, targetMidi, velocity, duration);
+      return;
+    }
+    const startMidi = this.lastPitchMidi;
+    const startAt = Math.max(time, this.ctx.currentTime);
+    const stepsCount = Math.max(2, Math.min(40, Math.round(glide / 0.025)));
+    clearInterval(this.slewTimer);
+    let stepIdx = 0;
+    this.slewTimer = setInterval(() => {
+      stepIdx++;
+      const p = Math.min(1, stepIdx / stepsCount);
+      const cur = startMidi + (targetMidi - startMidi) * p;
+      this.lastPitchMidi = cur;
+      this.emitPitch('pitchOut', this.ctx.currentTime, cur, velocity, duration);
+      if (p >= 1) clearInterval(this.slewTimer);
+    }, Math.max(15, (glide * 1000) / stepsCount));
+    this.emitPitch('pitchOut', startAt, startMidi, velocity, duration);
+  }
+
   triggerStep(time) {
     const s = this.steps[this.step];
-    if (s && s.on && Math.random() <= this.values.chance) {
+    const gateMode = s ? (s.gate !== undefined ? s.gate : (s.on ? 1 : 0)) : 0;
+    if (s && gateMode > 0 && Math.random() <= this.values.chance) {
       const midi = this.midiFor(s.deg);
+      const stepDur = 60 / (this.values.tempo || 92) / Number(this.values.division || 2);
+      const dur = gateMode === 2 ? Math.max(this.values.decay, stepDur * 1.15) : this.values.decay;
       if (this.values.level > 0.01) this.playNote(midi, time);
-      this.emitPitch('pitchOut', time, midi, 0.9, this.values.decay);
-      this.emitTrigger('gateOut', time, 0.9, this.values.decay);
+      this.emitSlewedPitch(time, midi, 0.9, dur);
+      if (gateMode !== 2 || !this._prevWasGate) {
+        this.emitTrigger('gateOut', time, 0.9, dur);
+      }
+      this._prevWasGate = true;
+    } else {
+      this._prevWasGate = false;
     }
     const idx = this.step;
     const delayMs = Math.max(0, (time - this.ctx.currentTime) * 1000);
@@ -517,7 +682,7 @@ export class SequencerModule extends SourceBase {
       <div class="seq-grid">${this.steps.map((_, i) => `
         <div class="seq-col" data-i="${i}">
           <span class="seq-led"></span>
-          <input type="range" class="seq-slider" min="0" max="9" step="1" aria-label="Step ${i + 1} Tonhöhe">
+          <input type="range" class="seq-slider" min="-12" max="24" step="1" aria-label="Step ${i + 1} Tonhöhe">
           <span class="seq-note"></span>
           <button class="seq-toggle" aria-label="Step ${i + 1} an/aus"></button>
         </div>`).join('')}</div>`;
@@ -532,12 +697,30 @@ export class SequencerModule extends SourceBase {
     });
     this.showStep = (idx) => cols.forEach((c, i) => c.classList.toggle('playing', i === idx));
     cols.forEach((c, i) => {
-      c.querySelector('.seq-slider').addEventListener('input', (e) => { this.steps[i].deg = Number(e.target.value); this.refreshSteps(); changed(); });
-      c.querySelector('.seq-toggle').addEventListener('click', () => { this.steps[i].on = !this.steps[i].on; this.refreshSteps(); changed(); });
+      c.querySelector('.seq-slider').addEventListener('input', (e) => {
+        const deg = Number(e.target.value);
+        this.steps[i].deg = deg;
+        this.values[`s${i + 1}`] = deg;
+        this.refreshSteps();
+        changed();
+      });
+      c.querySelector('.seq-toggle').addEventListener('click', () => {
+        this.steps[i].on = !this.steps[i].on;
+        this.steps[i].gate = this.steps[i].on ? 1 : 0;
+        this.values[`g${i + 1}`] = this.steps[i].gate;
+        this.refreshSteps();
+        changed();
+      });
     });
     runBtn.addEventListener('click', () => { this.running = !this.running; refreshRun(); changed(); });
     el.querySelector('.seq-dice').addEventListener('click', () => {
-      this.steps = this.steps.map(() => ({ on: Math.random() > 0.25, deg: Math.floor(Math.random() * 10) }));
+      this.steps = this.steps.map((_, i) => {
+        const on = Math.random() > 0.25;
+        const deg = Math.floor(Math.random() * 10);
+        this.values[`s${i + 1}`] = deg;
+        this.values[`g${i + 1}`] = on ? 1 : 0;
+        return { on, deg, gate: on ? 1 : 0 };
+      });
       this.refreshSteps();
       changed();
     });
@@ -547,6 +730,7 @@ export class SequencerModule extends SourceBase {
 
   destroy() {
     clearInterval(this.timer);
+    clearInterval(this.slewTimer);
     this.showStep = null;
     super.destroy();
   }

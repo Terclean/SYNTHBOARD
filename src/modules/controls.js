@@ -3,7 +3,7 @@ import { ModuleBase, scaleNote, SCALES, NOTE_NAMES, midiToFreq, midiToName, crea
 
 const KEYS = [[0, 'C'], [1, 'C#'], [2, 'D'], [3, 'D#'], [4, 'E'], [5, 'F'], [6, 'F#'], [7, 'G'], [8, 'G#'], [9, 'A'], [10, 'B♭'], [11, 'B']];
 const SCALE_CHOICES = Object.entries(SCALES).map(([k, s]) => [k, s.name]);
-const OCTAVES = [[24, 'Okt 1'], [36, 'Okt 2'], [48, 'Okt 3'], [60, 'Okt 4']];
+const OCTAVES = [[24, 'Okt 1'], [36, 'Okt 2'], [48, 'Okt 3'], [60, 'Okt 4'], [72, 'Okt 5']];
 
 // ───────────────────────────────────────────── 1. MASTER CLOCK ──
 export class MasterClockModule extends ModuleBase {
@@ -347,6 +347,11 @@ export class ProbabilityGateModule extends ModuleBase {
       setTimeout(() => node.classList.remove('flash'), 140);
     };
   }
+
+  destroy() {
+    clearInterval(this.slewTimer);
+    super.destroy();
+  }
 }
 
 // ───────────────────────────────────────────── 5. RANDOM WALK ──
@@ -363,6 +368,7 @@ export class RandomWalkModule extends ModuleBase {
     { id: 'repeat', label: 'Loop', min: 0, max: 16, value: 8, fmt: 'int' },
     { id: 'mutation', label: 'Mutation', min: 0, max: 1, value: 0.25, fmt: 'pct' },
     { id: 'seed', label: 'Seed', min: 1, max: 9999, value: 42, fmt: 'int' },
+    { id: 'glide', label: 'Glide', min: 0, max: 3, value: 0, log: true, fmt: 's' },
   ];
   static options = [
     { id: 'key', label: 'Tonart', choices: KEYS, value: 9 }, // A
@@ -382,6 +388,8 @@ export class RandomWalkModule extends ModuleBase {
     this.history = [];
     this.loopBuffer = [];
     this.loopIndex = 0;
+    this.lastMidi = null;
+    this.slewTimer = null;
     this.initValues(state);
     this.resetRng();
   }
@@ -439,7 +447,25 @@ export class RandomWalkModule extends ModuleBase {
     const root = Number(this.values.octave) + Number(this.values.key);
     const midi = scaleNote(root, this.values.scale, deg);
 
-    this.emitPitch('pitchOut', time, midi, 0.9, 0.25);
+    const glide = Math.max(0, Number(this.values.glide || 0));
+    if (glide <= 0.005 || this.lastMidi === null || Math.abs(midi - this.lastMidi) < 0.01) {
+      this.lastMidi = midi;
+      this.emitPitch('pitchOut', time, midi, 0.9, 0.25);
+    } else {
+      const startMidi = this.lastMidi;
+      const stepsCount = Math.max(2, Math.min(48, Math.round(glide / 0.025)));
+      clearInterval(this.slewTimer);
+      let sIdx = 0;
+      this.slewTimer = setInterval(() => {
+        sIdx++;
+        const p = Math.min(1, sIdx / stepsCount);
+        const cur = startMidi + (midi - startMidi) * p;
+        this.lastMidi = cur;
+        this.emitPitch('pitchOut', this.ctx.currentTime, cur, 0.9, 0.25);
+        if (p >= 1) clearInterval(this.slewTimer);
+      }, Math.max(15, (glide * 1000) / stepsCount));
+      this.emitPitch('pitchOut', time, startMidi, 0.9, 0.25);
+    }
     this.emitTrigger('gateOut', time, 0.9, 0.25);
 
     const delayMs = Math.max(0, (time - this.ctx.currentTime) * 1000);
@@ -466,6 +492,11 @@ export class RandomWalkModule extends ModuleBase {
         b.classList.toggle('active', i === 0);
       });
     };
+  }
+
+  destroy() {
+    clearInterval(this.slewTimer);
+    super.destroy();
   }
 }
 
@@ -699,14 +730,15 @@ export class SlopeGeneratorModule extends ModuleBase {
   static icon = '⋀';
   static description = 'Flexible Ambient-Hüllkurve & Funktionsgenerator (0.05s–60s)';
   static params = [
-    { id: 'rise', label: 'Rise (Att)', min: 0.05, max: 60, value: 4.0, log: true, fmt: 's' },
-    { id: 'fall', label: 'Fall (Dec)', min: 0.05, max: 60, value: 8.0, log: true, fmt: 's' },
+    { id: 'rise', label: 'Rise (Att)', min: 0.01, max: 180, value: 4.0, log: true, fmt: 's' },
+    { id: 'fall', label: 'Fall (Dec)', min: 0.01, max: 180, value: 8.0, log: true, fmt: 's' },
     { id: 'curve', label: 'Kurve', min: 0, max: 1, value: 0.6, fmt: 'pct' },
     { id: 'scale', label: 'Scale', min: -1, max: 1, value: 1.0, fmt: 'pct' },
     { id: 'offset', label: 'Offset', min: -1, max: 1, value: 0, fmt: 'num' },
+    { id: 'sustainHold', label: 'Peak Hold', min: 0, max: 1, value: 0, fmt: 'int' },
   ];
   static options = [
-    { id: 'mode', label: 'Modus', choices: [['loop', '🔄 Zyklisch (LFO)'], ['trig', '⚡ Trigger AD'], ['gate', '🚪 Gate ASR']], value: 'loop' },
+    { id: 'mode', label: 'Modus', choices: [['loop', '🔄 Zyklisch (LFO)'], ['trig', '⚡ Trigger AD'], ['gate', '🚪 Gate ASR'], ['oneshot', '🚀 One-Shot Auto']], value: 'loop' },
   ];
   static jacks = [
     { id: 'trigIn', type: 'in', signal: 'gate', label: 'TRIG IN' },
@@ -732,7 +764,7 @@ export class SlopeGeneratorModule extends ModuleBase {
     this.cvFallMod = 1.0;
     this.initValues(state);
 
-    if (this.values.mode === 'loop') {
+    if (this.values.mode === 'loop' || this.values.mode === 'oneshot') {
       this.triggerRise(ctx.currentTime);
     }
 
@@ -742,7 +774,8 @@ export class SlopeGeneratorModule extends ModuleBase {
   static normalizeMode(rawMode, rawLoop) {
     if (rawMode !== undefined && rawMode !== null) {
       const m = String(rawMode).trim().toLowerCase();
-      if (m === 'trigger' || m === 'trig' || m === 'oneshot' || m === 'one-shot' || m === 'ad' || m === 'env' || m === 'single') return 'trig';
+      if (m === 'oneshot' || m === 'one-shot' || m === 'one_shot') return 'oneshot';
+      if (m === 'trigger' || m === 'trig' || m === 'ad' || m === 'env' || m === 'single') return 'trig';
       if (m === 'loop' || m === 'cycle' || m === 'lfo') return 'loop';
       if (m === 'gate' || m === 'asr' || m === 'hold') return 'gate';
     }
@@ -823,7 +856,7 @@ export class SlopeGeneratorModule extends ModuleBase {
       if (linearP >= 1) {
         this.currentVal = 1.0;
         this.emitTrigger('eorOut', now, 1.0, 0.05);
-        if (this.values.mode === 'gate' && this.gateHeld) {
+        if ((this.values.mode === 'gate' && this.gateHeld) || (this.values.mode === 'oneshot' && Math.round(this.values.sustainHold || 0) >= 1)) {
           this.stage = 'sustain';
         } else {
           this.triggerFall(now);
@@ -860,7 +893,7 @@ export class SlopeGeneratorModule extends ModuleBase {
   }
 
   applyParam(id, val) {
-    if (id === 'mode' && val === 'loop' && this.stage === 'idle') {
+    if (id === 'mode' && (val === 'loop' || val === 'oneshot') && this.stage === 'idle') {
       this.triggerRise();
     }
   }

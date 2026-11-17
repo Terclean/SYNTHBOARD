@@ -171,16 +171,19 @@ export class ChordGlideModule extends SourceBase {
   static params = [
     { id: 'level', label: 'Level', min: 0, max: 1, value: 0.75, fmt: 'pct' },
     { id: 'glide', label: 'Glide', min: 0, max: 5.0, value: 1.2, log: true, fmt: 's' },
-    { id: 'cutoff', label: 'Klangfarbe', min: 150, max: 12000, value: 2400, log: true, fmt: 'hz' },
+    { id: 'cutoff', label: 'Klangfarbe', min: 60, max: 12000, value: 2400, log: true, fmt: 'hz' },
     { id: 'attack', label: 'Attack', min: 0.02, max: 4.0, value: 0.45, log: true, fmt: 's' },
     { id: 'release', label: 'Release', min: 0.1, max: 8.0, value: 2.2, log: true, fmt: 's' },
     { id: 'detune', label: 'Schwebung', min: 0, max: 30, value: 10, fmt: 'num' },
   ];
 
   static options = [
+    { id: 'key', label: 'Tonart', choices: [[0, 'C'], [1, 'C#'], [2, 'D'], [3, 'D#'], [4, 'E'], [5, 'F'], [6, 'F#'], [7, 'G'], [8, 'G#'], [9, 'A'], [10, 'B♭'], [11, 'B']], value: 9 },
+    { id: 'scale', label: 'Skala', choices: [['minor', 'Moll'], ['major', 'Dur'], ['dorian', 'Dorisch'], ['minorPenta', 'Moll Penta'], ['majorPenta', 'Dur Penta']], value: 'minor' },
+    { id: 'progression', label: 'Progression', choices: [['default', 'Custom / Preset'], ['vi_IV_I_V', 'vi – IV – I – V'], ['IV_V_vi_I', 'IV – V – vi – I'], ['i_VI_III_VII', 'i – VI – III – VII'], ['ii_V_I_vi', 'ii – V – I – vi'], ['pedal_I', 'Pedal I']], value: 'default' },
     { id: 'voiceLeading', label: 'Stimmführung', choices: [[1, 'Smooth (Minimal)'], [0, 'Grundstellung']], value: 1 },
-    { id: 'voiceCount', label: 'Stimmen', choices: [[4, '4 Stimmen'], [5, '5 Stimmen'], [6, '6 Stimmen']], value: 5 },
-    { id: 'clockDiv', label: 'Raster', choices: [[16, '1/16 Clock'], [4, '1/4 Clock'], [1, '1 Bar Clock']], value: 16 },
+    { id: 'voiceCount', label: 'Stimmen', choices: [[1, '1 Stimme (Mono)'], [2, '2 Stimmen'], [3, '3 Stimmen'], [4, '4 Stimmen'], [5, '5 Stimmen'], [6, '6 Stimmen']], value: 5 },
+    { id: 'clockDiv', label: 'Raster', choices: [[1, '1/16 (1 Tick)'], [4, '1/4 (4 Ticks)'], [8, '1/2 (8 Ticks)'], [16, '1 Bar (16 Ticks)'], [32, '2 Bars (32 Ticks)'], [64, '4 Bars (64 Ticks)'], [128, '8 Bars (128 Ticks)']], value: 16 },
   ];
 
   static jacks = [
@@ -244,15 +247,23 @@ export class ChordGlideModule extends SourceBase {
       return [0.25, 0.5, 1, 2, 4, 8].includes(raw) ? raw : 2;
     };
 
-    // Gespeicherte Akkordfolge oder Standardpreset „Warm Ambient“
+    // Gespeicherte Akkordfolge oder Progression/Standardpreset
     this.presetKey = savedExtra.presetKey || 'warm';
-    this.steps = Array.isArray(savedExtra.steps) && savedExtra.steps.length
-      ? savedExtra.steps.map((s) => ({
-          root: typeof s.root === 'number' ? ((Math.round(s.root) % 12) + 12) % 12 : 0,
-          type: CHORD_TYPES[s.type] ? s.type : 'maj7',
-          bars: parseBars(s),
-        }))
-      : CHORD_PRESETS.warm.steps.map((s) => ({ ...s }));
+    if (Array.isArray(savedExtra.steps) && savedExtra.steps.length) {
+      this.steps = savedExtra.steps.map((s) => ({
+        root: typeof s.root === 'number' ? ((Math.round(s.root) % 12) + 12) % 12 : 0,
+        type: CHORD_TYPES[s.type] ? s.type : 'maj7',
+        bars: parseBars(s),
+      }));
+    } else if (savedValues.progression && savedValues.progression !== 'default') {
+      this.steps = ChordGlideModule.buildProgression(
+        Number(savedValues.key ?? 9),
+        savedValues.scale || 'minor',
+        savedValues.progression
+      );
+    } else {
+      this.steps = CHORD_PRESETS.warm.steps.map((s) => ({ ...s }));
+    }
 
     // Spezifische Korrektur für Am7 -> Fmaj7 -> Cmaj7 -> Gadd9:
     // Alle 4 Akkorde auf 2 Takte, Stimmführung aktiv (1) und Klangfarbe auf 1500 Hz
@@ -350,11 +361,49 @@ export class ChordGlideModule extends SourceBase {
     }, 50);
   }
 
+  static buildProgression(key = 9, scale = 'minor', prog = 'vi_IV_I_V') {
+    const k = ((Math.round(Number(key)) % 12) + 12) % 12;
+    const isMinorLike = scale === 'minor' || scale === 'dorian' || scale === 'minorPenta';
+    const degree = (semi, type, bars = 2) => ({ root: (k + semi) % 12, type, bars });
+    if (prog === 'IV_V_vi_I') {
+      return isMinorLike
+        ? [degree(5, 'm7'), degree(7, 'm7'), degree(8, 'maj7'), degree(0, 'm7')]
+        : [degree(5, 'maj7'), degree(7, '7'), degree(9, 'm7'), degree(0, 'maj7')];
+    }
+    if (prog === 'vi_IV_I_V') {
+      return isMinorLike
+        ? [degree(0, 'm7'), degree(8, 'maj7'), degree(3, 'maj7'), degree(10, 'add9')]
+        : [degree(9, 'm7'), degree(5, 'maj7'), degree(0, 'maj7'), degree(7, 'add9')];
+    }
+    if (prog === 'i_VI_III_VII') {
+      return [degree(0, 'm7'), degree(8, 'maj7'), degree(3, 'maj7'), degree(10, 'add9')];
+    }
+    if (prog === 'ii_V_I_vi') {
+      return [degree(2, 'm7'), degree(7, '7'), degree(0, 'maj7'), degree(9, 'm7')];
+    }
+    if (prog === 'pedal_I') {
+      const t = isMinorLike ? 'm7' : 'maj7';
+      return [degree(0, t, 2), degree(0, 'sus4', 2), degree(0, t, 2), degree(0, 'add9', 2)];
+    }
+    return CHORD_PRESETS.warm.steps.map((s) => ({ ...s }));
+  }
+
   applyParam(id, val) {
     if (id === 'cutoff') {
       this.ramp(this.padFilter.frequency, val, 0.04);
     } else if (id === 'level') {
       this.ramp(this.padLevel.gain, val, 0.03);
+    } else if (id === 'key' || id === 'scale' || id === 'progression') {
+      if (this.values.progression && this.values.progression !== 'default') {
+        this.steps = ChordGlideModule.buildProgression(
+          Number(this.values.key ?? 9),
+          this.values.scale || 'minor',
+          this.values.progression
+        );
+        this.currentStep = 0;
+        this.recalculateAllVoicings();
+        this.refreshVisualizer?.();
+      }
     } else if (id === 'detune') {
       this.voices.forEach((v) => {
         this.ramp(v.osc1.detune, -val * 0.5, 0.05);
@@ -499,10 +548,10 @@ export class ChordGlideModule extends SourceBase {
     this.clockTicks++;
     const step = this.steps[this.currentStep] || this.steps[0];
 
-    // Bestimme Pulsrate anhand der angeschlossenen Clock-Quelle, damit „2 Takte“ musikalisch immer 2 Takten entspricht
+    // Bestimme Pulsrate anhand der angeschlossenen Clock-Quelle (erlaubt auch 32/64/128 für 2/4/8 Takte)
     let div = Number(this.values.clockDiv || 16);
     const incoming = this.patchSystem?.getIncoming?.(this.id, 'clockIn');
-    if (incoming) {
+    if (incoming && div <= 16) {
       const fp = incoming.fromPortId;
       if (fp === 'barOut' || fp === 'div16Out') div = 1;
       else if (fp === 'div8Out') div = 2;

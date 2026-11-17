@@ -949,7 +949,12 @@ export class ManualModal {
     lines.push('- `slow_random`: Ausgänge `cvOut` (CV OUT, Alias `modOut`), `invOut` (INV CV).');
     lines.push('- `pluck`: Filter-Cutoff-Modulation heißt `modCutoff` (`mod` IN).');
     lines.push('- `noise`: Parameter `ftype` (Filtertyp) und `color` (Klangfarbe).');
-    lines.push('- `slope_generator`: `mode` ist `"loop"` | `"trig"` | `"gate"`. Ausgänge: `envOut`, `invOut`, `eofOut` (End-of-Fall Gate). **Wichtig:** `curve` liegt strikt im Bereich `[0, 1]` (keine negativen Werte wie `-0.2` für exponentielle/logarithmische Kurven verwenden).');
+    lines.push('- `slope_generator`: `mode` ist `"loop"` | `"trig"` | `"gate"` | `"oneshot"` (Auto-Start bei 0; `sustainHold: 0 | 1`, `rise`/`fall` `0.01..180` s). Ausgänge: `envOut`, `invOut`, `eofOut` (End-of-Fall Gate). **Wichtig:** `curve` liegt strikt im Bereich `[0, 1]` (keine negativen Werte wie `-0.2` für exponentielle/logarithmische Kurven verwenden).');
+    lines.push('- `keys` & `morph_voice`: Beide unterstützen `glide` (`0..5` s) und `glideCv` (`GLIDE CV`). `keys` besitzt zudem `polyphony` (`"poly"` | `"mono"` | `"legato"`) und alle 12 Halbtöne (`key: 0..11`).');
+    lines.push('- `sequencer`: Unterstützt `s1`..`s8` (`-12..24` Halbtöne/Stufen) oder `steps: [...]`, `g1`..`g8` (`0` = Rest, `1` = Trigger, `2` = Tie/Hold) oder `gates: [...]`, `glide` (`0..2.5` s) sowie `key: 0..11`.');
+    lines.push('- `chord_glide`: Unterstützt `key` (`0..11`), `scale` (`"minor"` | `"major"` | `"dorian"` | `"minorPenta"` | `"majorPenta"`), `progression` (`"default"` | `"vi_IV_I_V"` | `"IV_V_vi_I"` | `"i_VI_III_VII"` | `"ii_V_I_vi"` | `"pedal_I"`), `clockDiv` (`1 | 4 | 8 | 16 | 32 | 64 | 128`), `voiceCount` (`1..6`) und `cutoff` ab `60` Hz.');
+    lines.push('- `drone`: `root` akzeptiert beliebige ganzzahlige MIDI-Werte `24..48` (C1–C3, alle 12 Halbtöne) und folgt optional dem Eingang `pitchIn` (`ROOT PITCH`).');
+    lines.push('- `random_walk`: `octave` unterstützt `[24 | 36 | 48 | 60 | 72]` und `glide` (`0..3` s) glättet `pitchOut` per Slew-Limiter.');
     lines.push('- **Zeit-Einheiten in Sekunden:** Parameter wie `chorus.delay`, `reverb.predelay` und `delay.time` müssen immer in **Sekunden** (z. B. `0.018` statt `18` ms) angegeben werden.');
     lines.push('- **Parameter-Ablage:** Alle Regler und Optionen gehören gemeinsam in `values` (falls dennoch `options` separat übergeben wird, führt der Importer beide Objekte automatisch zusammen).');
     lines.push('');
