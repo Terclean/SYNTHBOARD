@@ -180,7 +180,7 @@ export class ChordGlideModule extends SourceBase {
   static options = [
     { id: 'key', label: 'Tonart', choices: [[0, 'C'], [1, 'C#'], [2, 'D'], [3, 'D#'], [4, 'E'], [5, 'F'], [6, 'F#'], [7, 'G'], [8, 'G#'], [9, 'A'], [10, 'B♭'], [11, 'B']], value: 9 },
     { id: 'scale', label: 'Skala', choices: [['minor', 'Moll'], ['major', 'Dur'], ['dorian', 'Dorisch'], ['minorPenta', 'Moll Penta'], ['majorPenta', 'Dur Penta']], value: 'minor' },
-    { id: 'progression', label: 'Progression', choices: [['default', 'Custom / Preset'], ['vi_IV_I_V', 'vi – IV – I – V'], ['IV_V_vi_I', 'IV – V – vi – I'], ['i_VI_III_VII', 'i – VI – III – VII'], ['ii_V_I_vi', 'ii – V – I – vi'], ['pedal_I', 'Pedal I']], value: 'default' },
+    { id: 'progression', label: 'Progression', choices: [['default', 'Custom / Preset'], ['I_V_vi_IV', 'I – V – vi – IV'], ['vi_IV_I_V', 'vi – IV – I – V'], ['IV_V_vi_I', 'IV – V – vi – I'], ['i_VI_III_VII', 'i – VI – III – VII'], ['ii_V_I_vi', 'ii – V – I – vi'], ['pedal_I', 'Pedal I']], value: 'default' },
     { id: 'voiceLeading', label: 'Stimmführung', choices: [[1, 'Smooth (Minimal)'], [0, 'Grundstellung']], value: 1 },
     { id: 'voiceCount', label: 'Stimmen', choices: [[1, '1 Stimme (Mono)'], [2, '2 Stimmen'], [3, '3 Stimmen'], [4, '4 Stimmen'], [5, '5 Stimmen'], [6, '6 Stimmen']], value: 5 },
     { id: 'clockDiv', label: 'Raster', choices: [[1, '1/16 (1 Tick)'], [4, '1/4 (4 Ticks)'], [8, '1/2 (8 Ticks)'], [16, '1 Bar (16 Ticks)'], [32, '2 Bars (32 Ticks)'], [64, '4 Bars (64 Ticks)'], [128, '8 Bars (128 Ticks)']], value: 16 },
@@ -365,21 +365,26 @@ export class ChordGlideModule extends SourceBase {
     const k = ((Math.round(Number(key)) % 12) + 12) % 12;
     const isMinorLike = scale === 'minor' || scale === 'dorian' || scale === 'minorPenta';
     const degree = (semi, type, bars = 2) => ({ root: (k + semi) % 12, type, bars });
+    if (prog === 'I_V_vi_IV') {
+      return isMinorLike
+        ? [degree(0, 'm7'), degree(7, 'm7'), degree(8, 'maj7'), degree(5, 'm7')]
+        : [degree(0, 'maj7'), degree(7, 'maj'), degree(9, 'm7'), degree(5, 'maj7')];
+    }
     if (prog === 'IV_V_vi_I') {
       return isMinorLike
         ? [degree(5, 'm7'), degree(7, 'm7'), degree(8, 'maj7'), degree(0, 'm7')]
-        : [degree(5, 'maj7'), degree(7, '7'), degree(9, 'm7'), degree(0, 'maj7')];
+        : [degree(5, 'maj7'), degree(7, 'maj'), degree(9, 'm7'), degree(0, 'maj7')];
     }
     if (prog === 'vi_IV_I_V') {
       return isMinorLike
         ? [degree(0, 'm7'), degree(8, 'maj7'), degree(3, 'maj7'), degree(10, 'add9')]
-        : [degree(9, 'm7'), degree(5, 'maj7'), degree(0, 'maj7'), degree(7, 'add9')];
+        : [degree(9, 'm7'), degree(5, 'maj7'), degree(0, 'maj7'), degree(7, 'maj')];
     }
     if (prog === 'i_VI_III_VII') {
       return [degree(0, 'm7'), degree(8, 'maj7'), degree(3, 'maj7'), degree(10, 'add9')];
     }
     if (prog === 'ii_V_I_vi') {
-      return [degree(2, 'm7'), degree(7, '7'), degree(0, 'maj7'), degree(9, 'm7')];
+      return [degree(2, 'm7'), degree(7, 'maj'), degree(0, 'maj7'), degree(9, 'm7')];
     }
     if (prog === 'pedal_I') {
       const t = isMinorLike ? 'm7' : 'maj7';
@@ -548,19 +553,24 @@ export class ChordGlideModule extends SourceBase {
     this.clockTicks++;
     const step = this.steps[this.currentStep] || this.steps[0];
 
-    // Bestimme Pulsrate anhand der angeschlossenen Clock-Quelle (erlaubt auch 32/64/128 für 2/4/8 Takte)
-    let div = Number(this.values.clockDiv || 16);
+    // Bestimme Pulsrate anhand der angeschlossenen Clock-Quelle
+    const div = Number(this.values.clockDiv || 16);
     const incoming = this.patchSystem?.getIncoming?.(this.id, 'clockIn');
-    if (incoming && div <= 16) {
+    let sourceTicksPerBar = 16;
+    if (incoming) {
       const fp = incoming.fromPortId;
-      if (fp === 'barOut' || fp === 'div16Out') div = 1;
-      else if (fp === 'div8Out') div = 2;
-      else if (fp === 'div4Out') div = 4;
-      else if (fp === 'div2Out') div = 8;
-      else if (fp === 'clockOut') div = 16;
+      if (fp === 'barOut' || fp === 'div16Out') sourceTicksPerBar = 1;
+      else if (fp === 'div8Out') sourceTicksPerBar = 2;
+      else if (fp === 'div4Out') sourceTicksPerBar = 4;
+      else if (fp === 'div2Out') sourceTicksPerBar = 8;
+      else if (fp === 'clockOut') sourceTicksPerBar = 16;
     }
 
-    const targetTicks = Math.max(1, Math.round((Number(step.bars) || 1) * div));
+    // Bei clockDiv > 16 (32=2 Bars, 64=4 Bars, 128=8 Bars) gilt der Teiler direkt pro Step;
+    // bei clockDiv <= 16 gilt step.bars * Takt-Teiler.
+    const targetTicks = div > 16
+      ? Math.max(1, Math.round((div / 16) * sourceTicksPerBar))
+      : Math.max(1, Math.round((Number(step.bars) || 1) * Math.min(div, sourceTicksPerBar)));
 
     if (this.clockTicks >= targetTicks) {
       this.clockTicks = 0;

@@ -82,6 +82,8 @@ const DICT = {
   'Handbuch & Signalfluss': 'Manual & Signal Flow',
   'Alle Module (Lexikon)': 'All Modules (Encyclopedia)',
   'Patch-Kabel-Guide': 'Patch Cable Guide',
+  'Studio-Analyzer Großansicht': 'Studio Analyzer Pop-Out',
+  'Sprache: DE / EN': 'Language: DE / EN',
   'Klänge': 'Sounds',
   'Shift + Klick': 'Shift + Click',
   'auf beliebige Regler im Rack, um sie hier live zu spielen.': 'on any knob in the rack to play it live here.',

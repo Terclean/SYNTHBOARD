@@ -3727,10 +3727,12 @@ body.dragging-control #rack-controls { outline-color: rgba(6, 182, 212, 0.4); ba
   top: 0;
   z-index: 100;
   height: 42px;
+  max-width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 12px;
+  gap: 8px;
+  padding: 0 10px;
   background: #1C1E22;
   border-bottom: 1px solid #383C43;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
@@ -3739,7 +3741,9 @@ body.dragging-control #rack-controls { outline-color: rgba(6, 182, 212, 0.4); ba
 .topbar-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .studio-brand {
@@ -8178,4 +8182,67 @@ body.view-eurorack .panel-toggles {
   background: #020617;
   border: 2.5px solid #94a3b8;
   box-shadow: 0 0 0 1px #334155;
+}
+
+/* ==========================================================================
+   Responsive Anpassung für schmale / kleinere Bildschirme (Split-Screen)
+   Unwichtige / doppelte Topbar-Controls wandern ins Hilfe-Menü
+   ========================================================================== */
+.topbar-right,
+.topbar-center {
+  flex-shrink: 0;
+}
+
+.patch-selector-wrap {
+  min-width: 0;
+  flex: 0 1 230px;
+}
+
+.board-dropdown-select {
+  min-width: 90px;
+  max-width: 100%;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 1540px) {
+  .scope-widget {
+    display: none !important;
+  }
+  .studio-brand {
+    padding-right: 8px;
+  }
+  .studio-brand-text,
+  .patch-prefix {
+    display: none;
+  }
+}
+
+@media (max-width: 1280px) {
+  #btn-manual-topbar,
+  #btn-studio-overview,
+  #btn-lang-toggle {
+    display: none !important;
+  }
+  .topbar-center {
+    gap: 5px;
+  }
+  .bpm-control-box {
+    padding: 0 5px;
+  }
+  .perf-board-toggle-btn {
+    padding: 4px 8px;
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 1040px) {
+  .lib-sidebar,
+  .perf-sidebar {
+    width: 248px;
+  }
+  .hud-pill {
+    max-width: calc(100% - 16px);
+    flex-wrap: wrap;
+    justify-content: center;
+  }
 }

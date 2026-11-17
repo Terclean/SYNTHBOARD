@@ -330,6 +330,16 @@ $('#btn-manual-topbar')?.addEventListener('click', () => { manualModal.open(); a
 $('#btn-lang-toggle')?.addEventListener('click', () => {
   setLang(getLang() === 'de' ? 'en' : 'de');
 });
+$('#btn-lang-menu')?.addEventListener('click', () => {
+  setLang(getLang() === 'de' ? 'en' : 'de');
+});
+$('#btn-overview-menu')?.addEventListener('click', () => {
+  $('#btn-studio-overview')?.click();
+});
+$('#btn-scope-menu')?.addEventListener('click', () => {
+  const isHidden = scopePopout?.classList.contains('hidden');
+  setScopePopoutOpen(Boolean(isHidden));
+});
 
 onLangChange(() => {
   renderLibrary();

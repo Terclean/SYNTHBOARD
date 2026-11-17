@@ -38,6 +38,9 @@ export class DroneModule extends SourceBase {
   static options = [
     { id: 'chord', label: 'Akkord', choices: Object.entries(CHORDS).map(([k, c]) => [k, c.name]), value: 'fifths' },
     { id: 'wave', label: 'Welle', choices: WAVES, value: 'sawtooth' },
+    { id: 'scaleLock', label: 'Tonart-Sync', choices: [[1, 'Adaptiv (bei Pitch-In)'], [0, 'Fest']], value: 1 },
+    { id: 'key', label: 'Tonart', choices: KEYS, value: 5 },
+    { id: 'scale', label: 'Skala', choices: SCALE_CHOICES, value: 'major' },
   ];
   static jacks = [
     { id: 'pitchIn', type: 'in', signal: 'pitch', label: 'ROOT PITCH' },
@@ -123,9 +126,26 @@ export class DroneModule extends SourceBase {
     }
   }
 
+  activeIntervals(root) {
+    const baseIv = (CHORDS[this.values.chord] || CHORDS.fifths).iv;
+    if (!this.patchSystem?.hasIncoming(this.id, 'pitchIn') || Number(this.values.scaleLock ?? 1) === 0) {
+      return baseIv;
+    }
+    const scaleSteps = (SCALES[this.values.scale || 'major'] || SCALES.major).steps;
+    const key = Number(this.values.key ?? 5);
+    const inScale = (midi) => scaleSteps.includes((((midi - key) % 12) + 12) % 12);
+    if (this.values.chord === 'major' && !inScale(root + 4) && inScale(root + 3)) {
+      return [0, 7, 12, 15, 19, 22]; // Moll 7 passend zur Tonart
+    }
+    if (this.values.chord === 'minor9' && !inScale(root + 3) && inScale(root + 4)) {
+      return [0, 7, 12, 16, 19, 26]; // Dur 9 passend zur Tonart
+    }
+    return baseIv;
+  }
+
   retune() {
     const root = this.activeRoot();
-    const iv = (CHORDS[this.values.chord] || CHORDS.fifths).iv;
+    const iv = this.activeIntervals(root);
     const det = this.values.detune ?? 8;
     const fm = this.values.fm ?? 0;
     this.voices.forEach((v, i) => {
@@ -276,11 +296,30 @@ export class KeysModule extends SourceBase {
     this.initValues(state);
   }
 
-  onPitch(portId, _time, midiNote) {
-    if (portId === 'pitchIn') this.extMidi = midiNote;
+  onPitch(portId, time, midiNote) {
+    if (portId !== 'pitchIn') return;
+    const note = Array.isArray(midiNote) ? midiNote[0] : midiNote;
+    this.extMidi = note;
+    if (this.monoVoice && !this.monoVoice.released && (this.values.polyphony === 'mono' || this.values.polyphony === 'legato')) {
+      const t = Math.max(time || this.ctx.currentTime, this.ctx.currentTime);
+      const glideSec = Math.max(0, (this.values.glide || 0) * this.glideModScale);
+      const tau = Math.max(0.003, glideSec / 3);
+      const f = midiToFreq(note);
+      this.monoVoice.o1.frequency.setTargetAtTime(f, t, tau);
+      this.monoVoice.o2.frequency.setTargetAtTime(f, t, tau);
+    }
   }
 
   onModulation(portId, val) {
+    if (portId === 'vcaCv') {
+      this.vcaMod = Math.max(0, Math.min(1.5, val));
+      if ((this.values.level ?? 0.7) <= 0.01 && this.patchSystem?.hasIncoming(this.id, 'vcaCv')) {
+        this.ramp(this.levelGain.gain, Math.min(1, this.vcaMod), 0.02);
+      } else {
+        this.updateChannelStrip();
+      }
+      return;
+    }
     if (this.handleSourceModulation(portId, val)) return;
     if (portId === 'glideCv') this.glideModScale = Math.max(0.05, val * 2);
   }
@@ -383,7 +422,13 @@ export class KeysModule extends SourceBase {
   }
 
   applyParam(id, val) {
-    if (id === 'level') this.ramp(this.levelGain.gain, val);
+    if (id === 'level') {
+      if (val <= 0.01 && this.patchSystem?.hasIncoming(this.id, 'vcaCv')) {
+        this.ramp(this.levelGain.gain, Math.min(1, this.vcaMod ?? 0), 0.02);
+      } else {
+        this.ramp(this.levelGain.gain, val);
+      }
+    }
     else if (id === 'cutoff') this.ramp(this.filter.frequency, val);
     else if (id === 'reso') this.ramp(this.filter.Q, val);
     if (['key', 'scale', 'octave'].includes(id) && this.refreshPads) this.refreshPads();
@@ -608,15 +653,10 @@ export class SequencerModule extends SourceBase {
     if (s && gateMode > 0 && Math.random() <= this.values.chance) {
       const midi = this.midiFor(s.deg);
       const stepDur = 60 / (this.values.tempo || 92) / Number(this.values.division || 2);
-      const dur = gateMode === 2 ? Math.max(this.values.decay, stepDur * 1.15) : this.values.decay;
+      const dur = gateMode === 2 ? Math.max(this.values.decay, stepDur * 1.25) : this.values.decay;
       if (this.values.level > 0.01) this.playNote(midi, time);
       this.emitSlewedPitch(time, midi, 0.9, dur);
-      if (gateMode !== 2 || !this._prevWasGate) {
-        this.emitTrigger('gateOut', time, 0.9, dur);
-      }
-      this._prevWasGate = true;
-    } else {
-      this._prevWasGate = false;
+      this.emitTrigger('gateOut', time, 0.9, dur);
     }
     const idx = this.step;
     const delayMs = Math.max(0, (time - this.ctx.currentTime) * 1000);

@@ -318,7 +318,7 @@ export class SnapshotSystem {
         if (savedData.channelStrip && mod.setChannelStrip) {
           mod.setChannelStrip(savedData.channelStrip);
         }
-        if (savedData.extra) {
+        if (savedData.extra && Object.keys(savedData.extra).length > 0) {
           if (mod.setExtra) {
             mod.setExtra(savedData.extra);
           } else if (savedData.extra.voices && mod.voicesOn) {
@@ -355,8 +355,8 @@ export class SnapshotSystem {
         }
       }
 
-      // Extra-State (z. B. Stimmen-Pads) sanft synchronisieren
-      if (savedData.extra) {
+      // Extra-State (z. B. Stimmen-Pads) sanft synchronisieren (leeres extra: {} ignoriert)
+      if (savedData.extra && Object.keys(savedData.extra).length > 0) {
         if (mod.setExtra) {
           mod.setExtra(savedData.extra);
         } else if (savedData.extra.voices && mod.voicesOn) {
