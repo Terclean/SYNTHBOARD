@@ -671,7 +671,8 @@ export class SequencerModule extends SourceBase {
   }
 
   tick() {
-    // Wenn eine externe Master Clock eingesteckt ist, steuert diese den Sequencer
+    // Pausieren wenn AudioContext pausiert/stumm oder eine externe Master Clock steuert
+    if (!this.enabled || (this.ctx.state && this.ctx.state !== 'running')) return;
     if (this.patchSystem?.hasIncoming(this.id, 'clockIn')) return;
 
     const now = this.ctx.currentTime;

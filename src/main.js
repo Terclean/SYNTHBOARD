@@ -188,6 +188,7 @@ const scopeModeLabels = {
   chord: '3D CHORD VOICES',
 };
 const scope = new Oscilloscope($('#scope'), engine.analyser, {
+  engine,
   analyserL: engine.analyserL,
   analyserR: engine.analyserR,
   initialMode: 'radial',

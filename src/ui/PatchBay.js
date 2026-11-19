@@ -71,11 +71,16 @@ export class PatchBay {
   }
 
   flashJack(key) {
+    if (!this.visible || (typeof document !== 'undefined' && document.hidden)) return;
     const jack = this.jacks.get(key);
     if (!jack?.el) return;
-    const led = jack.el.querySelector('.jack-led') || jack.el;
+    const now = performance.now();
+    if (now - jack.lastFlashAt < 90) return;
+    jack.lastFlashAt = now;
+    const led = jack.ledEl || jack.el;
     led.classList.add('flash');
-    setTimeout(() => led.classList.remove('flash'), 120);
+    clearTimeout(jack.flashTimer);
+    jack.flashTimer = setTimeout(() => led.classList.remove('flash'), 120);
   }
 
   registerJack(element, moduleId, portId, type, signal = 'gate', label = '') {
@@ -83,6 +88,9 @@ export class PatchBay {
     const jack = {
       key,
       el: element,
+      ledEl: element.querySelector('.jack-led') || element,
+      lastFlashAt: 0,
+      flashTimer: null,
       moduleId,
       portId,
       type, // 'in' | 'out'
@@ -156,16 +164,25 @@ export class PatchBay {
     jack.el.classList.toggle('patched', isConnected);
   }
 
-  getJackCenter(key) {
+  getJackCenter(key, canvasRect = null, frameCache = null) {
+    if (frameCache && frameCache.has(key)) return frameCache.get(key);
     const jack = this.jacks.get(key);
-    if (!jack || !jack.el || !document.body.contains(jack.el)) return null;
-    const canvasRect = this.canvas.getBoundingClientRect();
+    if (!jack || !jack.el || !jack.el.isConnected) {
+      frameCache?.set(key, null);
+      return null;
+    }
+    const cRect = canvasRect || this.canvas.getBoundingClientRect();
     const rect = jack.el.getBoundingClientRect();
-    if (rect.width === 0 && rect.height === 0) return null;
-    return {
-      x: rect.left + rect.width / 2 - canvasRect.left,
-      y: rect.top + rect.height / 2 - canvasRect.top,
+    if (rect.width === 0 && rect.height === 0) {
+      frameCache?.set(key, null);
+      return null;
+    }
+    const center = {
+      x: rect.left + rect.width / 2 - cRect.left,
+      y: rect.top + rect.height / 2 - cRect.top,
     };
+    frameCache?.set(key, center);
+    return center;
   }
 
   handleJackMouseDown(key, e) {
@@ -447,13 +464,16 @@ export class PatchBay {
 
     const conns = this.engine.patchSystem.getConnections();
     const selId = this.selectedModuleId;
+    if (!this._frameCenterCache) this._frameCenterCache = new Map();
+    const frameCache = this._frameCenterCache;
+    frameCache.clear();
 
     // 1. Bereits gesteckte Kabel zeichnen (starr verankert)
     this.badges = [];
     if (this.visible) {
       conns.forEach((c) => {
-        const p1 = this.getJackCenter(`${c.fromModuleId}:${c.fromPortId}`);
-        const p2 = this.getJackCenter(`${c.toModuleId}:${c.toPortId}`);
+        const p1 = this.getJackCenter(`${c.fromModuleId}:${c.fromPortId}`, canvasRect, frameCache);
+        const p2 = this.getJackCenter(`${c.toModuleId}:${c.toPortId}`, canvasRect, frameCache);
         if (p1 && p2) {
           const isConnectedToSelected = !selId || (c.fromModuleId === selId || c.toModuleId === selId);
           this.drawDroopingCord(p1.x, p1.y, p2.x, p2.y, c.color, false, isConnectedToSelected);
@@ -480,7 +500,7 @@ export class PatchBay {
 
     // 2. Aktuell gezogenes Kabel zeichnen
     if (this.activeDrag) {
-      const p1 = this.getJackCenter(this.activeDrag.fromKey);
+      const p1 = this.getJackCenter(this.activeDrag.fromKey, canvasRect, frameCache);
       if (p1) {
         this.drawDroopingCord(
           p1.x,

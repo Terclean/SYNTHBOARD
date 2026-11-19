@@ -38,7 +38,7 @@ export class MasterClockModule extends ModuleBase {
   }
 
   scheduler() {
-    if (!this.enabled || Number(this.values.running) === 0) return;
+    if (!this.enabled || Number(this.values.running) === 0 || (this.ctx.state && this.ctx.state !== 'running')) return;
     const now = this.ctx.currentTime;
     if (this.nextTickTime < now - 0.2) this.nextTickTime = now + 0.02;
 
@@ -614,7 +614,7 @@ export class SlowRandomModule extends ModuleBase {
   }
 
   tick() {
-    if (!this.enabled) return;
+    if (!this.enabled || (this.ctx.state && this.ctx.state !== 'running')) return;
     const now = this.ctx.currentTime;
     const rate = this.values.rate || 0.15;
     const smooth = this.values.smooth || 0.8;
@@ -694,7 +694,7 @@ export class MacroControllerModule extends ModuleBase {
   }
 
   broadcast() {
-    if (!this.enabled) return;
+    if (!this.enabled || (this.ctx.state && this.ctx.state !== 'running')) return;
     const now = this.ctx.currentTime;
     this.emitMod('densityCv', this.values.density, now);
     this.emitMod('variationCv', this.values.variation, now);
@@ -851,7 +851,7 @@ export class SlopeGeneratorModule extends ModuleBase {
   }
 
   tick() {
-    if (!this.enabled) return;
+    if (!this.enabled || (this.ctx.state && this.ctx.state !== 'running')) return;
     const now = this.ctx.currentTime;
     const riseTime = Math.max(0.02, (this.values.rise || 4) * this.cvRiseMod);
     const fallTime = Math.max(0.02, (this.values.fall || 8) * this.cvFallMod);
@@ -979,7 +979,7 @@ export class AttenuverterModule extends ModuleBase {
   }
 
   process() {
-    if (!this.enabled) return;
+    if (!this.enabled || (this.ctx.state && this.ctx.state !== 'running')) return;
     const now = this.ctx.currentTime;
     const inAPatched = this.patchSystem?.hasIncoming(this.id, 'inA');
     const inBPatched = this.patchSystem?.hasIncoming(this.id, 'inB');
@@ -1042,7 +1042,7 @@ export class LogicSwitchModule extends ModuleBase {
 
     // Periodischer Latch-Emitter (30ms), damit Zielmodule stabil mit der Latch-Spannung versorgt sind
     this.timer = setInterval(() => {
-      if (this.enabled) {
+      if (this.enabled && (!this.ctx.state || this.ctx.state === 'running')) {
         this.emitMod('stateOut', this.latchState, this.ctx.currentTime);
       }
     }, 30);

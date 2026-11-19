@@ -64,6 +64,7 @@ function timbreFromCentroid(hz) {
 
 export class Oscilloscope {
   constructor(canvas, analyser, options = {}) {
+    this.engine = options.engine || null;
     this.analyser = analyser;
     this.analyserL = options.analyserL || null;
     this.analyserR = options.analyserR || null;
@@ -118,10 +119,14 @@ export class Oscilloscope {
     this.gradientCache = new Map();
 
     this.lastReadoutAt = 0;
+    this.lastAuxPitchAt = 0;
     this.lastWaterfallAt = 0;
     this.lastSlowDrawAt = 0;
+    this.topbarFrameSkip = 0;
     this.centroidHz = 0;
     this.bands = [0, 0, 0, 0];
+    this.lastPeak = 0;
+    this.lastIsSilent = true;
     this.silentFrames = 0;
     this.idleDrawn = false;
     this.lastPitchHz = 0;
@@ -267,6 +272,19 @@ export class Oscilloscope {
     return grad;
   }
 
+  getCachedChordBgGradient(key, ctx, h) {
+    const ch = Math.max(1, Math.round(h));
+    const cacheKey = `${key}:chordbg:${ch}`;
+    let grad = this.gradientCache.get(cacheKey);
+    if (!grad) {
+      grad = ctx.createLinearGradient(0, 0, 0, h);
+      grad.addColorStop(0, '#071022');
+      grad.addColorStop(1, '#030814');
+      this.gradientCache.set(cacheKey, grad);
+    }
+    return grad;
+  }
+
   analyzeTimbre(now) {
     const sr = this.analyser.context?.sampleRate || 48000;
     const binHz = (sr * 0.5) / this.freqData.length;
@@ -349,7 +367,7 @@ export class Oscilloscope {
   }
 
   drawFrame(now) {
-    if (!this.analyser || this.paused) return;
+    if (!this.analyser || this.paused || (typeof document !== 'undefined' && document.hidden)) return;
 
     // 30 FPS Capping für 3D / RADIAL / XY / SCULPT / CHORD
     const isHeavyMode = this.mode === '3d' || this.mode === 'radial' || this.mode === 'xy' || this.mode === 'sculpt' || this.mode === 'chord';
@@ -373,9 +391,19 @@ export class Oscilloscope {
     }
 
     const isSilent = peak < 0.00035 && maxFreq < 3;
-    if (isSilent && this.mode !== 'chord') {
+    this.lastPeak = peak;
+    this.lastIsSilent = isSilent;
+
+    const chordSleepReady = this.mode !== 'chord' || (
+      this.chordVisualAlpha <= 0.005
+      && this.chordRingWaves.length === 0
+      && this.chordGhosts.length === 0
+      && this.chordSparks.length === 0
+    );
+
+    if (isSilent) {
       this.silentFrames++;
-      if (this.silentFrames > 45 && this.idleDrawn) {
+      if (this.silentFrames > 45 && chordSleepReady && this.idleDrawn) {
         return;
       }
     } else {
@@ -402,8 +430,12 @@ export class Oscilloscope {
     }
     this.prevBassEnergy = this.bands[0] || 0;
 
+    if (isSilent) {
+      this.lastPitchHz = 0;
+    }
     if (this.onReadout && now - this.lastReadoutAt > 95) {
       this.lastReadoutAt = now;
+      this.lastAuxPitchAt = now;
       const peakDb = peak > 0.0001 ? Math.max(-60, 20 * Math.log10(peak)) : -60;
       const sr = this.analyser.context?.sampleRate || 48000;
       const pitchHz = isSilent ? 0 : estimatePitchHz(this.timeData, sr);
@@ -411,16 +443,16 @@ export class Oscilloscope {
       const note = pitchHz > 0 ? `${freqToNoteName(pitchHz)} (${Math.round(pitchHz)} Hz)` : '—';
       const timbre = timbreFromCentroid(isSilent ? 0 : this.centroidHz);
       this.onReadout({ peakDb, note, freq: pitchHz, centroidHz: this.centroidHz, timbre });
+    } else if (!isSilent && (this.mode === 'sculpt' || this.mode === 'chord') && now - this.lastAuxPitchAt > 105) {
+      this.lastAuxPitchAt = now;
+      const sr = this.analyser.context?.sampleRate || 48000;
+      this.lastPitchHz = estimatePitchHz(this.timeData, sr);
     }
 
     if (this.mode === 'sculpt') {
-      if (!isSilent && (!this.onReadout || now - this.lastReadoutAt > 90)) {
-        const sr = this.analyser.context?.sampleRate || 48000;
-        this.lastPitchHz = estimatePitchHz(this.timeData, sr);
-      } else if (isSilent) {
-        this.lastPitchHz = 0;
-      }
       this.updateSculpture(now, isSilent, this.lastPitchHz);
+    } else if (this.mode === 'chord') {
+      this._stepChordVisualizer(isSilent);
     }
 
     if (this.mode === 'wave') {
@@ -459,7 +491,7 @@ export class Oscilloscope {
       } else if (this.mode === 'sculpt') {
         this.drawSculpture(ctx, w, h, isCompact);
       } else if (this.mode === 'chord') {
-        this.drawChordVisualizer(ctx, w, h, isCompact);
+        this.drawChordVisualizer(key, ctx, w, h, isCompact);
       } else {
         this.draw3DWaterfall(key, ctx, w, h, isCompact);
       }
@@ -473,12 +505,21 @@ export class Oscilloscope {
       primaryRenderedCanvas = primaryRenderedCanvas || perfEntry.canvas;
     }
 
-    // Topbar-Scope direkt im kompakten Modus rendern (kein Downscaling-Flackern durch drawImage)
+    // Topbar-Scope direkt im kompakten Modus rendern; bei offenem Haupt-Panel gedrosselt (halbe FPS)
     if (this.isCanvasVisible(topbarEntry)) {
-      renderEntry(topbarEntry);
+      this.topbarFrameSkip = (this.topbarFrameSkip + 1) & 1;
+      if (!primaryRenderedCanvas || this.topbarFrameSkip === 0) {
+        renderEntry(topbarEntry);
+      }
     }
 
-    if (isSilent && this.silentFrames > 45) {
+    const chordDone = this.mode !== 'chord' || (
+      this.chordVisualAlpha <= 0.005
+      && this.chordRingWaves.length === 0
+      && this.chordGhosts.length === 0
+      && this.chordSparks.length === 0
+    );
+    if (isSilent && this.silentFrames > 45 && chordDone) {
       this.idleDrawn = true;
     }
   }
@@ -855,23 +896,38 @@ export class Oscilloscope {
     const elevScale = maxR * (0.30 + this.ringCamDip * 0.18);
     const seamAngle = 0.42;
 
-    const proj = (angle, bandIdx, energy) => {
+    const projCs = (cosA, sinA, bandIdx, energy) => {
       const frac = bandIdx / (B - 1);
       const radius = rMin + frac * (rMax - rMin);
-      const px = Math.cos(angle) * radius;
-      const py = Math.sin(angle) * radius * tiltY;
+      const px = cosA * radius;
+      const py = sinA * radius * tiltY;
       const z = energy * elevScale;
-      return { x: cx + px, y: cy + py - z, depth: Math.sin(angle) };
+      return { x: cx + px, y: cy + py - z };
     };
 
-    // Sektoren nach Tiefe sortieren (hinten nach vorne für korrekte Verdeckung)
-    const sectors = [];
+    // Sektoren + Trig einmal pro Frame berechnen und nach Tiefe sortieren (hinten nach vorne)
+    const sliceTrig = new Array(S);
+    const sectors = new Array(S);
+    for (let i = 0; i < S; i++) {
+      const a0 = seamAngle - (i / S) * Math.PI * 2;
+      const c0 = Math.cos(a0);
+      const s0 = Math.sin(a0);
+      sliceTrig[i] = { c: c0, s: s0 };
+    }
     for (let i = 0; i < S; i++) {
       const sIdx = (this.ringCursor - Math.round(i * sliceStep) + this.ringSlices * 2) % this.ringSlices;
       const nextIdx = (this.ringCursor - Math.round((i + 1) * sliceStep) + this.ringSlices * 2) % this.ringSlices;
-      const a0 = seamAngle - (i / S) * Math.PI * 2;
-      const a1 = seamAngle - ((i + 1) / S) * Math.PI * 2;
-      sectors.push({ i, sIdx, nextIdx, a0, a1, depth: Math.sin((a0 + a1) * 0.5) });
+      const nextS = (i + 1) % S;
+      const t0 = sliceTrig[i];
+      const t1 = sliceTrig[nextS];
+      const aMid = seamAngle - ((i + 0.5) / S) * Math.PI * 2;
+      sectors[i] = {
+        i, sIdx, nextIdx,
+        c0: t0.c, s0: t0.s,
+        c1: t1.c, s1: t1.s,
+        a0: seamAngle - (i / S) * Math.PI * 2,
+        depth: Math.sin(aMid),
+      };
     }
     sectors.sort((u, v) => u.depth - v.depth);
 
@@ -888,10 +944,10 @@ export class Oscilloscope {
         const slope = (e00 - e10) + (e00 - e01) * 0.5;
         const sideLight = Math.max(-0.3, Math.min(0.8, Math.cos(sec.a0 + 0.6) * 0.4 + slope * 1.4));
 
-        const p00 = proj(sec.a0, b, e00);
-        const p10 = proj(sec.a1, b, e10);
-        const p11 = proj(sec.a1, b + 1, e11);
-        const p01 = proj(sec.a0, b + 1, e01);
+        const p00 = projCs(sec.c0, sec.s0, b, e00);
+        const p10 = projCs(sec.c1, sec.s1, b, e10);
+        const p11 = projCs(sec.c1, sec.s1, b + 1, e11);
+        const p01 = projCs(sec.c0, sec.s0, b + 1, e01);
 
         const shade = Math.round(11 + Math.max(0, sideLight) * 26 + avgE * 28);
         const blue = Math.round(20 + Math.max(0, sideLight) * 44 + avgE * 52);
@@ -907,7 +963,7 @@ export class Oscilloscope {
         // Radiale Takt-/Zeitrippe dezent einzeichnen
         if (!isCompact && sec.i % 4 === 0 && b === B - 2) {
           ctx.beginPath();
-          const pInner = proj(sec.a0, 0, slA[0]);
+          const pInner = projCs(sec.c0, sec.s0, 0, slA[0]);
           ctx.moveTo(pInner.x, pInner.y);
           ctx.lineTo(p01.x, p01.y);
           ctx.strokeStyle = 'rgba(148, 163, 184, 0.08)';
@@ -922,9 +978,10 @@ export class Oscilloscope {
       const frac = b / (B - 1);
       ctx.beginPath();
       for (let i = 0; i <= S; i++) {
-        const idx = (this.ringCursor - Math.round((i % S) * sliceStep) + this.ringSlices * 2) % this.ringSlices;
-        const ang = seamAngle - ((i % S) / S) * Math.PI * 2;
-        const p = proj(ang, b, this.ringGrid[idx][b]);
+        const sMod = i % S;
+        const idx = (this.ringCursor - Math.round(sMod * sliceStep) + this.ringSlices * 2) % this.ringSlices;
+        const trig = sliceTrig[sMod];
+        const p = projCs(trig.c, trig.s, b, this.ringGrid[idx][b]);
         if (i === 0) ctx.moveTo(p.x, p.y);
         else ctx.lineTo(p.x, p.y);
       }
@@ -935,9 +992,11 @@ export class Oscilloscope {
 
     // 3. Sichtbare Nahtstelle (aktueller Moment)
     const curSlice = this.ringGrid[this.ringCursor];
+    const cSeam = sliceTrig[0].c;
+    const sSeam = sliceTrig[0].s;
     ctx.beginPath();
     for (let b = 0; b < B; b++) {
-      const p = proj(seamAngle, b, curSlice[b]);
+      const p = projCs(cSeam, sSeam, b, curSlice[b]);
       if (b === 0) ctx.moveTo(p.x, p.y);
       else ctx.lineTo(p.x, p.y);
     }
@@ -1009,6 +1068,8 @@ export class Oscilloscope {
 
   pushMusicalEvent(ev) {
     if (!ev || !this.sculptNodes) return;
+    const ctxState = this.analyser?.context?.state;
+    if (ctxState && ctxState !== 'running') return;
     this.idleDrawn = false;
     this.silentFrames = 0;
 
@@ -1017,11 +1078,13 @@ export class Oscilloscope {
       const audioTime = this.getAudioTime();
       if (ev.kind === 'chord' && Array.isArray(ev.midi) && ev.midi.length >= 2) {
         this.lastLiveChordAt = audioTime;
+        this.lastAutoChordSig = `ev:${ev.fromModuleId || ''}:${ev.midi.map((m) => Math.round(m)).join(',')}`;
         this.triggerChordChange(ev.midi, audioTime);
-      } else if (ev.kind === 'note') {
+      } else if (ev.kind === 'note' && ev.fromPortId !== 'rootOut') {
         const midi = Array.isArray(ev.midi) ? ev.midi[0] : ev.midi;
         if (Number.isFinite(midi)) {
           this.lastLiveChordAt = audioTime;
+          this.lastAutoChordSig = `ev:${ev.fromModuleId || ''}:note:${Math.round(midi)}`;
           this.triggerArpVoiceNote(midi, audioTime);
         }
       }
@@ -1393,17 +1456,9 @@ export class Oscilloscope {
   }
 
   initChordVisualizer() {
-    // Referenzabfolge: C3–G3–C4–E4 -> A2–G3–D4–F4 -> G2–A3–C4–G4
-    this.chordRefSequence = [
-      [48, 55, 60, 64],
-      [45, 55, 62, 65],
-      [43, 57, 60, 67],
-    ];
-    this.chordRefIdx = 0;
     this.showChordLabels = true;
-
     const nowT = this.getAudioTime();
-    const initNotes = this.chordRefSequence[0];
+    const initNotes = [48, 55, 60, 64];
     // Feste Anker in der Grundebene + feste Stimmfarben (keine Umsortierung bei Wechsel!)
     const voiceSpecs = [
       { id: 0, color: '#2dd4bf', angle: -2.35, radius: 0.68 }, // Bass: Türkis
@@ -1421,9 +1476,18 @@ export class Oscilloscope {
       startTime: nowT,
       duration: 0.32,
       moved: false,
-      active: true,
+      active: false, // Erst aktivieren, wenn tatsächlich echte Audio-/Notendaten klingen
       pulse: 0,
     }));
+
+    const buildCircle = (n) => Array.from({ length: n + 1 }, (_, i) => {
+      const a = (i / n) * Math.PI * 2;
+      return { c: Math.cos(a), s: Math.sin(a) };
+    });
+    this.chordRingLut56 = buildCircle(56);
+    this.chordRingLut36 = buildCircle(36);
+    this.chordRadialLut10 = buildCircle(10).slice(0, 10);
+    this.chordRadialLut6 = buildCircle(6).slice(0, 6);
 
     this.chordGhosts = [];
     this.chordRingWaves = [];
@@ -1435,8 +1499,10 @@ export class Oscilloscope {
       { edge: 3, t: 0.86 },
     ];
     this.chordEdgeBoost = 0;
+    this.chordVisualAlpha = 0;
+    this.chordCamPhase = 0;
     this.lastLiveChordAt = -999;
-    this.lastRefChordAt = nowT;
+    this.lastAutoChordSig = '';
     this.arpVoiceCursor = 0;
     this.chordLastFrameAt = nowT;
   }
@@ -1452,13 +1518,16 @@ export class Oscilloscope {
   triggerChordChange(notes, audioTime = this.getAudioTime()) {
     if (!Array.isArray(notes) || !notes.length || !this.chordVoices) return;
 
-    // Alte Außenkontur kurz als schwache Linie stehen lassen (Fläche selbst verschwindet sofort)
-    const activePts = this.chordVoices
-      .filter((v) => v.active)
-      .map((v) => ({ ax: v.ax, az: v.az, midi: v.currentMidi }));
-    if (activePts.length >= 2) {
-      this.chordGhosts.push({ points: activePts, bornAt: audioTime });
-      if (this.chordGhosts.length > 3) this.chordGhosts.shift();
+    const isVisibleMode = this.mode === 'chord';
+    if (isVisibleMode) {
+      // Alte Außenkontur kurz als schwache Linie stehen lassen (Fläche selbst verschwindet sofort)
+      const activePts = this.chordVoices
+        .filter((v) => v.active)
+        .map((v) => ({ ax: v.ax, az: v.az, midi: v.currentMidi }));
+      if (activePts.length >= 2) {
+        this.chordGhosts.push({ points: activePts, bornAt: audioTime });
+        if (this.chordGhosts.length > 3) this.chordGhosts.shift();
+      }
     }
 
     // Feste Stimm-IDs zuordnen (nicht nach Tonhöhe umsortieren!)
@@ -1482,7 +1551,7 @@ export class Oscilloscope {
       v.active = true;
       v.pulse = moved ? 1.0 : 0.25;
 
-      if (moved) {
+      if (moved && isVisibleMode) {
         for (let s = 0; s < 3; s++) {
           const ang = (s / 3) * Math.PI * 2 + audioTime * 3.1 + i;
           this.chordSparks.push({
@@ -1496,10 +1565,12 @@ export class Oscilloscope {
       }
     }
 
-    if (this.chordSparks.length > 24) this.chordSparks.splice(0, this.chordSparks.length - 24);
-    this.chordRingWaves.push({ bornAt: audioTime, duration: 0.65 });
-    if (this.chordRingWaves.length > 4) this.chordRingWaves.shift();
-    this.chordEdgeBoost = 1.0;
+    if (isVisibleMode) {
+      if (this.chordSparks.length > 24) this.chordSparks.splice(0, this.chordSparks.length - 24);
+      this.chordRingWaves.push({ bornAt: audioTime, duration: 0.65 });
+      if (this.chordRingWaves.length > 4) this.chordRingWaves.shift();
+      this.chordEdgeBoost = 1.0;
+    }
   }
 
   triggerArpVoiceNote(midi, audioTime = this.getAudioTime()) {
@@ -1522,12 +1593,145 @@ export class Oscilloscope {
     v.moved = moved;
     v.active = true;
     v.pulse = 0.85;
-    this.chordEdgeBoost = Math.max(this.chordEdgeBoost, 0.55);
+    if (this.mode === 'chord') {
+      this.chordEdgeBoost = Math.max(this.chordEdgeBoost, 0.55);
+    }
   }
 
-  _projectChordPoint(ax, az, midi, cx, baseY, ringR, tiltY, camYaw, semitonePx, minLift) {
-    const cosY = Math.cos(camYaw);
-    const sinY = Math.sin(camYaw);
+  _stepChordVisualizer(isSilent) {
+    const audioTime = this.getAudioTime();
+    const dt = Math.min(0.08, Math.max(0.001, audioTime - (this.chordLastFrameAt || audioTime)));
+    this.chordLastFrameAt = audioTime;
+
+    const ctx = this.analyser?.context;
+    const ctxRunning = !ctx || ctx.state === 'running';
+    const bandSum = this.bands ? (this.bands[0] + this.bands[1] + this.bands[2] + this.bands[3]) : 0;
+    const audible = ctxRunning && !isSilent && (this.lastPeak >= 0.00045 || bandSum > 0.015);
+
+    if (!audible) {
+      this.chordVisualAlpha = Math.max(0, this.chordVisualAlpha - dt * 3.0);
+      this.chordEdgeBoost = Math.max(0, this.chordEdgeBoost - dt * 4.0);
+      if (this.chordVisualAlpha <= 0.01) {
+        this.chordVisualAlpha = 0;
+        this.chordEdgeBoost = 0;
+        this.lastAutoChordSig = '';
+        this.chordGhosts.length = 0;
+        this.chordRingWaves.length = 0;
+        this.chordSparks.length = 0;
+        for (const v of this.chordVoices) {
+          v.active = false;
+          v.moved = false;
+          v.pulse = 0;
+        }
+      }
+      return;
+    }
+
+    this.chordVisualAlpha = Math.min(1, this.chordVisualAlpha + dt * 7.0);
+    this.chordCamPhase += dt * 0.42;
+    this.chordEdgeBoost = Math.max(0, this.chordEdgeBoost - dt * 1.8);
+
+    // Synchronisation mit tatsächlich klingenden Quellen (falls Standalone gespielt oder später in CHORD gewechselt)
+    const hasActiveVoices = this.chordVoices.some((v) => v.active);
+    const recentLiveEvent = audioTime - this.lastLiveChordAt < 0.65;
+    if (!hasActiveVoices || !recentLiveEvent) {
+      const sources = this.engine?.sources || [];
+      const cg = sources.find(
+        (m) => m?.meta?.type === 'chord_glide'
+          && m.enabled
+          && m.running !== false
+          && (m.values?.level ?? 0.75) > 0.01
+          && !m.chMute
+          && (m.chLevel === undefined || m.chLevel > 0.01),
+      );
+      if (cg) {
+        const voicing = (Array.isArray(cg.lastTriggeredVoicing) && cg.lastTriggeredVoicing.length)
+          ? cg.lastTriggeredVoicing
+          : (cg.computedVoicings?.[Number.isInteger(cg.lastTriggeredStepIdx) ? cg.lastTriggeredStepIdx : cg.currentStep] || null);
+        if (Array.isArray(voicing) && voicing.length) {
+          const notes = voicing.map((m) => Math.round(m));
+          const sig = `cg:${cg.id}:${cg.lastTriggeredStepIdx ?? cg.currentStep}:${notes.join(',')}`;
+          if (!hasActiveVoices || sig !== this.lastAutoChordSig) {
+            this.lastAutoChordSig = sig;
+            this.lastLiveChordAt = audioTime;
+            this.triggerChordChange(notes, audioTime);
+          }
+        }
+      } else {
+        const drone = sources.find(
+          (m) => m?.meta?.type === 'drone'
+            && m.enabled
+            && (m.values?.level ?? 0.7) > 0.01
+            && !m.chMute
+            && (m.chLevel === undefined || m.chLevel > 0.01),
+        );
+        if (drone && typeof drone.activeRoot === 'function' && typeof drone.activeIntervals === 'function') {
+          const root = drone.activeRoot();
+          const iv = drone.activeIntervals(root);
+          const activeNotes = [];
+          for (let i = 0; i < Math.min(iv.length, drone.voicesOn?.length || 0); i++) {
+            if (drone.voicesOn[i]) activeNotes.push(Math.round(root + iv[i]));
+          }
+          if (activeNotes.length > 0) {
+            const notes4 = activeNotes.slice(0, 4);
+            const sig = `drone:${drone.id}:${notes4.join(',')}`;
+            if (!hasActiveVoices || sig !== this.lastAutoChordSig) {
+              this.lastAutoChordSig = sig;
+              this.triggerChordChange(notes4, audioTime);
+            }
+          }
+        } else if (!hasActiveVoices && !recentLiveEvent && this.lastPitchHz > 30) {
+          const detectedMidi = Math.round(69 + 12 * Math.log2(this.lastPitchHz / 440));
+          if (detectedMidi >= 24 && detectedMidi <= 96) {
+            this.lastLiveChordAt = audioTime;
+            this.triggerArpVoiceNote(detectedMidi, audioTime);
+          }
+        }
+      }
+    }
+
+    // Stimmen interpolieren
+    for (const v of this.chordVoices) {
+      const tNorm = Math.min(1, Math.max(0, (audioTime - v.startTime) / v.duration));
+      const ease = this._chordEase(tNorm);
+      v.currentMidi = v.fromMidi + (v.toMidi - v.fromMidi) * ease;
+      v.pulse = Math.max(0, v.pulse - dt * 2.2);
+    }
+
+    // Kanten-Lichtpunkte nur bewegen, wenn Ton hörbar ist
+    let activeCount = 0;
+    for (const v of this.chordVoices) if (v.active) activeCount++;
+    if (activeCount >= 2 && this.chordVisualAlpha > 0.05) {
+      const edgeCount = activeCount >= 3 ? activeCount : 1;
+      const stepT = dt * (0.28 + this.chordEdgeBoost * 0.55);
+      for (const dot of this.chordEdgeDots) {
+        dot.t += stepT;
+        if (dot.t >= 1) {
+          dot.t -= 1;
+          dot.edge = (dot.edge + 1) % edgeCount;
+        }
+      }
+    }
+
+    // Abgelaufene Wellen, Geister & Funken aufräumen
+    for (let wi = this.chordRingWaves.length - 1; wi >= 0; wi--) {
+      if ((audioTime - this.chordRingWaves[wi].bornAt) / this.chordRingWaves[wi].duration >= 1) {
+        this.chordRingWaves.splice(wi, 1);
+      }
+    }
+    for (let gi = this.chordGhosts.length - 1; gi >= 0; gi--) {
+      if (audioTime - this.chordGhosts[gi].bornAt > 0.45) {
+        this.chordGhosts.splice(gi, 1);
+      }
+    }
+    for (let si = this.chordSparks.length - 1; si >= 0; si--) {
+      if ((audioTime - this.chordSparks[si].bornAt) / this.chordSparks[si].life >= 1) {
+        this.chordSparks.splice(si, 1);
+      }
+    }
+  }
+
+  _projectChordPoint(ax, az, midi, cx, baseY, ringR, tiltY, cosY, sinY, semitonePx, minLift) {
     const rx = ax * cosY - az * sinY;
     const rz = ax * sinY + az * cosY;
     const persp = 2.8 / (2.8 + rz * 0.48);
@@ -1537,27 +1741,18 @@ export class Oscilloscope {
     return { bx, by, nx: bx, ny: by - lift * persp, persp, depth: rz };
   }
 
-  drawChordVisualizer(ctx, w, h, isCompact) {
+  drawChordVisualizer(key, ctx, w, h, isCompact) {
     const audioTime = this.getAudioTime();
-    const dt = Math.min(0.08, Math.max(0.001, audioTime - (this.chordLastFrameAt || audioTime)));
-    this.chordLastFrameAt = audioTime;
+    const visAlpha = this.chordVisualAlpha;
 
-    // Referenzabfolge automatisch zeigen, wenn >3s keine Live-Noten vom Patch anliegen
-    if (audioTime - this.lastLiveChordAt > 3.0 && audioTime - this.lastRefChordAt >= 2.2) {
-      this.lastRefChordAt = audioTime;
-      this.chordRefIdx = (this.chordRefIdx + 1) % this.chordRefSequence.length;
-      this.triggerChordChange(this.chordRefSequence[this.chordRefIdx], audioTime);
-    }
-
-    // 1. Durchgehender, tief dunkelblauer Hintergrund
-    const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
-    bgGrad.addColorStop(0, '#071022');
-    bgGrad.addColorStop(1, '#030814');
-    ctx.fillStyle = bgGrad;
+    // 1. Durchgehender, tief dunkelblauer Hintergrund (gecacht pro Canvas-Höhe)
+    ctx.fillStyle = this.getCachedChordBgGradient(key, ctx, h);
     ctx.fillRect(0, 0, w, h);
 
-    // 2. Ruhige schräg-von-oben Perspektive mit langsamem seitlichem Schwenk
-    const camYaw = Math.sin(audioTime * 0.42) * 0.16;
+    // 2. Ruhige schräg-von-oben Perspektive (bewegt sich nur bei hörbarem Ton)
+    const camYaw = Math.sin(this.chordCamPhase) * 0.16;
+    const cosY = Math.cos(camYaw);
+    const sinY = Math.sin(camYaw);
     const cx = w * 0.5;
     const baseY = h * 0.78;
     const ringR = Math.min(w * 0.42, h * 0.48);
@@ -1568,13 +1763,14 @@ export class Oscilloscope {
 
     // 3. Schwebender Ring in der unteren Bildhälfte (offenes Zentrum, konzentrische Linien + radiale Verbindungen)
     const ringRadii = [0.38, 0.58, 0.78, 1.0];
-    const segs = isCompact ? 36 : 56;
+    const ringLut = isCompact ? this.chordRingLut36 : this.chordRingLut56;
+    const radialLut = isCompact ? this.chordRadialLut6 : this.chordRadialLut10;
     for (let ri = 0; ri < ringRadii.length; ri++) {
       const rf = ringRadii[ri];
       ctx.beginPath();
-      for (let s = 0; s <= segs; s++) {
-        const ang = (s / segs) * Math.PI * 2;
-        const p = this._projectChordPoint(Math.cos(ang) * rf, Math.sin(ang) * rf, 38, cx, baseY, ringR, tiltY, camYaw, semitonePx, 0);
+      for (let s = 0; s < ringLut.length; s++) {
+        const cs = ringLut[s];
+        const p = this._projectChordPoint(cs.c * rf, cs.s * rf, 38, cx, baseY, ringR, tiltY, cosY, sinY, semitonePx, 0);
         if (s === 0) ctx.moveTo(p.bx, p.by);
         else ctx.lineTo(p.bx, p.by);
       }
@@ -1583,11 +1779,10 @@ export class Oscilloscope {
       ctx.stroke();
     }
 
-    const radials = isCompact ? 6 : 10;
-    for (let r = 0; r < radials; r++) {
-      const ang = (r / radials) * Math.PI * 2;
-      const pIn = this._projectChordPoint(Math.cos(ang) * 0.38, Math.sin(ang) * 0.38, 38, cx, baseY, ringR, tiltY, camYaw, semitonePx, 0);
-      const pOut = this._projectChordPoint(Math.cos(ang) * 1.0, Math.sin(ang) * 1.0, 38, cx, baseY, ringR, tiltY, camYaw, semitonePx, 0);
+    for (let r = 0; r < radialLut.length; r++) {
+      const cs = radialLut[r];
+      const pIn = this._projectChordPoint(cs.c * 0.38, cs.s * 0.38, 38, cx, baseY, ringR, tiltY, cosY, sinY, semitonePx, 0);
+      const pOut = this._projectChordPoint(cs.c, cs.s, 38, cx, baseY, ringR, tiltY, cosY, sinY, semitonePx, 0);
       ctx.beginPath();
       ctx.moveTo(pIn.bx, pIn.by);
       ctx.lineTo(pOut.bx, pOut.by);
@@ -1597,51 +1792,43 @@ export class Oscilloscope {
     }
 
     // Einzelne konzentrische Lichtwelle am Akkordwechsel (innen -> außen)
-    for (let wi = this.chordRingWaves.length - 1; wi >= 0; wi--) {
+    for (let wi = 0; wi < this.chordRingWaves.length; wi++) {
       const wave = this.chordRingWaves[wi];
-      const u = (audioTime - wave.bornAt) / wave.duration;
-      if (u >= 1) {
-        this.chordRingWaves.splice(wi, 1);
-        continue;
-      }
+      const u = Math.min(1, Math.max(0, (audioTime - wave.bornAt) / wave.duration));
       const rf = 0.38 + u * 0.62;
       ctx.beginPath();
-      for (let s = 0; s <= segs; s++) {
-        const ang = (s / segs) * Math.PI * 2;
-        const p = this._projectChordPoint(Math.cos(ang) * rf, Math.sin(ang) * rf, 38, cx, baseY, ringR, tiltY, camYaw, semitonePx, 0);
+      for (let s = 0; s < ringLut.length; s++) {
+        const cs = ringLut[s];
+        const p = this._projectChordPoint(cs.c * rf, cs.s * rf, 38, cx, baseY, ringR, tiltY, cosY, sinY, semitonePx, 0);
         if (s === 0) ctx.moveTo(p.bx, p.by);
         else ctx.lineTo(p.bx, p.by);
       }
-      ctx.strokeStyle = `rgba(186, 230, 253, ${((1 - u) * 0.55).toFixed(3)})`;
+      ctx.strokeStyle = `rgba(186, 230, 253, ${((1 - u) * 0.55 * Math.max(0.25, visAlpha)).toFixed(3)})`;
       ctx.lineWidth = isCompact ? 1.1 : 1.6;
       ctx.stroke();
     }
 
-    // 4. Stimmen interpolieren & auf 2D projizieren
+    // Bei Stille ohne Restsichtbarkeit: Ring ruht sauber ohne Phantom-Akkorde
+    if (visAlpha <= 0.005) return;
+
+    // 4. Stimmen auf 2D projizieren
     const projected = [];
     for (const v of this.chordVoices) {
       const tNorm = Math.min(1, Math.max(0, (audioTime - v.startTime) / v.duration));
-      const ease = this._chordEase(tNorm);
-      v.currentMidi = v.fromMidi + (v.toMidi - v.fromMidi) * ease;
-      v.pulse = Math.max(0, v.pulse - dt * 2.2);
-
-      const cur = this._projectChordPoint(v.ax, v.az, v.currentMidi, cx, baseY, ringR, tiltY, camYaw, semitonePx, minLift);
-      const old = this._projectChordPoint(v.ax, v.az, v.fromMidi, cx, baseY, ringR, tiltY, camYaw, semitonePx, minLift);
+      const cur = this._projectChordPoint(v.ax, v.az, v.currentMidi, cx, baseY, ringR, tiltY, cosY, sinY, semitonePx, minLift);
+      const old = this._projectChordPoint(v.ax, v.az, v.fromMidi, cx, baseY, ringR, tiltY, cosY, sinY, semitonePx, minLift);
       projected.push({ v, tNorm, ...cur, oldX: old.nx, oldY: old.ny });
     }
 
     // 5. Schwache Restkontur der alten Fläche nach Akkordwechsel
-    for (let gi = this.chordGhosts.length - 1; gi >= 0; gi--) {
+    for (let gi = 0; gi < this.chordGhosts.length; gi++) {
       const g = this.chordGhosts[gi];
-      const age = audioTime - g.bornAt;
-      if (age > 0.45) {
-        this.chordGhosts.splice(gi, 1);
-        continue;
-      }
-      const alpha = (1 - age / 0.45) * 0.28;
+      const age = Math.max(0, audioTime - g.bornAt);
+      const alpha = Math.max(0, (1 - age / 0.45) * 0.28 * visAlpha);
+      if (alpha <= 0.005) continue;
       ctx.beginPath();
       g.points.forEach((pt, idx) => {
-        const p = this._projectChordPoint(pt.ax, pt.az, pt.midi, cx, baseY, ringR, tiltY, camYaw, semitonePx, minLift);
+        const p = this._projectChordPoint(pt.ax, pt.az, pt.midi, cx, baseY, ringR, tiltY, cosY, sinY, semitonePx, minLift);
         if (idx === 0) ctx.moveTo(p.nx, p.ny);
         else ctx.lineTo(p.nx, p.ny);
       });
@@ -1650,6 +1837,9 @@ export class Oscilloscope {
       ctx.lineWidth = 0.85;
       ctx.stroke();
     }
+
+    ctx.save();
+    if (visAlpha < 0.995) ctx.globalAlpha = visAlpha;
 
     // 6. Feste Anker in der Grundebene + dünne gedämpfte Verbindungslinien + punktierte Spur für bewegte Stimmen
     for (const item of projected) {
@@ -1666,9 +1856,9 @@ export class Oscilloscope {
       ctx.beginPath();
       ctx.arc(bx, by, isCompact ? 1.5 : 2.3, 0, Math.PI * 2);
       ctx.fillStyle = v.color;
-      ctx.globalAlpha = 0.45;
+      ctx.globalAlpha = 0.45 * visAlpha;
       ctx.fill();
-      ctx.globalAlpha = 1;
+      ctx.globalAlpha = visAlpha;
 
       if (v.moved && tNorm < 0.98) {
         ctx.save();
@@ -1677,7 +1867,7 @@ export class Oscilloscope {
         ctx.moveTo(oldX, oldY);
         ctx.lineTo(nx, ny);
         ctx.strokeStyle = v.color;
-        ctx.globalAlpha = Math.max(0.15, (1 - tNorm * 0.72) * 0.75);
+        ctx.globalAlpha = Math.max(0.15, (1 - tNorm * 0.72) * 0.75) * visAlpha;
         ctx.lineWidth = 1.1;
         ctx.stroke();
         ctx.restore();
@@ -1724,15 +1914,8 @@ export class Oscilloscope {
     }
 
     // 8. Wandernde Lichtpunkte entlang der Kanten
-    this.chordEdgeBoost = Math.max(0, this.chordEdgeBoost - dt * 1.8);
     if (activeNodes.length >= 2) {
-      const edgeCount = activeNodes.length >= 3 ? activeNodes.length : 1;
       for (const dot of this.chordEdgeDots) {
-        dot.t += dt * (0.28 + this.chordEdgeBoost * 0.55);
-        if (dot.t >= 1) {
-          dot.t -= 1;
-          dot.edge = (dot.edge + 1) % edgeCount;
-        }
         const a = activeNodes[dot.edge % activeNodes.length];
         const b = activeNodes[(dot.edge + 1) % activeNodes.length];
         const px = a.nx + (b.nx - a.nx) * dot.t;
@@ -1745,22 +1928,19 @@ export class Oscilloscope {
     }
 
     // 9. Feine Funken an bewegten Knoten
-    for (let si = this.chordSparks.length - 1; si >= 0; si--) {
+    for (let si = 0; si < this.chordSparks.length; si++) {
       const sp = this.chordSparks[si];
-      const u = (audioTime - sp.bornAt) / sp.life;
-      if (u >= 1) {
-        this.chordSparks.splice(si, 1);
-        continue;
-      }
+      const u = Math.max(0, (audioTime - sp.bornAt) / sp.life);
+      if (u >= 1) continue;
       const host = projected[sp.voiceIdx];
       if (!host || !host.v.active) continue;
       ctx.beginPath();
       ctx.arc(host.nx + sp.vx * u, host.ny + sp.vy * u, 1.2, 0, Math.PI * 2);
       ctx.fillStyle = host.v.color;
-      ctx.globalAlpha = (1 - u) * 0.8;
+      ctx.globalAlpha = (1 - u) * 0.8 * visAlpha;
       ctx.fill();
-      ctx.globalAlpha = 1;
     }
+    ctx.globalAlpha = visAlpha;
 
     // 10. Leuchtende Stimmknoten & dezente Tonlabels (z. B. C3, G3, C4, E4)
     for (const item of projected) {
@@ -1770,9 +1950,9 @@ export class Oscilloscope {
       ctx.beginPath();
       ctx.arc(nx, ny, rHalo, 0, Math.PI * 2);
       ctx.fillStyle = v.color;
-      ctx.globalAlpha = 0.22 + v.pulse * 0.18;
+      ctx.globalAlpha = (0.22 + v.pulse * 0.18) * visAlpha;
       ctx.fill();
-      ctx.globalAlpha = 1;
+      ctx.globalAlpha = visAlpha;
 
       ctx.beginPath();
       ctx.arc(nx, ny, isCompact ? 1.8 : 3.0, 0, Math.PI * 2);
@@ -1790,5 +1970,7 @@ export class Oscilloscope {
         ctx.fillText(midiToNoteLabel(v.currentMidi), nx + 7, ny + 3);
       }
     }
+
+    ctx.restore();
   }
 }

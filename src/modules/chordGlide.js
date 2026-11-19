@@ -530,13 +530,17 @@ export class ChordGlideModule extends SourceBase {
     const tempo = this.getBpm();
     this.stepDurationSec = (60 / tempo) * 4 * (step.bars || 1);
 
-    // Weiterleitung über das modulare Patchkabel-System
+    // Weiterleitung über das modulare Patchkabel-System (nur wenn Audio aktiv läuft)
     const transVoicing = voicing.map((m) => m + this.transposeOffset);
     const rootMidi = step.root + 36 + this.transposeOffset;
+    this.lastTriggeredStepIdx = idx;
+    this.lastTriggeredVoicing = transVoicing;
 
-    this.emitPitch('pitchOut', time, transVoicing, 0.9, this.stepDurationSec);
-    this.emitPitch('rootOut', time, rootMidi, 0.9, this.stepDurationSec);
-    this.emitTrigger('gateOut', time, 0.9, this.stepDurationSec);
+    if (!this.ctx.state || this.ctx.state === 'running' || isManualPreview) {
+      this.emitPitch('pitchOut', time, transVoicing, 0.9, this.stepDurationSec);
+      this.emitPitch('rootOut', time, rootMidi, 0.9, this.stepDurationSec);
+      this.emitTrigger('gateOut', time, 0.9, this.stepDurationSec);
+    }
 
     // UI-Aktualisierung (Karten-Highlight & Visualizer)
     const delayMs = Math.max(0, (time - this.ctx.currentTime) * 1000);
@@ -651,7 +655,8 @@ export class ChordGlideModule extends SourceBase {
   }
 
   tickInternal() {
-    // Wenn ein externes Clock-Kabel angeschlossen ist, überstimmt dieses den internen Ticker
+    // Wenn AudioContext pausiert ist oder ein externes Clock-Kabel angeschlossen ist, nicht intern takten
+    if (this.ctx.state && this.ctx.state !== 'running') return;
     if (this.patchSystem?.hasIncoming(this.id, 'clockIn')) return;
     if (this.engine?.transport && !this.engine.transport.playing) return;
     if (!this.running || !this.enabled || !this.steps.length) return;
@@ -1020,15 +1025,16 @@ export class ChordGlideModule extends SourceBase {
       }
       this.animPlayhead = requestAnimationFrame(updatePlayhead);
       if (this._isOffscreen || this.engine?.renderLod === 'low') return;
-      const minInterval = this.engine?.renderLod === 'medium' ? 66 : 33;
+      const minInterval = this.engine?.renderLod === 'medium' ? 66 : 42;
       if (now - lastPlayheadUpdate < minInterval) return;
       lastPlayheadUpdate = now;
 
-      if (this.running && this.steps.length && this.ctx.state === 'running') {
+      if (this.enabled && this.running && this.steps.length && (!this.ctx.state || this.ctx.state === 'running')) {
         const t = this.ctx.currentTime;
         const progress = Math.max(0, Math.min(1, (t - this.stepStartTime) / Math.max(0.1, this.stepDurationSec)));
         const colW = 100 / this.steps.length;
-        const leftPct = this.currentStep * colW + progress * colW;
+        const displayIdx = Number.isInteger(this.lastTriggeredStepIdx) ? this.lastTriggeredStepIdx : this.currentStep;
+        const leftPct = displayIdx * colW + progress * colW;
         playhead.style.left = `${leftPct.toFixed(1)}%`;
         playhead.style.opacity = '1';
       } else {
