@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="de">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SYNTHBOARD · Modulares Musikstudio</title>
+    <title>SYNTHBOARD · Modular Music Studio</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -120,28 +120,17 @@
           </button>
         </div>
 
-        <!-- Rechts: Overview-Button, Scope, Master-Knob & Sidebar-Toggles -->
+        <!-- Rechts: Overview-Icon, Kompakt-Scope, Master-Knob, Sprache & Profil -->
         <div class="topbar-right">
-          <button type="button" id="btn-lang-toggle" class="overview-topbar-btn lang-toggle-btn" title="Sprache auf Englisch umschalten (EN)">DE</button>
-          <button id="btn-manual-topbar" class="overview-topbar-btn manual-topbar-btn" title="Visuelles Studio-Handbuch öffnen [Taste H]">
-            <span>📖 Handbuch</span>
-          </button>
-
-          <button id="btn-studio-overview" class="overview-topbar-btn" title="Alles auf einen Blick: Passt alle Studio-Geräte optimal in den Bildschirm ein [Taste O]">
-            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>
-            <span>ALLES IM BLICK</span>
+          <button id="btn-studio-overview" class="overview-topbar-btn overview-icon-only" title="Alles auf einen Blick: Passt alle Studio-Geräte optimal in den Bildschirm ein [Taste O]" aria-label="Alles auf einen Blick">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>
           </button>
 
           <div class="scope-widget" id="scope-widget">
-            <div class="scope-mode-pills scope-pills-grid scope-pills-5" role="group" aria-label="Analyzer-Modus">
-              <button type="button" class="scope-pill" data-scope-mode="wave" title="3D Ribbon Oszilloskop">WAVE</button>
-              <button type="button" class="scope-pill" data-scope-mode="fft" title="Multi-Color Spektrumanalysator">FFT</button>
-              <button type="button" class="scope-pill" data-scope-mode="xy" title="3D Multi-Band Lissajous">XY</button>
-              <button type="button" class="scope-pill active" data-scope-mode="3d" title="3D Spectral Waterfall">3D</button>
-              <button type="button" class="scope-pill" data-scope-mode="radial" title="3D Radial Sound-Vortex">RAD</button>
-            </div>
-            <canvas id="scope" class="scope-compact" width="170" height="30" aria-label="Oszilloskop" title="Klicken zum Modus-Wechsel (WAVE / FFT / XY / 3D / RADIAL)"></canvas>
-            <button type="button" id="btn-scope-expand" class="scope-expand-btn" title="Großansicht ein-/ausblenden">⤢</button>
+            <canvas id="scope" class="scope-compact" width="112" height="28" aria-label="Oszilloskop" title="Klicken zum Modus-Wechsel (WAVE / FFT / XY / 3D / RADIAL)"></canvas>
+            <button type="button" id="btn-scope-expand" class="scope-expand-btn" title="Großansicht ein-/ausblenden" aria-label="Großansicht ein-/ausblenden">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+            </button>
           </div>
 
           <div class="master-fader-cell" title="Master-Lautstärke">
@@ -149,13 +138,14 @@
             <div id="knob-master" data-knob-color="white" data-knob-size="sm"></div>
           </div>
 
-          <div class="panel-toggles">
-            <button id="btn-side-lib" class="icon-toggle active" title="Bibliothek schließen [Taste B]">
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          <div class="topbar-account-group">
+            <button type="button" id="btn-lang-toggle" class="overview-topbar-btn lang-toggle-btn" title="Switch language to German (DE)">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+              <span class="lang-code">EN</span>
             </button>
-            <button id="btn-toggle-perf-board" class="perf-board-toggle-btn active" title="Performance-Board schließen [Taste P]">
-              <span class="perf-dot"></span>
-              <span class="perf-txt">PERFORMANCE</span>
+            <button type="button" id="btn-profile-topbar" class="overview-topbar-btn profile-topbar-btn" title="Profil &amp; Cloud-Racks öffnen">
+              <span id="topbar-avatar-dot" class="profile-avatar-dot"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+              <span id="topbar-profile-name">Profil</span>
             </button>
           </div>
         </div>

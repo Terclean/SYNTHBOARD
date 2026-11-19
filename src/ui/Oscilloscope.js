@@ -104,6 +104,8 @@ export class Oscilloscope {
     this.lastSlowDrawAt = 0;
     this.centroidHz = 0;
     this.bands = [0, 0, 0, 0];
+    this.silentFrames = 0;
+    this.idleDrawn = false;
   }
 
   registerCanvas(key, canvas) {
@@ -125,6 +127,8 @@ export class Oscilloscope {
   setMode(mode) {
     if (!MODES.includes(mode)) return;
     this.mode = mode;
+    this.idleDrawn = false;
+    this.silentFrames = 0;
     this.canvases.forEach(({ ctx, canvas }) => {
       const w = canvas.clientWidth || canvas.width;
       const h = canvas.clientHeight || canvas.height;
@@ -278,9 +282,31 @@ export class Oscilloscope {
     }
     this.lastSlowDrawAt = now;
 
-    // Single-Pass Audio-Daten & Timbre-Analyse
+    // Single-Pass Audio-Daten & Stille-Erkennung (verhindert Flackern bei Stille)
     this.analyser.getFloatTimeDomainData(this.timeData);
     this.analyser.getByteFrequencyData(this.freqData);
+
+    let peak = 0;
+    for (let i = 0; i < this.timeData.length; i++) {
+      const a = Math.abs(this.timeData[i]);
+      if (a > peak) peak = a;
+    }
+    let maxFreq = 0;
+    for (let i = 1; i < this.freqData.length; i++) {
+      if (this.freqData[i] > maxFreq) maxFreq = this.freqData[i];
+    }
+
+    const isSilent = peak < 0.00035 && maxFreq < 3;
+    if (isSilent) {
+      this.silentFrames++;
+      if (this.silentFrames > 45 && this.idleDrawn) {
+        return;
+      }
+    } else {
+      this.silentFrames = 0;
+      this.idleDrawn = false;
+    }
+
     this.analyzeTimbre(now);
 
     if (this.mode === 'xy' && this.analyserL && this.analyserR) {
@@ -290,16 +316,11 @@ export class Oscilloscope {
 
     if (this.onReadout && now - this.lastReadoutAt > 95) {
       this.lastReadoutAt = now;
-      let peak = 0;
-      for (let i = 0; i < this.timeData.length; i++) {
-        const a = Math.abs(this.timeData[i]);
-        if (a > peak) peak = a;
-      }
       const peakDb = peak > 0.0001 ? Math.max(-60, 20 * Math.log10(peak)) : -60;
       const sr = this.analyser.context?.sampleRate || 48000;
-      const pitchHz = estimatePitchHz(this.timeData, sr);
+      const pitchHz = isSilent ? 0 : estimatePitchHz(this.timeData, sr);
       const note = pitchHz > 0 ? `${freqToNoteName(pitchHz)} (${Math.round(pitchHz)} Hz)` : '—';
-      const timbre = timbreFromCentroid(this.centroidHz);
+      const timbre = timbreFromCentroid(isSilent ? 0 : this.centroidHz);
       this.onReadout({ peakDb, note, freq: pitchHz, centroidHz: this.centroidHz, timbre });
     }
 
@@ -353,16 +374,13 @@ export class Oscilloscope {
       primaryRenderedCanvas = primaryRenderedCanvas || perfEntry.canvas;
     }
 
-    // Topbar-Scope: Wenn bereits auf großem Display gerendert wurde, per drawImage() spiegeln!
+    // Topbar-Scope direkt im kompakten Modus rendern (kein Downscaling-Flackern durch drawImage)
     if (this.isCanvasVisible(topbarEntry)) {
-      if (primaryRenderedCanvas) {
-        const { key, canvas, ctx } = topbarEntry;
-        const { w, h } = this.syncCanvasSize(key, canvas, ctx);
-        ctx.clearRect(0, 0, w, h);
-        ctx.drawImage(primaryRenderedCanvas, 0, 0, w, h);
-      } else {
-        renderEntry(topbarEntry);
-      }
+      renderEntry(topbarEntry);
+    }
+
+    if (isSilent && this.silentFrames > 45) {
+      this.idleDrawn = true;
     }
   }
 

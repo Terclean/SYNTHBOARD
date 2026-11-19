@@ -12,6 +12,8 @@ import { StudioWorkspace } from './ui/StudioWorkspace.js';
 import { ManualModal } from './ui/ManualModal.js';
 import { MAX_IMPORT_BYTES, validateFileSize, validateAndSanitizePatchState } from './modules/patchValidator.js';
 import { getLang, setLang, onLangChange, applyTranslations, t } from './ui/i18n.js';
+import { CloudProfileStore } from './ui/CloudProfileStore.js';
+import { ProfileModal } from './ui/ProfileModal.js';
 
 const LS_BOARDS = 'synthboard:boards';
 const LS_AUTO = 'synthboard:autosave';
@@ -264,6 +266,55 @@ const cardVisibilityObserver = typeof IntersectionObserver !== 'undefined'
     }, { rootMargin: '120px' })
   : null;
 
+// ───────────────────────── Cloud Profile & Community Racks ──
+const cloudStore = new CloudProfileStore();
+const USER_ICON_SVG = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+const syncTopbarProfile = (profile) => {
+  const nameEl = $('#topbar-profile-name');
+  const dotEl = $('#topbar-avatar-dot');
+  if (nameEl) nameEl.textContent = profile?.name ? profile.name : t('Profil', 'Profile');
+  if (dotEl) {
+    if (profile?.avatarDataUrl) {
+      dotEl.innerHTML = '';
+      const img = document.createElement('img');
+      img.src = profile.avatarDataUrl;
+      img.alt = '';
+      img.className = 'topbar-avatar-img';
+      dotEl.appendChild(img);
+    } else {
+      dotEl.innerHTML = USER_ICON_SVG;
+    }
+  }
+};
+cloudStore.getProfile().then((p) => { if (p) syncTopbarProfile(p); }).catch(() => {});
+
+const profileModal = new ProfileModal({
+  store: cloudStore,
+  engine,
+  getCurrentState: () => engine.getState(),
+  onOpenRackState: (state, title) => {
+    const validated = validateAndSanitizePatchState({ name: title, state });
+    if (!validated.ok) {
+      toast(`${t('Laden fehlgeschlagen', 'Load failed')}: ${validated.error}`);
+      return;
+    }
+    focusDock?.clear();
+    normalizePatchState(validated.state);
+    engine.load(validated.state);
+    masterKnob.setValue(engine.masterValue);
+    current = { kind: 'new', key: validated.name };
+    renderRack();
+    populateBoards();
+    snapshotSystem?.updateVisuals();
+    changed();
+  },
+  onToast: (msg) => toast(msg),
+  onStartAudio: () => startAudio(),
+  onProfileUpdated: (p) => syncTopbarProfile(p),
+});
+
+$('#btn-profile-topbar')?.addEventListener('click', () => profileModal.open());
+
 // ───────────────────────── ManualModal ─────────────────────────
 const manualModal = new ManualModal({
   getCurrentState: () => engine.getState(),
@@ -326,7 +377,6 @@ engine.workspace = workspace;
 $('#btn-boards-gallery')?.addEventListener('click', () => { infoSystem.openGuide('tab-boards'); applyTranslations(document); });
 $('#btn-tutorials')?.addEventListener('click', () => { infoSystem.openGuide('tab-tutorials'); applyTranslations(document); });
 $('#btn-guide')?.addEventListener('click', () => { manualModal.open(); applyTranslations(document.getElementById('manual-modal')); });
-$('#btn-manual-topbar')?.addEventListener('click', () => { manualModal.open(); applyTranslations(document.getElementById('manual-modal')); });
 $('#btn-lang-toggle')?.addEventListener('click', () => {
   setLang(getLang() === 'de' ? 'en' : 'de');
 });

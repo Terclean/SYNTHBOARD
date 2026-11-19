@@ -4,9 +4,9 @@ const LS_LANG = 'synthboard:lang';
 let currentLang = (() => {
   try {
     const saved = localStorage.getItem(LS_LANG);
-    return saved === 'en' ? 'en' : 'de';
+    return saved === 'de' ? 'de' : 'en';
   } catch {
-    return 'de';
+    return 'en';
   }
 })();
 
@@ -84,6 +84,8 @@ const DICT = {
   'Patch-Kabel-Guide': 'Patch Cable Guide',
   'Studio-Analyzer Großansicht': 'Studio Analyzer Pop-Out',
   'Sprache: DE / EN': 'Language: DE / EN',
+  'Profil': 'Profile',
+  'Profil & Cloud-Racks öffnen': 'Open Profile & Cloud Racks',
   'Klänge': 'Sounds',
   'Shift + Klick': 'Shift + Click',
   'auf beliebige Regler im Rack, um sie hier live zu spielen.': 'on any knob in the rack to play it live here.',
@@ -239,7 +241,9 @@ export function applyTranslations(root = document) {
   }
   const langBtn = document.getElementById('btn-lang-toggle');
   if (langBtn) {
-    langBtn.textContent = currentLang === 'en' ? 'EN' : 'DE';
+    const codeEl = langBtn.querySelector('.lang-code');
+    if (codeEl) codeEl.textContent = currentLang === 'en' ? 'EN' : 'DE';
+    else langBtn.textContent = currentLang === 'en' ? 'EN' : 'DE';
     langBtn.title = currentLang === 'en' ? 'Switch language to German (DE)' : 'Sprache auf Englisch umschalten (EN)';
     langBtn.classList.toggle('is-en', currentLang === 'en');
   }
