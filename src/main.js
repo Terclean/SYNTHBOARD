@@ -607,7 +607,11 @@ function addModule(type, posOrIndex = -1) {
   renderRack(mod.id);
   selectModule(mod.id);
   changed();
-  toast(`${mod.meta.title} hinzugefügt`);
+  if (window.innerWidth <= 960) {
+    setLibraryState(false);
+    setTimeout(() => workspace?.focusSelected?.(), 60);
+  }
+  toast(t(`${tr(mod.meta.title)} hinzugefügt`, `${tr(mod.meta.title)} added`));
 }
 
 // ───────────────────────── Rack Rendering & Workspace Integration ──
@@ -1397,21 +1401,28 @@ $('#file-import')?.addEventListener('change', async (e) => {
 });
 
 // ───────────────────────── Sidebar & Performance-Board Synchronisation ──
-function setLibraryState(open) {
+const isMobileViewport = () => typeof window !== 'undefined' && window.innerWidth <= 960;
+
+function setLibraryState(open, skipPeerClose = false) {
   const ws = $('#workspace');
   const btn = $('#btn-side-lib');
   const edgeTab = $('#btn-open-lib-edge');
   if (!ws) return;
   const isOpen = !!open;
+  if (isOpen && !skipPeerClose && isMobileViewport()) {
+    setPerformanceBoardState(false, true);
+  }
   ws.classList.toggle('lib-collapsed', !isOpen);
   if (btn) {
     btn.classList.toggle('active', isOpen);
-    btn.title = isOpen ? 'Bibliothek schließen [Taste B]' : 'Bibliothek öffnen [Taste B]';
+    btn.title = isOpen ? t('Bibliothek schließen [Taste B]', 'Close library [Key B]') : t('Bibliothek öffnen [Taste B]', 'Open library [Key B]');
   }
   if (edgeTab) {
     edgeTab.classList.toggle('hidden', isOpen);
   }
-  try { localStorage.setItem('synthboard:lib_collapsed', isOpen ? '0' : '1'); } catch { /* ignore */ }
+  if (!isMobileViewport()) {
+    try { localStorage.setItem('synthboard:lib_collapsed', isOpen ? '0' : '1'); } catch { /* ignore */ }
+  }
   setTimeout(() => { patchBay.updateSize?.(); patchBay.render?.(); }, 160);
 }
 
@@ -1423,21 +1434,26 @@ function toggleLibrary(forced) {
   setLibraryState(target);
 }
 
-function setPerformanceBoardState(open) {
+function setPerformanceBoardState(open, skipPeerClose = false) {
   const ws = $('#workspace');
   const btn = $('#btn-toggle-perf-board');
   const edgeTab = $('#btn-open-perf-edge');
   if (!ws) return;
   const isOpen = !!open;
+  if (isOpen && !skipPeerClose && isMobileViewport()) {
+    setLibraryState(false, true);
+  }
   ws.classList.toggle('perf-collapsed', !isOpen);
   if (btn) {
     btn.classList.toggle('active', isOpen);
-    btn.title = isOpen ? 'Performance-Board schließen [Taste P]' : 'Performance-Board öffnen [Taste P]';
+    btn.title = isOpen ? t('Performance-Board schließen [Taste P]', 'Close Performance Board [Key P]') : t('Performance-Board öffnen [Taste P]', 'Open Performance Board [Key P]');
   }
   if (edgeTab) {
     edgeTab.classList.toggle('hidden', isOpen);
   }
-  try { localStorage.setItem('synthboard:perf_collapsed', isOpen ? '0' : '1'); } catch { /* ignore */ }
+  if (!isMobileViewport()) {
+    try { localStorage.setItem('synthboard:perf_collapsed', isOpen ? '0' : '1'); } catch { /* ignore */ }
+  }
   setTimeout(() => { patchBay.updateSize?.(); patchBay.render?.(); }, 160);
 }
 
@@ -1458,6 +1474,15 @@ $('#btn-toggle-perf-board')?.addEventListener('click', () => togglePerformanceBo
 $('#btn-toggle-perf')?.addEventListener('click', () => togglePerformanceBoard());
 $('#btn-close-perf-board')?.addEventListener('click', () => setPerformanceBoardState(false));
 $('#btn-open-perf-edge')?.addEventListener('click', () => setPerformanceBoardState(true));
+
+// Auf Mobilgeräten schließt ein Tipp auf die Arbeitsfläche geöffnete Drawer-Sidebars automatisch
+$('#rack-workspace')?.addEventListener('pointerdown', () => {
+  if (!isMobileViewport()) return;
+  const ws = $('#workspace');
+  if (!ws) return;
+  if (!ws.classList.contains('lib-collapsed')) setLibraryState(false, true);
+  if (!ws.classList.contains('perf-collapsed')) setPerformanceBoardState(false, true);
+});
 
 // Edit Menu
 $('#menu-disconnect-all')?.addEventListener('click', () => {
@@ -2009,11 +2034,16 @@ function boot() {
   }
 
   try {
-    const libCollapsed = localStorage.getItem('synthboard:lib_collapsed') === '1';
-    setLibraryState(!libCollapsed);
+    if (isMobileViewport()) {
+      setLibraryState(false, true);
+      setPerformanceBoardState(false, true);
+    } else {
+      const libCollapsed = localStorage.getItem('synthboard:lib_collapsed') === '1';
+      setLibraryState(!libCollapsed);
 
-    const perfCollapsed = localStorage.getItem('synthboard:perf_collapsed') === '1';
-    setPerformanceBoardState(!perfCollapsed);
+      const perfCollapsed = localStorage.getItem('synthboard:perf_collapsed') === '1';
+      setPerformanceBoardState(!perfCollapsed);
+    }
   } catch { /* ignore */ }
 
   applyZoom(currentZoom);

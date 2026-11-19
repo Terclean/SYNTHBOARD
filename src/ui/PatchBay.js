@@ -104,8 +104,21 @@ export class PatchBay {
     element.dataset.jackSignal = signal;
     element.title = `${type === 'out' ? 'AUSGANG' : 'EINGANG'}: ${label} (${signal.toUpperCase()})`;
 
-    // Jack Event-Listener
-    element.onmousedown = (e) => this.handleJackMouseDown(key, e);
+    // Jack Event-Listener (Maus & Touch via Pointer-Events)
+    element.onpointerdown = (e) => {
+      if (e.pointerType === 'touch') {
+        const now = performance.now();
+        if (jack.lastTapAt && now - jack.lastTapAt < 320) {
+          jack.lastTapAt = 0;
+          e.preventDefault();
+          e.stopPropagation();
+          this.disconnectJack(key);
+          return;
+        }
+        jack.lastTapAt = now;
+      }
+      this.handleJackMouseDown(key, e);
+    };
     element.oncontextmenu = (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -119,6 +132,7 @@ export class PatchBay {
   clearJacks() {
     for (const [, j] of this.jacks.entries()) {
       if (j.el) {
+        j.el.onpointerdown = null;
         j.el.onmousedown = null;
         j.el.oncontextmenu = null;
       }
@@ -130,6 +144,7 @@ export class PatchBay {
     for (const [key, j] of this.jacks.entries()) {
       if (j.moduleId === moduleId) {
         if (j.el) {
+          j.el.onpointerdown = null;
           j.el.onmousedown = null;
           j.el.oncontextmenu = null;
         }
@@ -296,7 +311,7 @@ export class PatchBay {
   }
 
   bindEvents() {
-    window.addEventListener('mousemove', (e) => {
+    const onMove = (e) => {
       if (!this.activeDrag) return;
       const canvasRect = this.canvas.getBoundingClientRect();
 
@@ -307,7 +322,7 @@ export class PatchBay {
       this.handleAutoScroll(e);
 
       const elems = document.elementsFromPoint(e.clientX, e.clientY);
-      const jackEl = elems.find((el) => el.classList.contains('hw-jack'));
+      const jackEl = elems.find((el) => el.classList?.contains?.('hw-jack') || el.closest?.('.hw-jack'))?.closest?.('.hw-jack');
       if (jackEl?.dataset.jackKey && jackEl.dataset.jackType === 'in') {
         const targetKey = jackEl.dataset.jackKey;
         if (targetKey !== this.activeDrag.fromKey) {
@@ -320,7 +335,8 @@ export class PatchBay {
         }
       }
       this.clearHoverTarget();
-    });
+    };
+    window.addEventListener('pointermove', onMove);
 
     document.addEventListener('scroll', () => {
       if (this.activeDrag && this.lastDragPoint) {
@@ -331,12 +347,12 @@ export class PatchBay {
       this.requestDraw();
     }, { passive: true, capture: true });
 
-    window.addEventListener('mouseup', (e) => {
+    const onUp = (e) => {
       if (!this.activeDrag) return;
       this.stopAutoScroll();
 
       const elems = document.elementsFromPoint(e.clientX, e.clientY);
-      const jackEl = elems.find((el) => el.classList.contains('hw-jack'));
+      const jackEl = elems.find((el) => el.classList?.contains?.('hw-jack') || el.closest?.('.hw-jack'))?.closest?.('.hw-jack');
 
       if (jackEl?.dataset.jackKey && jackEl.dataset.jackType === 'in') {
         const targetKey = jackEl.dataset.jackKey;
@@ -359,7 +375,9 @@ export class PatchBay {
       this.clearHoverTarget();
       this.activeDrag = null;
       this.requestDraw();
-    });
+    };
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
 
     this.bindDepthEvents();
   }
@@ -370,7 +388,7 @@ export class PatchBay {
     const r = this.canvas.getBoundingClientRect();
     const x = e.clientX - r.left;
     const y = e.clientY - r.top;
-    return this.badges.find((b) => Math.abs(x - b.x) <= 21 && Math.abs(y - b.y) <= 10) || null;
+    return this.badges.find((b) => Math.abs(x - b.x) <= 24 && Math.abs(y - b.y) <= 13) || null;
   }
 
   setDepth(id, depth) {
@@ -382,8 +400,8 @@ export class PatchBay {
   }
 
   bindDepthEvents() {
-    window.addEventListener('mousedown', (e) => {
-      if (e.button !== 0) return;
+    window.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 && e.pointerType === 'mouse') return;
       const b = this.badgeAt(e);
       if (!b) return;
       const c = this.engine.patchSystem.connections.get(b.id);
@@ -394,16 +412,18 @@ export class PatchBay {
       document.body.style.cursor = 'ns-resize';
     }, true);
 
-    window.addEventListener('mousemove', (e) => {
+    window.addEventListener('pointermove', (e) => {
       if (!this.depthDrag) return;
       this.setDepth(this.depthDrag.id, this.depthDrag.startDepth + (this.depthDrag.startY - e.clientY) * 0.01);
     });
 
-    window.addEventListener('mouseup', () => {
+    const endDepth = () => {
       if (!this.depthDrag) return;
       this.depthDrag = null;
       document.body.style.cursor = '';
-    });
+    };
+    window.addEventListener('pointerup', endDepth);
+    window.addEventListener('pointercancel', endDepth);
 
     window.addEventListener('dblclick', (e) => {
       const b = this.badgeAt(e);

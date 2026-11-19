@@ -2603,56 +2603,6 @@ body.dragging-control #rack-controls {
   color: #d8b4fe;
 }
 
-/* ───────────── Responsive ───────────── */
-@media (max-width: 1100px) {
-  .workspace {
-    grid-template-columns: 1fr;
-  }
-
-  .library {
-    grid-column: auto;
-    position: static;
-    max-height: none;
-  }
-
-  .rack {
-    grid-column: auto;
-  }
-
-  .lib-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  }
-}
-
-@media (max-width: 720px) {
-  .topbar {
-    position: static;
-  }
-
-  .module-card,
-  .module-card.is-src,
-  .module-card.is-control {
-    width: 100%;
-  }
-
-  .chain-arrow {
-    transform: rotate(90deg);
-    width: 100%;
-    text-align: center;
-  }
-
-  .chain-pin {
-    width: 100%;
-    height: 30px;
-  }
-
-  .chain-pin span {
-    writing-mode: horizontal-tb;
-    transform: none;
-  }
-}
-
 /* ───────────── Infoboxen (Smart Tooltips) ───────────── */
 .synth-infobox {
   position: fixed;
@@ -11036,5 +10986,308 @@ body.view-eurorack .panel-toggles {
   .asa-top-grid,
   .asa-stats-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ==========================================================================
+   MOBILE & TABLET STUDIO LAYOUT (<= 960px / <= 640px)
+   Maximale Arbeitsfläche (100% Fullscreen Rack) + Slide-Over Drawers
+   ========================================================================== */
+.studio-workspace-viewport {
+  touch-action: none;
+}
+
+@media (max-width: 960px) {
+  html,
+  body {
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  .app {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+  }
+
+  /* Kompakte 2-zeilige Mobile-Topbar ohne horizontales Abschneiden */
+  .studio-topbar {
+    height: auto !important;
+    min-height: 40px;
+    flex-wrap: wrap;
+    padding: 5px 8px;
+    gap: 5px 6px;
+    flex-shrink: 0;
+  }
+
+  .topbar-left {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    gap: 5px;
+    justify-content: space-between;
+  }
+
+  .studio-brand {
+    padding-right: 6px;
+    border-right: none;
+  }
+
+  .main-mode-nav {
+    padding: 2px;
+  }
+
+  .main-nav-pill {
+    padding: 3px 8px;
+    font-size: 0.66rem;
+  }
+
+  .daw-menubar {
+    gap: 1px;
+  }
+
+  .menu-btn {
+    padding: 4px 7px;
+    font-size: 0.7rem;
+  }
+
+  .menu-item[data-menu="view"] .menu-dropdown,
+  .menu-item[data-menu="help"] .menu-dropdown {
+    left: auto;
+    right: 0;
+  }
+
+  .menu-dropdown {
+    max-width: min(260px, calc(100vw - 16px));
+  }
+
+  .patch-selector-wrap {
+    flex: 1 1 135px !important;
+    min-width: 115px !important;
+    max-width: none !important;
+    min-height: 26px;
+    padding: 1px 7px;
+  }
+
+  .board-dropdown-select {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    font-size: 0.7rem;
+  }
+
+  .topbar-center {
+    flex: 0 1 auto;
+    gap: 4px;
+  }
+
+  .topbar-right {
+    flex: 1 1 auto;
+    justify-content: flex-end;
+    gap: 4px;
+  }
+
+  .transport-btn,
+  .bpm-control-box,
+  .overview-topbar-btn,
+  .lang-toggle-btn {
+    height: 26px;
+    padding: 0 7px;
+    font-size: 0.66rem;
+  }
+
+  .bpm-input {
+    width: 36px;
+    font-size: 0.72rem;
+  }
+
+  .master-fader-cell {
+    padding-left: 5px;
+    gap: 4px;
+  }
+
+  .master-lbl {
+    display: none;
+  }
+
+  /* 100% Fullscreen Rack-Workspace + Slide-Over Overlay Drawers */
+  .workspace,
+  .workspace.lib-collapsed,
+  .workspace.perf-collapsed,
+  .workspace.lib-collapsed.perf-collapsed {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto !important;
+    grid-template-columns: 1fr !important;
+    position: relative;
+  }
+
+  .rack-workspace {
+    width: 100%;
+    height: 100%;
+    grid-column: 1 / -1;
+    grid-row: 1 / -1;
+  }
+
+  .library {
+    position: absolute !important;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: min(300px, 85vw) !important;
+    max-width: 85vw;
+    height: 100% !important;
+    z-index: 80;
+    box-shadow: 12px 0 36px rgba(0, 0, 0, 0.78);
+    transform: translateX(0);
+    transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.3, 1);
+  }
+
+  .workspace.lib-collapsed .library {
+    transform: translateX(-105%);
+    pointer-events: none;
+  }
+
+  .performance-board {
+    position: absolute !important;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(335px, 90vw) !important;
+    max-width: 90vw;
+    height: 100% !important;
+    z-index: 80;
+    box-shadow: -12px 0 36px rgba(0, 0, 0, 0.78);
+    transform: translateX(0);
+    transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.3, 1);
+  }
+
+  .workspace.perf-collapsed .performance-board {
+    transform: translateX(105%);
+    pointer-events: none;
+  }
+
+  /* Griffleisten am linken/rechten Bildschirmrand */
+  .lib-edge-tab,
+  .perf-edge-tab {
+    top: 44%;
+    padding: 10px 5px;
+    font-size: 0.64rem;
+    z-index: 65;
+  }
+
+  /* Kompaktes Floating HUD unten */
+  .workspace-floating-hud {
+    bottom: max(10px, env(safe-area-inset-bottom, 10px));
+    max-width: calc(100vw - 16px);
+    padding: 4px 8px;
+    gap: 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .workspace-floating-hud::-webkit-scrollbar {
+    display: none;
+  }
+
+  .hud-pill-btn,
+  .hud-action-btn,
+  .hud-btn {
+    font-size: 0.64rem;
+    padding: 4px 8px;
+  }
+
+  /* Eurorack Mobile Anpassung */
+  .eurorack-view {
+    height: auto !important;
+    max-height: none !important;
+    flex: 1 1 auto;
+  }
+
+  .er-toolbar {
+    flex-wrap: wrap;
+    padding: 5px 8px;
+    gap: 5px;
+  }
+
+  .er-toolbar-left,
+  .er-toolbar-right {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  /* Modals & Popout-Scope auf Mobilgeräten */
+  .guide-modal,
+  .comm-modal,
+  .asa-modal {
+    padding: 6px;
+  }
+
+  .guide-window,
+  .comm-dialog,
+  .asa-dialog {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 92dvh !important;
+    max-height: 92dvh !important;
+    border-radius: 10px;
+  }
+
+  .guide-header {
+    padding: 10px 14px;
+  }
+
+  .guide-header h2 {
+    font-size: 0.92rem;
+  }
+
+  .guide-header p {
+    font-size: 0.7rem;
+  }
+
+  .guide-tabs {
+    padding: 7px 12px;
+    gap: 5px;
+    min-height: 40px;
+  }
+
+  .guide-tab-btn {
+    padding: 5px 9px;
+    font-size: 0.68rem;
+  }
+
+  .guide-body {
+    padding: 14px;
+  }
+
+  .scope-popout {
+    width: calc(100vw - 12px) !important;
+    max-width: calc(100vw - 12px) !important;
+    left: 6px !important;
+    right: 6px !important;
+    top: auto !important;
+    bottom: 54px !important;
+    transform: none !important;
+  }
+
+  .scope-popout-canvas {
+    width: 100% !important;
+    height: 210px !important;
+  }
+}
+
+@media (max-width: 540px) {
+  .bpm-lbl {
+    display: none;
+  }
+
+  #btn-hud-focus {
+    display: none;
+  }
+
+  .hud-divider:last-of-type {
+    display: none;
   }
 }

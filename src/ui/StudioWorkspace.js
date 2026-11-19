@@ -15,7 +15,7 @@ export class StudioWorkspace {
     this.panX = 60;
     this.panY = 40;
     this.zoom = 0.85;
-    this.minZoom = 0.25;
+    this.minZoom = 0.18;
     this.maxZoom = 2.4;
 
     // Anordnungsmodus: 'free' (freie Platzierung) | 'auto' (kompakte automatische Anordnung)
@@ -275,6 +275,57 @@ export class StudioWorkspace {
     };
     vp.addEventListener('pointerup', endPan);
     vp.addEventListener('pointercancel', endPan);
+
+    // 2-Finger Pinch-to-Zoom & Pan für Touchscreens (Smartphones / Tablets)
+    let pinchState = null;
+    const getTouchDistAndCenter = (t0, t1, rect) => {
+      const dx = t1.clientX - t0.clientX;
+      const dy = t1.clientY - t0.clientY;
+      return {
+        dist: Math.max(10, Math.hypot(dx, dy)),
+        cx: (t0.clientX + t1.clientX) * 0.5 - rect.left,
+        cy: (t0.clientY + t1.clientY) * 0.5 - rect.top,
+      };
+    };
+
+    vp.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 2) {
+        if (this.isPanning) {
+          this.isPanning = false;
+          vp.classList.remove('is-panning');
+        }
+        const rect = vp.getBoundingClientRect();
+        const { dist, cx, cy } = getTouchDistAndCenter(e.touches[0], e.touches[1], rect);
+        pinchState = {
+          startDist: dist,
+          startZoom: this.zoom,
+          worldX: (cx - this.panX) / this.zoom,
+          worldY: (cy - this.panY) / this.zoom,
+        };
+      }
+    }, { passive: true });
+
+    vp.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 2 && pinchState) {
+        e.preventDefault();
+        const rect = vp.getBoundingClientRect();
+        const { dist, cx, cy } = getTouchDistAndCenter(e.touches[0], e.touches[1], rect);
+        const scale = dist / pinchState.startDist;
+        const newZoom = Math.max(this.minZoom, Math.min(this.maxZoom, pinchState.startZoom * scale));
+        this.panX = cx - pinchState.worldX * newZoom;
+        this.panY = cy - pinchState.worldY * newZoom;
+        this.zoom = newZoom;
+        this.updateWorldTransform();
+      }
+    }, { passive: false });
+
+    const endPinch = (e) => {
+      if (!e.touches || e.touches.length < 2) {
+        pinchState = null;
+      }
+    };
+    vp.addEventListener('touchend', endPinch, { passive: true });
+    vp.addEventListener('touchcancel', endPinch, { passive: true });
 
     // Drag-over & Drop aus der Bibliothek auf die Welt
     vp.addEventListener('dragover', (e) => {
@@ -617,8 +668,7 @@ export class StudioWorkspace {
 
     // Auf breiten Bildschirmen dürfen 3–4 Spalten nebeneinander stehen, auf schmalen 1–2
     let targetCols = Math.max(2, Math.min(5, Math.round(Math.sqrt(mods.length * aspect))));
-    if (vpRect.width < 900) targetCols = 2;
-    if (vpRect.width < 600) targetCols = 1;
+    if (vpRect.width < 900) targetCols = mods.length <= 2 ? 1 : 2;
 
     let curX = 60;
     let curY = 60;
@@ -809,19 +859,21 @@ export class StudioWorkspace {
     const groupCenterX = minX + groupW / 2;
     const groupCenterY = minY + groupH / 2;
 
-    // Verfügbaren Viewport-Bereich abzüglich Sicherheitsabstand (Padding 48px) ermitteln
+    // Verfügbaren Viewport-Bereich abzüglich Sicherheitsabstand ermitteln (kompakter auf Mobilgeräten)
     const vpRect = this.viewportEl.getBoundingClientRect();
-    const padX = 54;
-    const padY = 54;
-    const availW = Math.max(200, vpRect.width - padX * 2);
-    const availH = Math.max(200, vpRect.height - padY * 2);
+    const isSmallScreen = vpRect.width > 0 && vpRect.width < 768;
+    const padX = isSmallScreen ? 14 : 54;
+    const padY = isSmallScreen ? 18 : 54;
+    const hudReserve = isSmallScreen ? 38 : 0;
+    const availW = Math.max(140, vpRect.width - padX * 2);
+    const availH = Math.max(140, vpRect.height - padY * 2 - hudReserve);
 
     const fitRatio = Math.min(availW / groupW, availH / groupH);
     const targetZoom = Math.max(this.minZoom, Math.min(1.15, Math.round(fitRatio * 100) / 100));
 
     // Kamera so zentrieren, dass die Modulgruppe in der Mitte des Bildschirms ruht
     const targetPanX = Math.round(vpRect.width / 2 - groupCenterX * targetZoom);
-    const targetPanY = Math.round(vpRect.height / 2 - groupCenterY * targetZoom);
+    const targetPanY = Math.round((vpRect.height - hudReserve) / 2 - groupCenterY * targetZoom);
 
     // 3. Gleichzeitige harmonische Animation der Module und der Kamera (380 ms)
     if (animate) {
