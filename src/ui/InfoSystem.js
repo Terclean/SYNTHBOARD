@@ -4,7 +4,7 @@
 
 import { SIGNAL_COLORS } from '../modules/patchSystem.js';
 import { MODULES, TEMPLATES } from '../modules/index.js';
-import { applyTranslations, getLang, onLangChange, t } from './i18n.js';
+import { applyTranslations, getLang, onLangChange, t, tr } from './i18n.js';
 
 function getJackHelpMap() {
   return {
@@ -1130,8 +1130,8 @@ export class InfoSystem {
       <div class="info-badge-row">
         <span class="info-badge ${M.category}">${catLabels[M.category] || M.category}</span>
       </div>
-      <div class="info-title"><b>${M.title}</b></div>
-      <div class="info-desc">${M.description}</div>
+      <div class="info-title"><b>${tr(M.title)}</b></div>
+      <div class="info-desc">${tr(M.description)}</div>
       ${jackList ? `<div class="info-jacks-preview"><b>${t('Patch-Buchsen', 'Patch Jacks')}:</b><div class="pills-wrap">${jackList}</div></div>` : ''}
     `;
 
@@ -2410,7 +2410,7 @@ export class InfoSystem {
     container.innerHTML = templatesList.map(([key, tpl]) => {
       const moduleCount = tpl.state?.modules?.length || 0;
       const cableCount = tpl.state?.cables?.length || 0;
-      const moduleNames = (tpl.state?.modules || []).map((m) => MODULES[m.type]?.title || m.type);
+      const moduleNames = (tpl.state?.modules || []).map((m) => tr(MODULES[m.type]?.title || m.type));
       const uniqueNames = [...new Set(moduleNames)];
       const pillsHtml = uniqueNames.slice(0, 7).map((n) => `<span class="b-mod-pill">${n}</span>`).join('')
         + (uniqueNames.length > 7 ? `<span class="b-mod-pill more">+${uniqueNames.length - 7} ${t('mehr', 'more')}</span>` : '');
@@ -2419,11 +2419,11 @@ export class InfoSystem {
         <article class="board-card" data-board-key="${key}">
           <header class="board-card-head">
             <div class="board-card-title-wrap">
-              <h4>${tpl.name}</h4>
-              <span class="board-card-badge">${tpl.category || t('Vorlage', 'Template')}</span>
+              <h4>${tr(tpl.name)}</h4>
+              <span class="board-card-badge">${tr(tpl.category) || t('Vorlage', 'Template')}</span>
             </div>
           </header>
-          <p class="board-card-desc">${tpl.description || t('Vollständig konfiguriertes Modular-Board.', 'Complete pre-wired modular patch.')}</p>
+          <p class="board-card-desc">${tr(tpl.description) || t('Vollständig konfiguriertes Modular-Board.', 'Complete pre-wired modular patch.')}</p>
           <div class="board-card-stats">
             <span>${moduleCount} ${t('Module', 'Modules')}</span>
             <span>·</span>
@@ -2751,7 +2751,7 @@ export class InfoSystem {
 
       const paramsHtml = (M.params && M.params.length)
         ? `<div class="g-mod-params">
-            <b>${t('Regler', 'Controls')}:</b> ${M.params.map((p) => `<code>${p.label}</code>`).join(', ')}
+            <b>${t('Regler', 'Controls')}:</b> ${M.params.map((p) => `<code>${tr(p.label)}</code>`).join(', ')}
            </div>`
         : '';
 
@@ -2777,11 +2777,11 @@ export class InfoSystem {
         <article class="g-mod-card" style="--card-color:${M.color};">
           <header class="g-mod-head">
             <div class="g-mod-titles">
-              <h4>${M.title}</h4>
+              <h4>${tr(M.title)}</h4>
               <span class="g-mod-cat">${catLabel} · ${M.type}</span>
             </div>
           </header>
-          <p class="g-mod-desc">${M.description}</p>
+          <p class="g-mod-desc">${tr(M.description)}</p>
           ${paramsHtml}
           ${jacksHtml}
           ${exHtml}

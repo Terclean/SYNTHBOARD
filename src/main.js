@@ -11,7 +11,7 @@ import { EurorackUI } from './eurorack/ui.js';
 import { StudioWorkspace } from './ui/StudioWorkspace.js';
 import { ManualModal } from './ui/ManualModal.js';
 import { MAX_IMPORT_BYTES, validateFileSize, validateAndSanitizePatchState } from './modules/patchValidator.js';
-import { getLang, setLang, onLangChange, applyTranslations, t } from './ui/i18n.js';
+import { getLang, setLang, onLangChange, applyTranslations, t, tr } from './ui/i18n.js';
 import { CommunityModal } from './ui/CommunityModal.js';
 import { decodePatchFromHash } from './ui/communityUtils.js';
 import { AudioSynthAnalyzerModal } from './ui/AudioSynthAnalyzerModal.js';
@@ -535,8 +535,8 @@ function renderLibrary() {
     if (currentLibFilter !== 'all' && M.category !== currentLibFilter) return false;
     if (libSearchQuery) {
       const q = libSearchQuery.toLowerCase();
-      const matchTitle = (M.title || '').toLowerCase().includes(q);
-      const matchDesc = (M.description || '').toLowerCase().includes(q);
+      const matchTitle = (M.title || '').toLowerCase().includes(q) || tr(M.title || '').toLowerCase().includes(q);
+      const matchDesc = (M.description || '').toLowerCase().includes(q) || tr(M.description || '').toLowerCase().includes(q);
       const matchType = (M.type || '').toLowerCase().includes(q);
       if (!matchTitle && !matchDesc && !matchType) return false;
     }
@@ -544,20 +544,25 @@ function renderLibrary() {
   });
 
   if (!filtered.length) {
-    listEl.innerHTML = `<div class="lib-no-results" style="padding:16px;text-align:center;color:#64748b;font-size:0.8rem;">Keine Module für „${esc(libSearchQuery)}“ gefunden.</div>`;
+    listEl.innerHTML = `<div class="lib-no-results" style="padding:16px;text-align:center;color:#64748b;font-size:0.8rem;">${t(`Keine Module für „${esc(libSearchQuery)}“ gefunden.`, `No modules found for "${esc(libSearchQuery)}".`)}</div>`;
     return;
   }
 
-  listEl.innerHTML = filtered.map((M) => `
-    <div class="lib-studio-row" draggable="true" data-type="${M.type}" style="--row-col:${M.color}" title="${esc(M.description)}">
+  listEl.innerHTML = filtered.map((M) => {
+    const modTitle = tr(M.title);
+    const modDesc = tr(M.description);
+    const addHint = t(`${modTitle} zum Rack hinzufügen`, `Add ${modTitle} to rack`);
+    return `
+    <div class="lib-studio-row" draggable="true" data-type="${M.type}" style="--row-col:${M.color}" title="${esc(modDesc)}">
       <span class="lib-row-icon">${getModuleIcon(M.type)}</span>
       <div class="lib-row-info">
-        <span class="lib-row-title">${esc(M.title)}</span>
-        <span class="lib-row-desc">${esc(M.description)}</span>
+        <span class="lib-row-title">${esc(modTitle)}</span>
+        <span class="lib-row-desc">${esc(modDesc)}</span>
       </div>
-      <button class="lib-row-add-btn" title="${esc(M.title)} zum Rack hinzufügen">＋</button>
+      <button class="lib-row-add-btn" title="${esc(addHint)}">＋</button>
     </div>
-  `).join('');
+  `;
+  }).join('');
 
   listEl.querySelectorAll('.lib-studio-row').forEach((el) => {
     el.addEventListener('click', () => addModule(el.dataset.type));
@@ -1176,15 +1181,15 @@ function populateBoards() {
 
   const options = [];
   if (current.kind === 'new') {
-    options.push('<option value="new:" selected>Neues Board (ungespeichert)</option>');
+    options.push(`<option value="new:" selected>${esc(t('Neues Board (ungespeichert)', 'New Board (unsaved)'))}</option>`);
   }
 
-  options.push(`<optgroup label="Meine Patches">${mine.length ? mine.map((n) => `<option value="my:${esc(n)}">${esc(n)}</option>`).join('') : '<option disabled>– noch keine gespeichert –</option>'}</optgroup>`);
+  options.push(`<optgroup label="${esc(t('Meine Patches', 'My Patches'))}">${mine.length ? mine.map((n) => `<option value="my:${esc(n)}">${esc(tr(n))}</option>`).join('') : `<option disabled>${esc(t('– noch keine gespeichert –', '– none saved yet –'))}</option>`}</optgroup>`);
 
-  options.push(`<optgroup label="Studio-Vorlagen">${Object.entries(TEMPLATES).map(([k, t]) => `<option value="tpl:${k}">${esc(t.name)}</option>`).join('')}</optgroup>`);
+  options.push(`<optgroup label="${esc(t('Studio-Vorlagen', 'Studio Templates'))}">${Object.entries(TEMPLATES).map(([k, tpl]) => `<option value="tpl:${k}">${esc(tr(tpl.name))}</option>`).join('')}</optgroup>`);
 
   if (mine.length > 0) {
-    options.push('<option value="action:clear_all">Speicher komplett leeren (alle Boards löschen)...</option>');
+    options.push(`<option value="action:clear_all">${esc(t('Speicher komplett leeren (alle Boards löschen)...', 'Clear storage (delete all boards)...'))}</option>`);
   }
 
   sel.innerHTML = options.join('');
@@ -1194,7 +1199,7 @@ function populateBoards() {
 
   if (!exists && targetVal) {
     // Falls Key z. B. durch Autosave oder Import noch nicht existiert, dynamisch hinzufügen damit Dropdown nie leer ist
-    const fallbackLabel = current.key || (current.kind === 'new' ? 'Neues Board (ungespeichert)' : 'Aktueller Patch');
+    const fallbackLabel = tr(current.key) || (current.kind === 'new' ? t('Neues Board (ungespeichert)', 'New Board (unsaved)') : t('Aktueller Patch', 'Current Patch'));
     const customOpt = document.createElement('option');
     customOpt.value = targetVal;
     customOpt.textContent = fallbackLabel;
@@ -1204,14 +1209,18 @@ function populateBoards() {
     sel.value = targetVal;
   }
 
-  const activeLabel = sel.selectedOptions[0]?.textContent || (current.key || 'Patch wählen');
+  const activeLabel = sel.selectedOptions[0]?.textContent || (tr(current.key) || t('Patch wählen', 'Select Patch'));
   const wrap = $('.patch-selector-wrap');
-  if (wrap) wrap.title = `Aktiver Patch: ${activeLabel} (Klicken zum Wechseln)`;
+  if (wrap) wrap.title = t(`Aktiver Patch: ${activeLabel} (Klicken zum Wechseln)`, `Active patch: ${activeLabel} (Click to switch)`);
 
   const btnDelete = $('#btn-delete');
   if (btnDelete) {
     btnDelete.disabled = current.kind !== 'my' && mine.length === 0;
-    btnDelete.title = current.kind === 'my' ? `Board „${current.key}“ löschen` : mine.length > 0 ? 'Gespeicherte Boards löschen' : 'Speicher leeren';
+    btnDelete.title = current.kind === 'my'
+      ? t(`Board „${current.key}“ löschen`, `Delete board "${current.key}"`)
+      : mine.length > 0
+        ? t('Gespeicherte Boards löschen', 'Delete saved boards')
+        : t('Speicher leeren', 'Clear storage');
   }
 }
 
