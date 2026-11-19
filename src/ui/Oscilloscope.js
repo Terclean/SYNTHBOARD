@@ -1,10 +1,15 @@
 // SYNTHBOARD – Studio-Oszilloskop & 3D Multi-Color Timbre Analyzer
-// 6 Modi: 'wave' (3D Ribbon), 'fft' (Multi-Color Spectrum), 'xy' (3D Multi-Band Lissajous),
-//         '3d' (40-Frame Spectral Waterfall), 'radial' (3D Sound-Vortex), 'sculpt' (12-Punkte-Lichtskulptur)
+// 7 Modi: 'wave', 'fft', 'xy', '3d', 'radial', 'sculpt', 'chord' (3D Chord Voice-Leading)
 
-const MODES = ['wave', 'fft', 'xy', '3d', 'radial', 'sculpt'];
+const MODES = ['wave', 'fft', 'xy', '3d', 'radial', 'sculpt', 'chord'];
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+function midiToNoteLabel(midi) {
+  if (!Number.isFinite(midi)) return '';
+  const m = Math.round(midi);
+  return `${NOTE_NAMES[((m % 12) + 12) % 12]}${Math.floor(m / 12) - 1}`;
+}
 
 function freqToNoteName(freq) {
   if (!freq || freq < 27 || freq > 4500) return '—';
@@ -121,6 +126,7 @@ export class Oscilloscope {
     this.idleDrawn = false;
     this.lastPitchHz = 0;
     this.initSculpture();
+    this.initChordVisualizer();
   }
 
   registerCanvas(key, canvas) {
@@ -345,8 +351,8 @@ export class Oscilloscope {
   drawFrame(now) {
     if (!this.analyser || this.paused) return;
 
-    // 30 FPS Capping für 3D / RADIAL / XY / SCULPT
-    const isHeavyMode = this.mode === '3d' || this.mode === 'radial' || this.mode === 'xy' || this.mode === 'sculpt';
+    // 30 FPS Capping für 3D / RADIAL / XY / SCULPT / CHORD
+    const isHeavyMode = this.mode === '3d' || this.mode === 'radial' || this.mode === 'xy' || this.mode === 'sculpt' || this.mode === 'chord';
     if (isHeavyMode && now - this.lastSlowDrawAt < 32) {
       return;
     }
@@ -367,7 +373,7 @@ export class Oscilloscope {
     }
 
     const isSilent = peak < 0.00035 && maxFreq < 3;
-    if (isSilent) {
+    if (isSilent && this.mode !== 'chord') {
       this.silentFrames++;
       if (this.silentFrames > 45 && this.idleDrawn) {
         return;
@@ -452,6 +458,8 @@ export class Oscilloscope {
         this.drawRadial(ctx, w, h, isCompact);
       } else if (this.mode === 'sculpt') {
         this.drawSculpture(ctx, w, h, isCompact);
+      } else if (this.mode === 'chord') {
+        this.drawChordVisualizer(ctx, w, h, isCompact);
       } else {
         this.draw3DWaterfall(key, ctx, w, h, isCompact);
       }
@@ -1004,6 +1012,21 @@ export class Oscilloscope {
     this.idleDrawn = false;
     this.silentFrames = 0;
 
+    // Live-Noten und Akkorde an den CHORD Voice-Leading Visualizer weiterleiten
+    if (this.chordVoices) {
+      const audioTime = this.getAudioTime();
+      if (ev.kind === 'chord' && Array.isArray(ev.midi) && ev.midi.length >= 2) {
+        this.lastLiveChordAt = audioTime;
+        this.triggerChordChange(ev.midi, audioTime);
+      } else if (ev.kind === 'note') {
+        const midi = Array.isArray(ev.midi) ? ev.midi[0] : ev.midi;
+        if (Number.isFinite(midi)) {
+          this.lastLiveChordAt = audioTime;
+          this.triggerArpVoiceNote(midi, audioTime);
+        }
+      }
+    }
+
     if (ev.kind === 'note') {
       const midi = Array.isArray(ev.midi) ? ev.midi[0] : ev.midi;
       if (!Number.isFinite(midi)) return;
@@ -1352,6 +1375,420 @@ export class Oscilloscope {
       ctx.fillStyle = 'rgba(148, 163, 184, 0.55)';
       ctx.font = '600 9px ui-monospace, monospace';
       ctx.fillText(phaseLabel, 10, h - 10);
+    }
+  }
+
+  // ───────────────────────────────────────────── 3D CHORD VOICE-LEADING VISUALIZER ──
+  getAudioTime() {
+    const perfT = performance.now() * 0.001;
+    const ctx = this.analyser?.context;
+    if (ctx && ctx.state === 'running' && Number.isFinite(ctx.currentTime)) {
+      if (this._audioTimeOffset === undefined) {
+        this._audioTimeOffset = perfT - ctx.currentTime;
+      }
+      return ctx.currentTime + this._audioTimeOffset;
+    }
+    this._audioTimeOffset = undefined;
+    return perfT;
+  }
+
+  initChordVisualizer() {
+    // Referenzabfolge: C3–G3–C4–E4 -> A2–G3–D4–F4 -> G2–A3–C4–G4
+    this.chordRefSequence = [
+      [48, 55, 60, 64],
+      [45, 55, 62, 65],
+      [43, 57, 60, 67],
+    ];
+    this.chordRefIdx = 0;
+    this.showChordLabels = true;
+
+    const nowT = this.getAudioTime();
+    const initNotes = this.chordRefSequence[0];
+    // Feste Anker in der Grundebene + feste Stimmfarben (keine Umsortierung bei Wechsel!)
+    const voiceSpecs = [
+      { id: 0, color: '#2dd4bf', angle: -2.35, radius: 0.68 }, // Bass: Türkis
+      { id: 1, color: '#c084fc', angle: -0.82, radius: 0.72 }, // Stimme 2: Lavendel
+      { id: 2, color: '#fbbf24', angle: 0.78, radius: 0.72 },  // Stimme 3: Warmes Amber
+      { id: 3, color: '#fde68a', angle: 2.30, radius: 0.68 },  // Stimme 4: Warmes Hellgold
+    ];
+    this.chordVoices = voiceSpecs.map((spec, idx) => ({
+      ...spec,
+      ax: Math.cos(spec.angle) * spec.radius,
+      az: Math.sin(spec.angle) * spec.radius,
+      fromMidi: initNotes[idx],
+      toMidi: initNotes[idx],
+      currentMidi: initNotes[idx],
+      startTime: nowT,
+      duration: 0.32,
+      moved: false,
+      active: true,
+      pulse: 0,
+    }));
+
+    this.chordGhosts = [];
+    this.chordRingWaves = [];
+    this.chordSparks = [];
+    this.chordEdgeDots = [
+      { edge: 0, t: 0.08 },
+      { edge: 1, t: 0.34 },
+      { edge: 2, t: 0.62 },
+      { edge: 3, t: 0.86 },
+    ];
+    this.chordEdgeBoost = 0;
+    this.lastLiveChordAt = -999;
+    this.lastRefChordAt = nowT;
+    this.arpVoiceCursor = 0;
+    this.chordLastFrameAt = nowT;
+  }
+
+  _chordEase(tNorm) {
+    if (tNorm <= 0) return 0;
+    if (tNorm >= 1) return 1;
+    return tNorm < 0.5
+      ? 4 * tNorm * tNorm * tNorm
+      : 1 - Math.pow(-2 * tNorm + 2, 3) / 2;
+  }
+
+  triggerChordChange(notes, audioTime = this.getAudioTime()) {
+    if (!Array.isArray(notes) || !notes.length || !this.chordVoices) return;
+
+    // Alte Außenkontur kurz als schwache Linie stehen lassen (Fläche selbst verschwindet sofort)
+    const activePts = this.chordVoices
+      .filter((v) => v.active)
+      .map((v) => ({ ax: v.ax, az: v.az, midi: v.currentMidi }));
+    if (activePts.length >= 2) {
+      this.chordGhosts.push({ points: activePts, bornAt: audioTime });
+      if (this.chordGhosts.length > 3) this.chordGhosts.shift();
+    }
+
+    // Feste Stimm-IDs zuordnen (nicht nach Tonhöhe umsortieren!)
+    for (let i = 0; i < 4; i++) {
+      const v = this.chordVoices[i];
+      const raw = notes[i];
+      if (!Number.isFinite(raw)) {
+        if (notes.length < 4 && i >= notes.length) {
+          v.active = false;
+        }
+        continue;
+      }
+      const prev = v.active ? v.currentMidi : raw;
+      const moved = v.active && Math.abs(raw - prev) > 0.05;
+      v.fromMidi = moved ? prev : raw;
+      v.toMidi = raw;
+      v.currentMidi = v.fromMidi;
+      v.startTime = audioTime;
+      v.duration = 0.32; // ~250–400 ms Glide
+      v.moved = moved;
+      v.active = true;
+      v.pulse = moved ? 1.0 : 0.25;
+
+      if (moved) {
+        for (let s = 0; s < 3; s++) {
+          const ang = (s / 3) * Math.PI * 2 + audioTime * 3.1 + i;
+          this.chordSparks.push({
+            voiceIdx: i,
+            vx: Math.cos(ang) * 14,
+            vy: Math.sin(ang) * 10 - (raw > prev ? 6 : -6),
+            bornAt: audioTime,
+            life: 0.32,
+          });
+        }
+      }
+    }
+
+    if (this.chordSparks.length > 24) this.chordSparks.splice(0, this.chordSparks.length - 24);
+    this.chordRingWaves.push({ bornAt: audioTime, duration: 0.65 });
+    if (this.chordRingWaves.length > 4) this.chordRingWaves.shift();
+    this.chordEdgeBoost = 1.0;
+  }
+
+  triggerArpVoiceNote(midi, audioTime = this.getAudioTime()) {
+    if (!Number.isFinite(midi) || !this.chordVoices) return;
+    const isFreshArp = audioTime - (this.lastArpNoteAt || -999) > 1.2;
+    this.lastArpNoteAt = audioTime;
+    if (isFreshArp) {
+      this.arpVoiceCursor = 0;
+      this.chordVoices.forEach((v, idx) => { v.active = idx === 0; });
+    }
+    const idx = this.arpVoiceCursor % 4;
+    this.arpVoiceCursor = (this.arpVoiceCursor + 1) % 4;
+    const v = this.chordVoices[idx];
+    const moved = v.active && Math.abs(midi - v.currentMidi) > 0.05;
+    v.fromMidi = moved ? v.currentMidi : midi;
+    v.toMidi = midi;
+    v.currentMidi = v.fromMidi;
+    v.startTime = audioTime;
+    v.duration = 0.28;
+    v.moved = moved;
+    v.active = true;
+    v.pulse = 0.85;
+    this.chordEdgeBoost = Math.max(this.chordEdgeBoost, 0.55);
+  }
+
+  _projectChordPoint(ax, az, midi, cx, baseY, ringR, tiltY, camYaw, semitonePx, minLift) {
+    const cosY = Math.cos(camYaw);
+    const sinY = Math.sin(camYaw);
+    const rx = ax * cosY - az * sinY;
+    const rz = ax * sinY + az * cosY;
+    const persp = 2.8 / (2.8 + rz * 0.48);
+    const bx = cx + rx * ringR * persp;
+    const by = baseY + rz * ringR * tiltY * persp;
+    const lift = minLift + (midi - 38) * semitonePx;
+    return { bx, by, nx: bx, ny: by - lift * persp, persp, depth: rz };
+  }
+
+  drawChordVisualizer(ctx, w, h, isCompact) {
+    const audioTime = this.getAudioTime();
+    const dt = Math.min(0.08, Math.max(0.001, audioTime - (this.chordLastFrameAt || audioTime)));
+    this.chordLastFrameAt = audioTime;
+
+    // Referenzabfolge automatisch zeigen, wenn >3s keine Live-Noten vom Patch anliegen
+    if (audioTime - this.lastLiveChordAt > 3.0 && audioTime - this.lastRefChordAt >= 2.2) {
+      this.lastRefChordAt = audioTime;
+      this.chordRefIdx = (this.chordRefIdx + 1) % this.chordRefSequence.length;
+      this.triggerChordChange(this.chordRefSequence[this.chordRefIdx], audioTime);
+    }
+
+    // 1. Durchgehender, tief dunkelblauer Hintergrund
+    const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
+    bgGrad.addColorStop(0, '#071022');
+    bgGrad.addColorStop(1, '#030814');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, w, h);
+
+    // 2. Ruhige schräg-von-oben Perspektive mit langsamem seitlichem Schwenk
+    const camYaw = Math.sin(audioTime * 0.42) * 0.16;
+    const cx = w * 0.5;
+    const baseY = h * 0.78;
+    const ringR = Math.min(w * 0.42, h * 0.48);
+    const tiltY = 0.34;
+    // Gemeinsame, absolut stabile Tonhöhenskala für alle Stimmen (zentriert sich nie um)
+    const semitonePx = (h * 0.50) / 38;
+    const minLift = h * 0.11;
+
+    // 3. Schwebender Ring in der unteren Bildhälfte (offenes Zentrum, konzentrische Linien + radiale Verbindungen)
+    const ringRadii = [0.38, 0.58, 0.78, 1.0];
+    const segs = isCompact ? 36 : 56;
+    for (let ri = 0; ri < ringRadii.length; ri++) {
+      const rf = ringRadii[ri];
+      ctx.beginPath();
+      for (let s = 0; s <= segs; s++) {
+        const ang = (s / segs) * Math.PI * 2;
+        const p = this._projectChordPoint(Math.cos(ang) * rf, Math.sin(ang) * rf, 38, cx, baseY, ringR, tiltY, camYaw, semitonePx, 0);
+        if (s === 0) ctx.moveTo(p.bx, p.by);
+        else ctx.lineTo(p.bx, p.by);
+      }
+      ctx.strokeStyle = `rgba(125, 211, 252, ${ri === 0 ? 0.28 : 0.18})`;
+      ctx.lineWidth = isCompact ? 0.7 : 0.9;
+      ctx.stroke();
+    }
+
+    const radials = isCompact ? 6 : 10;
+    for (let r = 0; r < radials; r++) {
+      const ang = (r / radials) * Math.PI * 2;
+      const pIn = this._projectChordPoint(Math.cos(ang) * 0.38, Math.sin(ang) * 0.38, 38, cx, baseY, ringR, tiltY, camYaw, semitonePx, 0);
+      const pOut = this._projectChordPoint(Math.cos(ang) * 1.0, Math.sin(ang) * 1.0, 38, cx, baseY, ringR, tiltY, camYaw, semitonePx, 0);
+      ctx.beginPath();
+      ctx.moveTo(pIn.bx, pIn.by);
+      ctx.lineTo(pOut.bx, pOut.by);
+      ctx.strokeStyle = 'rgba(125, 211, 252, 0.12)';
+      ctx.lineWidth = 0.75;
+      ctx.stroke();
+    }
+
+    // Einzelne konzentrische Lichtwelle am Akkordwechsel (innen -> außen)
+    for (let wi = this.chordRingWaves.length - 1; wi >= 0; wi--) {
+      const wave = this.chordRingWaves[wi];
+      const u = (audioTime - wave.bornAt) / wave.duration;
+      if (u >= 1) {
+        this.chordRingWaves.splice(wi, 1);
+        continue;
+      }
+      const rf = 0.38 + u * 0.62;
+      ctx.beginPath();
+      for (let s = 0; s <= segs; s++) {
+        const ang = (s / segs) * Math.PI * 2;
+        const p = this._projectChordPoint(Math.cos(ang) * rf, Math.sin(ang) * rf, 38, cx, baseY, ringR, tiltY, camYaw, semitonePx, 0);
+        if (s === 0) ctx.moveTo(p.bx, p.by);
+        else ctx.lineTo(p.bx, p.by);
+      }
+      ctx.strokeStyle = `rgba(186, 230, 253, ${((1 - u) * 0.55).toFixed(3)})`;
+      ctx.lineWidth = isCompact ? 1.1 : 1.6;
+      ctx.stroke();
+    }
+
+    // 4. Stimmen interpolieren & auf 2D projizieren
+    const projected = [];
+    for (const v of this.chordVoices) {
+      const tNorm = Math.min(1, Math.max(0, (audioTime - v.startTime) / v.duration));
+      const ease = this._chordEase(tNorm);
+      v.currentMidi = v.fromMidi + (v.toMidi - v.fromMidi) * ease;
+      v.pulse = Math.max(0, v.pulse - dt * 2.2);
+
+      const cur = this._projectChordPoint(v.ax, v.az, v.currentMidi, cx, baseY, ringR, tiltY, camYaw, semitonePx, minLift);
+      const old = this._projectChordPoint(v.ax, v.az, v.fromMidi, cx, baseY, ringR, tiltY, camYaw, semitonePx, minLift);
+      projected.push({ v, tNorm, ...cur, oldX: old.nx, oldY: old.ny });
+    }
+
+    // 5. Schwache Restkontur der alten Fläche nach Akkordwechsel
+    for (let gi = this.chordGhosts.length - 1; gi >= 0; gi--) {
+      const g = this.chordGhosts[gi];
+      const age = audioTime - g.bornAt;
+      if (age > 0.45) {
+        this.chordGhosts.splice(gi, 1);
+        continue;
+      }
+      const alpha = (1 - age / 0.45) * 0.28;
+      ctx.beginPath();
+      g.points.forEach((pt, idx) => {
+        const p = this._projectChordPoint(pt.ax, pt.az, pt.midi, cx, baseY, ringR, tiltY, camYaw, semitonePx, minLift);
+        if (idx === 0) ctx.moveTo(p.nx, p.ny);
+        else ctx.lineTo(p.nx, p.ny);
+      });
+      ctx.closePath();
+      ctx.strokeStyle = `rgba(147, 222, 253, ${alpha.toFixed(3)})`;
+      ctx.lineWidth = 0.85;
+      ctx.stroke();
+    }
+
+    // 6. Feste Anker in der Grundebene + dünne gedämpfte Verbindungslinien + punktierte Spur für bewegte Stimmen
+    for (const item of projected) {
+      const { v, bx, by, nx, ny, oldX, oldY, tNorm } = item;
+      if (!v.active) continue;
+
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.lineTo(nx, ny);
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.24)';
+      ctx.lineWidth = 0.85;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(bx, by, isCompact ? 1.5 : 2.3, 0, Math.PI * 2);
+      ctx.fillStyle = v.color;
+      ctx.globalAlpha = 0.45;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+
+      if (v.moved && tNorm < 0.98) {
+        ctx.save();
+        ctx.setLineDash([2, 3]);
+        ctx.beginPath();
+        ctx.moveTo(oldX, oldY);
+        ctx.lineTo(nx, ny);
+        ctx.strokeStyle = v.color;
+        ctx.globalAlpha = Math.max(0.15, (1 - tNorm * 0.72) * 0.75);
+        ctx.lineWidth = 1.1;
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    // 7. Durchscheinende blaugraue Fläche in fester Stimmreihenfolge + feine Diagonale + scharfe eisblaue Kanten
+    const activeNodes = projected.filter((p) => p.v.active);
+    if (activeNodes.length >= 3) {
+      ctx.beginPath();
+      activeNodes.forEach((p, idx) => {
+        if (idx === 0) ctx.moveTo(p.nx, p.ny);
+        else ctx.lineTo(p.nx, p.ny);
+      });
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(58, 96, 138, 0.22)';
+      ctx.fill();
+
+      if (activeNodes.length >= 4) {
+        ctx.beginPath();
+        ctx.moveTo(activeNodes[0].nx, activeNodes[0].ny);
+        ctx.lineTo(activeNodes[2].nx, activeNodes[2].ny);
+        ctx.strokeStyle = 'rgba(147, 222, 253, 0.36)';
+        ctx.lineWidth = 0.85;
+        ctx.stroke();
+      }
+
+      ctx.beginPath();
+      activeNodes.forEach((p, idx) => {
+        if (idx === 0) ctx.moveTo(p.nx, p.ny);
+        else ctx.lineTo(p.nx, p.ny);
+      });
+      ctx.closePath();
+      ctx.strokeStyle = 'rgba(186, 230, 253, 0.90)';
+      ctx.lineWidth = isCompact ? 1.0 : 1.45;
+      ctx.stroke();
+    } else if (activeNodes.length === 2) {
+      ctx.beginPath();
+      ctx.moveTo(activeNodes[0].nx, activeNodes[0].ny);
+      ctx.lineTo(activeNodes[1].nx, activeNodes[1].ny);
+      ctx.strokeStyle = 'rgba(186, 230, 253, 0.90)';
+      ctx.lineWidth = 1.3;
+      ctx.stroke();
+    }
+
+    // 8. Wandernde Lichtpunkte entlang der Kanten
+    this.chordEdgeBoost = Math.max(0, this.chordEdgeBoost - dt * 1.8);
+    if (activeNodes.length >= 2) {
+      const edgeCount = activeNodes.length >= 3 ? activeNodes.length : 1;
+      for (const dot of this.chordEdgeDots) {
+        dot.t += dt * (0.28 + this.chordEdgeBoost * 0.55);
+        if (dot.t >= 1) {
+          dot.t -= 1;
+          dot.edge = (dot.edge + 1) % edgeCount;
+        }
+        const a = activeNodes[dot.edge % activeNodes.length];
+        const b = activeNodes[(dot.edge + 1) % activeNodes.length];
+        const px = a.nx + (b.nx - a.nx) * dot.t;
+        const py = a.ny + (b.ny - a.ny) * dot.t;
+        ctx.beginPath();
+        ctx.arc(px, py, isCompact ? 1.1 : 1.6 + this.chordEdgeBoost * 0.9, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(224, 242, 254, ${(0.55 + this.chordEdgeBoost * 0.45).toFixed(3)})`;
+        ctx.fill();
+      }
+    }
+
+    // 9. Feine Funken an bewegten Knoten
+    for (let si = this.chordSparks.length - 1; si >= 0; si--) {
+      const sp = this.chordSparks[si];
+      const u = (audioTime - sp.bornAt) / sp.life;
+      if (u >= 1) {
+        this.chordSparks.splice(si, 1);
+        continue;
+      }
+      const host = projected[sp.voiceIdx];
+      if (!host || !host.v.active) continue;
+      ctx.beginPath();
+      ctx.arc(host.nx + sp.vx * u, host.ny + sp.vy * u, 1.2, 0, Math.PI * 2);
+      ctx.fillStyle = host.v.color;
+      ctx.globalAlpha = (1 - u) * 0.8;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    // 10. Leuchtende Stimmknoten & dezente Tonlabels (z. B. C3, G3, C4, E4)
+    for (const item of projected) {
+      const { v, nx, ny } = item;
+      if (!v.active) continue;
+      const rHalo = (isCompact ? 3.5 : 6.0) + v.pulse * 2.5;
+      ctx.beginPath();
+      ctx.arc(nx, ny, rHalo, 0, Math.PI * 2);
+      ctx.fillStyle = v.color;
+      ctx.globalAlpha = 0.22 + v.pulse * 0.18;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+
+      ctx.beginPath();
+      ctx.arc(nx, ny, isCompact ? 1.8 : 3.0, 0, Math.PI * 2);
+      ctx.fillStyle = v.color;
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(nx, ny, isCompact ? 0.9 : 1.4, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+
+      if (this.showChordLabels && !isCompact && w >= 180) {
+        ctx.fillStyle = v.color;
+        ctx.font = '600 10px "JetBrains Mono", ui-monospace, monospace';
+        ctx.fillText(midiToNoteLabel(v.currentMidi), nx + 7, ny + 3);
+      }
     }
   }
 }

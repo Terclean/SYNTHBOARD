@@ -6473,17 +6473,37 @@ body.dragging-control #rack-controls {
 .preset-bar-inner {
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   gap: 8px;
+  width: 100%;
+}
+
+.preset-section,
+.preset-section.slots-section {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
+  width: 100%;
+}
+
+.preset-divider {
+  width: 100%;
+  height: 1px;
+  background: #2b313c;
 }
 
 .slot-buttons-group {
-  display: flex;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 5px;
+  width: 100%;
 }
 
 .btn-slot {
-  flex: 1;
-  height: 38px;
+  width: 100%;
+  min-width: 0;
+  height: 36px;
   background: #292C31;
   border: 1px solid #383C43;
   border-radius: 4px;

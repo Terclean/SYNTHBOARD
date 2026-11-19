@@ -129,6 +129,17 @@ const DICT = {
   'Wähle, von welchen Blöcken die Reglerstände gespeichert und geswitcht werden sollen:': 'Choose which modules are stored and morphed by preset slots:',
   'Fertig': 'Done',
   '6: Direkt': '6: Direct',
+  'Takte S1': 'Bars S1',
+  'Takte S2': 'Bars S2',
+  'Takte S3': 'Bars S3',
+  'Takte S4': 'Bars S4',
+  'Takte S5': 'Bars S5',
+  'Song-Ablauf': 'Song Mode',
+  'Ende': 'End Mode',
+  'Aus': 'Off',
+  'An': 'On',
+  'SONG: AUS': 'SONG: OFF',
+  'SONG: WARTET AUF BAR': 'SONG: WAITING FOR BAR',
 
   // Workspace HUD
   'Frei': 'Free',

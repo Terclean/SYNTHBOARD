@@ -185,6 +185,7 @@ const scopeModeLabels = {
   '3d': '3D WATERFALL',
   radial: '3D RELIEF RING',
   sculpt: 'LIGHT SCULPT',
+  chord: '3D CHORD VOICES',
 };
 const scope = new Oscilloscope($('#scope'), engine.analyser, {
   analyserL: engine.analyserL,

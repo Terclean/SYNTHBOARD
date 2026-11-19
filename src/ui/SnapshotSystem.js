@@ -1,6 +1,7 @@
 // SYNTHBOARD – Performance Preset-Slots & Morph Speed System
 // Slots 1 bis 5: Regler-Snapshots & Modul-Zuweisung
 // Speed 6, 7, 8: Direkt (0s) · Glide (0.8s) · Slow Morph (3.5s)
+import { t, onLangChange, applyTranslations } from './i18n.js';
 
 function isDiscreteParam(mod, pId, startVal, targetVal) {
   // 1. Strings, Booleans oder nicht-endliche Werte sind immer diskret
@@ -99,10 +100,10 @@ export class SnapshotSystem {
 
         <div class="preset-section actions-section">
           <button id="btn-slot-save" class="btn btn-accent-dim btn-save-slot" title="Aktuelle Reglerstände der gewählten Blöcke in aktiven Slot speichern">
-            Speichern auf <b class="target-slot-lbl">Slot 1</b>
+            <span>Speichern auf</span> <b class="target-slot-lbl">Slot 1</b>
           </button>
           <button id="btn-slot-modules" class="btn btn-slot-modules" title="Auswählen, welche Blöcke in den Preset-Slot gepackt werden">
-            Blöcke wählen (<span class="mod-count-lbl">Alle</span>)
+            <span>Blöcke wählen</span> (<span class="mod-count-lbl">Alle Blöcke</span>)
           </button>
         </div>
 
@@ -144,6 +145,12 @@ export class SnapshotSystem {
     this.container = host;
     this.bindEvents();
     this.updateVisuals();
+    onLangChange(() => {
+      if (this.container) {
+        applyTranslations(this.container);
+        this.updateVisuals();
+      }
+    });
   }
 
   bindEvents() {
@@ -552,9 +559,9 @@ export class SnapshotSystem {
     const countLbl = this.container.querySelector('.mod-count-lbl');
     if (countLbl) {
       if (this.selectedModulesFilter === 'all') {
-        countLbl.textContent = 'Alle Blöcke';
+        countLbl.textContent = t('Alle Blöcke', 'All modules');
       } else {
-        countLbl.textContent = `${this.selectedModulesFilter.size} Blöcke`;
+        countLbl.textContent = `${this.selectedModulesFilter.size} ${t('Blöcke', 'Modules')}`;
       }
     }
 
