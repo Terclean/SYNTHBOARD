@@ -220,7 +220,9 @@ if ($('#perf-scope-canvas')) {
   $('#perf-scope-canvas')?.addEventListener('click', () => scope.cycleMode());
 }
 scope.start();
-engine.patch.onMusicalEvent = (ev) => scope.pushMusicalEvent(ev);
+if (engine.patchSystem) {
+  engine.patchSystem.onMusicalEvent = (ev) => scope.pushMusicalEvent(ev);
+}
 
 $('#scope')?.addEventListener('click', () => scope.cycleMode());
 document.querySelectorAll('.scope-pill[data-scope-mode]').forEach((btn) => {
