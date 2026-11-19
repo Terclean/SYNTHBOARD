@@ -288,6 +288,7 @@ const loadExternalRackState = (state, title) => {
 const communityModal = new CommunityModal({
   engine,
   getCurrentState: () => engine.getState(),
+  getSavedBoards: () => loadBoards(),
   onOpenRackState: (state, title) => loadExternalRackState(state, title),
   onToast: (msg) => toast(msg),
   onStartAudio: () => startAudio(),

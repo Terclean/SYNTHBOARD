@@ -20,9 +20,10 @@ const ICON_LINK = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" s
 const ICON_TAG = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>';
 
 export class CommunityModal {
-  constructor({ engine, getCurrentState, onOpenRackState, onToast, onStartAudio }) {
+  constructor({ engine, getCurrentState, getSavedBoards, onOpenRackState, onToast, onStartAudio }) {
     this.engine = engine;
     this.getCurrentState = getCurrentState;
+    this.getSavedBoards = getSavedBoards || (() => ({}));
     this.onOpenRackState = onOpenRackState;
     this.onToast = onToast || (() => {});
     this.onStartAudio = onStartAudio || (() => {});
@@ -32,6 +33,7 @@ export class CommunityModal {
     this.activeTab = 'leaderboard'; // 'leaderboard' | 'publish'
     this.sortBy = 'votes'; // 'votes' | 'newest'
     this.tagFilter = '';
+    this.selectedSourceKey = ''; // '' = current studio rack, otherwise saved board key
     this.tracks = [];
     this.loading = false;
 
@@ -161,11 +163,24 @@ export class CommunityModal {
     this.render();
   }
 
+  getSelectedPublishState() {
+    if (this.selectedSourceKey) {
+      const boards = this.getSavedBoards?.() || {};
+      if (boards[this.selectedSourceKey]) return boards[this.selectedSourceKey];
+    }
+    return this.getCurrentState?.() || {};
+  }
+
   render() {
     if (!this.el) return;
     const filtered = this.getFilteredTracks();
-    const currentState = this.getCurrentState?.() || {};
-    const suggestedTags = autoTagRack(currentState).join(', ');
+    const savedBoards = this.getSavedBoards?.() || {};
+    const savedKeys = Object.keys(savedBoards).sort((a, b) => a.localeCompare(b));
+    if (this.selectedSourceKey && !savedBoards[this.selectedSourceKey]) {
+      this.selectedSourceKey = '';
+    }
+    const publishState = this.getSelectedPublishState();
+    const suggestedTags = autoTagRack(publishState).join(', ');
 
     let bodyHtml = '';
     if (this.activeTab === 'leaderboard') {
@@ -217,12 +232,21 @@ export class CommunityModal {
       `;
     } else {
       const isRec = this.recorder?.state === 'recording';
+      const sourceOptions = [
+        `<option value="">${esc(t('Aktuelles Studio-Rack', 'Current Studio Rack'))}</option>`,
+        ...savedKeys.map((k) => `<option value="${esc(k)}" ${this.selectedSourceKey === k ? 'selected' : ''}>${esc(t('Gespeichert', 'Saved'))}: ${esc(k)}</option>`),
+      ].join('');
+      const defaultName = this.selectedSourceKey || '';
       bodyHtml = `
         <form id="comm-publish-form" class="comm-publish-form">
+          <label class="comm-field">
+            <span>${esc(t('Welches Rack möchtest du teilen?', 'Which rack do you want to share?'))}</span>
+            <select id="comm-rack-source" class="comm-input">${sourceOptions}</select>
+          </label>
           <div class="comm-grid">
             <label class="comm-field">
               <span>${esc(t('Rack-Name *', 'Rack Name *'))}</span>
-              <input type="text" id="comm-pub-name" class="comm-input" maxlength="80" required placeholder="e.g. Velvet Shimmer" />
+              <input type="text" id="comm-pub-name" class="comm-input" maxlength="80" required value="${esc(defaultName)}" placeholder="e.g. Velvet Shimmer" />
             </label>
             <label class="comm-field">
               <span>${esc(t('Autor / Handle', 'Author / Handle'))}</span>
@@ -337,9 +361,14 @@ export class CommunityModal {
       });
     });
 
+    this.el.querySelector('#comm-rack-source')?.addEventListener('change', (e) => {
+      this.selectedSourceKey = e.target.value || '';
+      this.render();
+    });
+
     this.el.querySelector('#comm-refresh-tags')?.addEventListener('click', () => {
       const input = this.el.querySelector('#comm-pub-tags');
-      if (input) input.value = autoTagRack(this.getCurrentState?.() || {}).join(', ');
+      if (input) input.value = autoTagRack(this.getSelectedPublishState()).join(', ');
     });
 
     this.el.querySelector('#comm-rec-start')?.addEventListener('click', () => this.startRecording30s());
@@ -347,7 +376,7 @@ export class CommunityModal {
 
     this.el.querySelector('#comm-copy-link')?.addEventListener('click', async () => {
       const name = this.el.querySelector('#comm-pub-name')?.value?.trim() || 'SYNTHBOARD Patch';
-      const state = this.getCurrentState?.();
+      const state = this.getSelectedPublishState();
       const hash = await encodePatchToHash({ name, state });
       const url = `${window.location.origin}${window.location.pathname}${hash}`;
       await navigator.clipboard?.writeText(url);
@@ -360,7 +389,7 @@ export class CommunityModal {
       const author = this.el.querySelector('#comm-pub-author')?.value?.trim() || 'Community';
       const description = this.el.querySelector('#comm-pub-desc')?.value?.trim() || '';
       const tags = normalizeTags(this.el.querySelector('#comm-pub-tags')?.value || '');
-      const state = this.getCurrentState?.();
+      const state = this.getSelectedPublishState();
       const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'rack';
 
       // 1. JSON-Paket herunterladen

@@ -13,14 +13,15 @@ SYNTHBOARD is a browser-based modular synthesizer and ambient studio powered by 
 - **Performance Snapshots & Focus Dock**: 5-slot preset morphing (`Direct`, `Glide`, `Slow Morph`), 5-slot Live-Controls Focus Dock (`Shift+Click` on knobs), and cable-triggered `Snapshot Controller`.
 - **Multi-Mode Audio Visualizer**: Triggered 3D-ribbon waveform, logarithmic multi-band FFT, stereo XY Lissajous, 3D spectral waterfall, and radial 3D vortex.
 - **Built-in Eurorack View**: Dedicated self-contained Eurorack cabinet (`Distant Lights`) with macro controls and automation lanes.
+- **Open-Source Community & Leaderboard**: Browse top-voted community tracks, listen to 30s audio teasers, open any rack in Studio, auto-generate tags from your modules, and share racks instantly via compressed `#p=...` URLs (zero backend / zero database).
 - **Safe JSON Patch Import/Export**: Validated JSON import (2 MiB limit, schema/range/jack checks, prototype-pollution and XSS-safe handling).
 
 ## Quick Start (First Sound)
 
-1. Open SYNTHBOARD in your browser. On first visit, the **Start Here** 4-module patch (`master_clock`, `slope_generator`, `drone`, `reverb`) is loaded automatically.
-2. Click anywhere on the page or click the **AN / AUS** power button in the top-left header to start the Web Audio `AudioContext` (browsers require a user gesture before playing audio).
+1. Open SYNTHBOARD in your browser. On first visit, the **Start Here** 4-module patch (`master_clock`, `slope_generator`, `drone`, `reverb`) is loaded automatically (default UI language is **EN**, switchable to **DE** anytime in the top-right bar).
+2. Click anywhere on the page or click the **ON / OFF** power button in the top header to start the Web Audio `AudioContext` (browsers require a user gesture before playing audio).
 3. Use the **MASTER** knob in the top-right header to adjust overall output volume.
-4. Click the **AN / AUS** power button again to suspend/pause audio.
+4. Click the **ON / OFF** power button again to suspend/pause audio.
 
 ### Included Highlight Presets
 
@@ -57,8 +58,24 @@ npm run preview
 
 ## Patch Import & Export
 
-- **Export**: Use **Datei > Exportieren (JSON)** in the top menu to download the active Studio board (`version: 2`, modules, cables, and snapshots) as `.synthboard.json`.
-- **Import**: Use **Datei > Importieren (JSON)...**. Files are limited to **2 MiB**, validated against known module types, unique IDs, finite parameter ranges, valid module jacks, and maximum counts (`64` modules, `256` cables, `5` snapshot slots) before modifying the active rack. Invalid files leave the current rack intact.
+- **Export**: Use **File > Export (JSON)** in the top menu to download the active Studio board (`version: 2`, modules, cables, and snapshots) as `.synthboard.json`.
+- **Import**: Use **File > Import (JSON)...**. Files are limited to **2 MiB**, validated against known module types, unique IDs, finite parameter ranges, valid module jacks, and maximum counts (`64` modules, `256` cables, `5` snapshot slots) before modifying the active rack. Invalid files leave the current rack intact.
+
+## Community, Share Links & Leaderboard (Zero-Backend)
+
+SYNTHBOARD requires **no central database or user accounts**. Sharing and community curation work 100% open source:
+
+1. **Instant Share Link (`#p=...`)**:
+   - Open **Community > Share Rack** in the top-right bar and click **Copy Share Link (`#p=...`)**.
+   - Your entire rack is gzip-compressed directly into the URL hash. Anyone opening that link loads the validated rack straight into Studio.
+2. **Publish a Beat / Rack to the Leaderboard**:
+   - Open **Community > Share Rack**, enter a **Rack Name**, optional **Author / Handle**, and a short **Description**.
+   - **Auto-Tags** are detected automatically from your rack's modules, BPM, and routing (and can be edited).
+   - Optionally click **Record 30s** to capture a `.webm` audio teaser straight from the master output.
+   - Click **Submit to Open-Source Leaderboard** — this downloads `<slug>.synthboard.json` (plus the teaser if recorded) and opens a pre-filled GitHub Issue (`community-rack` template) where you can attach the file(s).
+3. **Voting & Leaderboard Sync**:
+   - Community members vote with a `👍` reaction on the GitHub Issue.
+   - `.github/workflows/community-leaderboard.yml` periodically syncs `👍` counts into `public/community/index.json` sorted by votes.
 
 ## Keyboard Shortcuts
 
