@@ -90,9 +90,8 @@
             </div>
           </nav>
 
-          <!-- Aktiver Patch-Name (mit Dirty-Dot & Dropdown-Trigger) -->
+          <!-- Aktiver Patch-Name (mit Dropdown-Trigger) -->
           <div class="patch-selector-wrap" title="Klicken, um Board zu wechseln">
-            <span id="dirty-dot" class="dirty-dot" title="Ungespeicherte Änderungen"></span>
             <span class="patch-prefix">PATCH:</span>
             <select id="board-select" class="board-dropdown-select" aria-label="Aktives Board"></select>
           </div>
@@ -102,7 +101,6 @@
         <!-- Mitte: Transport (Power, BPM, REC) -->
         <div class="topbar-center">
           <button id="btn-power" class="transport-btn power-btn on" title="Audio-Engine starten / pausieren [Space]">
-            <span class="t-led"></span>
             <span class="txt">AN</span>
           </button>
 
@@ -141,15 +139,12 @@
 
           <div class="topbar-account-group">
             <button type="button" id="btn-analyzer-topbar" class="overview-topbar-btn analyzer-topbar-btn" title="Audio → Synth Analyzer öffnen">
-              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2 12h3l3-8 4 16 3-8h7"/></svg>
               <span>Analyzer</span>
             </button>
             <button type="button" id="btn-community-topbar" class="overview-topbar-btn community-topbar-btn" title="Community &amp; Top Tracks öffnen">
-              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
               <span>Community</span>
             </button>
             <button type="button" id="btn-lang-toggle" class="overview-topbar-btn lang-toggle-btn" title="Switch language to German (DE)">
-              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
               <span class="lang-code">EN</span>
             </button>
           </div>
@@ -203,7 +198,6 @@
           <!-- Header des Performance-Boards -->
           <div class="perf-board-header">
             <div class="perf-board-brand">
-              <span class="perf-board-led"></span>
               <h3 class="perf-board-heading">PERFORMANCE</h3>
             </div>
 
@@ -216,7 +210,6 @@
               <section class="perf-card-section perf-scope-section">
                 <div class="perf-card-head">
                   <div class="perf-card-title-group">
-                    <span class="scope-led"></span>
                     <span class="perf-card-title">3D TIMBRE ANALYZER</span>
                   </div>
                   <span class="perf-timbre-badge" id="perf-scope-timbre">SILENT</span>
@@ -243,7 +236,6 @@
               <section class="perf-card-section">
                 <div class="perf-card-head">
                   <div class="perf-card-title-group">
-                    <span class="perf-dot-orange"></span>
                     <span class="perf-card-title">LIVE-CONTROLS</span>
                   </div>
                   <span class="perf-slot-counter" id="live-controls-counter">0 / 5</span>
@@ -261,7 +253,6 @@
               <section class="perf-card-section">
                 <div class="perf-card-head">
                   <div class="perf-card-title-group">
-                    <span class="perf-dot-blue"></span>
                     <span class="perf-card-title">PERFORMANCE-PRESETS</span>
                   </div>
                 </div>
@@ -302,7 +293,6 @@
     <div id="scope-popout" class="scope-popout hidden" role="dialog" aria-label="Studio-Oszilloskop Großansicht">
       <div class="scope-popout-head">
         <div class="scope-popout-title">
-          <span class="scope-led"></span>
           <span>STUDIO ANALYZER</span>
         </div>
         <div class="scope-mode-pills popout-pills" role="group" aria-label="Analyzer-Modus">
@@ -314,7 +304,7 @@
           <button type="button" class="scope-pill" data-scope-mode="sculpt" title="12-Punkte-Lichtskulptur">SCULPT</button>
           <button type="button" class="scope-pill" data-scope-mode="chord" title="3D Chord Voice Leading Visualizer">CHORD</button>
         </div>
-        <button type="button" id="btn-scope-clip" class="scope-pill scope-clip-btn" title="Beat + Animation gemeinsam als Video (.webm) exportieren">● CLIP</button>
+        <button type="button" id="btn-scope-clip" class="scope-pill scope-clip-btn" title="Beat + Animation gemeinsam als Video (.webm) exportieren">CLIP</button>
         <button type="button" id="btn-scope-close" class="scope-close-btn" title="Schließen">✕</button>
       </div>
       <canvas id="scope-popout-canvas" class="scope-popout-canvas" width="680" height="380"></canvas>

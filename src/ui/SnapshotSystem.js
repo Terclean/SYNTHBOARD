@@ -85,7 +85,7 @@ export class SnapshotSystem {
     host.innerHTML = `
       <div class="preset-bar-inner">
         <div class="preset-section slots-section">
-          <span class="preset-bar-lbl"><span class="badge-dot"></span>PRESET SLOTS (1–5)</span>
+          <span class="preset-bar-lbl">PRESET SLOTS (1–5)</span>
           <div class="slot-buttons-group">
             ${[1, 2, 3, 4, 5].map((num) => `
               <button class="btn btn-slot" data-slot="${num}" title="Preset-Slot ${num} abrufen [Taste ${num}] (Shift+Klick = Schnell-Speichern)">

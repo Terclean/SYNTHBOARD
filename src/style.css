@@ -9937,10 +9937,20 @@ body.view-eurorack .panel-toggles {
 }
 
 .patch-selector-wrap {
-  min-width: 80px;
-  max-width: 190px;
-  flex: 0 1 180px;
+  min-width: 140px;
+  max-width: 340px;
+  flex: 1 1 280px;
   overflow: hidden;
+}
+
+.dirty-dot,
+.t-led,
+.perf-board-led,
+.scope-led,
+.perf-dot-orange,
+.perf-dot-blue,
+.badge-dot {
+  display: none !important;
 }
 
 .studio-brand,

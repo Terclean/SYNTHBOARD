@@ -300,7 +300,7 @@ $('#btn-scope-clip')?.addEventListener('click', async (e) => {
     try { engine.limiter.disconnect(audioDest); } catch { /* ignore */ }
     videoStream.getTracks().forEach((tr) => tr.stop());
     btn.classList.remove('is-recording');
-    btn.textContent = '● CLIP';
+    btn.textContent = 'CLIP';
     clipRecorder = null;
 
     if (!chunks.length) return;
