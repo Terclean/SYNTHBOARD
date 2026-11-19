@@ -25,8 +25,8 @@ export class CommunityModal {
     this.getCurrentState = getCurrentState;
     this.getSavedBoards = getSavedBoards || (() => ({}));
     this.onOpenRackState = onOpenRackState;
-    this.onToast = onToast || (() => {});
-    this.onStartAudio = onStartAudio || (() => {});
+    this.onToast = onToast || (() => { });
+    this.onStartAudio = onStartAudio || (() => { });
 
     this.el = null;
     this.isOpen = false;
@@ -186,13 +186,13 @@ export class CommunityModal {
     if (this.activeTab === 'leaderboard') {
       const cardsHtml = filtered.length
         ? filtered.map((tr, idx) => {
-            const rank = idx + 1;
-            const tagsHtml = (tr.tags || []).map((tg) => `<button type="button" class="comm-tag" data-filter-tag="${esc(tg)}">#${esc(tg)}</button>`).join('');
-            const audioHtml = tr.teaserUrl
-              ? `<audio class="comm-audio" controls preload="metadata" src="${esc(tr.teaserUrl)}"></audio>`
-              : `<div class="comm-live-hint">${esc(t('Direkt im Browser-Synth anhören', 'Listen live in browser synth'))}</div>`;
+          const rank = idx + 1;
+          const tagsHtml = (tr.tags || []).map((tg) => `<button type="button" class="comm-tag" data-filter-tag="${esc(tg)}">#${esc(tg)}</button>`).join('');
+          const audioHtml = tr.teaserUrl
+            ? `<audio class="comm-audio" controls preload="metadata" src="${esc(tr.teaserUrl)}"></audio>`
+            : `<div class="comm-live-hint">${esc(t('Direkt im Browser-Synth anhören', 'Listen live in browser synth'))}</div>`;
 
-            return `
+          return `
               <article class="comm-card">
                 <div class="comm-rank ${rank <= 3 ? `is-top-${rank}` : ''}">#${rank}</div>
                 <div class="comm-card-main">
@@ -217,7 +217,7 @@ export class CommunityModal {
                 </div>
               </article>
             `;
-          }).join('')
+        }).join('')
         : `<div class="comm-empty">${esc(t('Keine Tracks gefunden.', 'No tracks found.'))}</div>`;
 
       bodyHtml = `
@@ -268,8 +268,8 @@ export class CommunityModal {
             <span class="comm-field-lbl">${esc(t('Optional: 30s Audio-Teaser (.webm)', 'Optional: 30s Audio Teaser (.webm)'))}</span>
             <div class="comm-teaser-controls">
               ${isRec
-                ? `<button type="button" id="comm-rec-stop" class="comm-btn-danger">${esc(t('Stopp', 'Stop'))} (<span id="comm-rec-status">${this.recordSeconds}s / 30s</span>)</button>`
-                : `<button type="button" id="comm-rec-start" class="comm-btn-sec">${esc(t('30s aufnehmen', 'Record 30s'))}</button>`}
+          ? `<button type="button" id="comm-rec-stop" class="comm-btn-danger">${esc(t('Stopp', 'Stop'))} (<span id="comm-rec-status">${this.recordSeconds}s / 30s</span>)</button>`
+          : `<button type="button" id="comm-rec-start" class="comm-btn-sec">${esc(t('30s aufnehmen', 'Record 30s'))}</button>`}
               ${this.pendingTeaserUrl ? `<audio class="comm-audio" controls src="${esc(this.pendingTeaserUrl)}"></audio>` : ''}
             </div>
           </div>
