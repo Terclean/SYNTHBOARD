@@ -96,6 +96,16 @@ export class MasterClockModule extends ModuleBase {
       const b = this.cardEl?.querySelector('.txt-bpm');
       if (b) b.textContent = Math.round(val);
     }
+    if (id === 'running') {
+      const on = Number(val) === 1;
+      // Neustart nach Pause: Takt-Zähler auf Stückanfang (Takt 0) zurücksetzen,
+      // damit Song-Abläufe (z. B. snapshot_ctrl) wieder bei Slot 1 beginnen.
+      if (on && this._wasRunning === false) {
+        this.tickCount = 0;
+        this.nextTickTime = this.ctx.currentTime + 0.05;
+      }
+      this._wasRunning = on;
+    }
   }
 
   destroy() {
@@ -1164,10 +1174,20 @@ export class SnapshotControllerModule extends ModuleBase {
   static category = 'control';
   static color = '#f97316';
   static icon = '🎛️';
-  static description = 'Automatisches Umschalten der 5 Performance-Snapshots per Patchkabel';
-  static params = [];
-  static options = [];
+  static description = 'Automatisches Umschalten der 5 Performance-Snapshots per Patchkabel oder Song-Ablaufplan (Takte pro Slot)';
+  static params = [
+    { id: 'bars1', label: 'Takte S1', min: 0, max: 64, value: 8, fmt: 'int' },
+    { id: 'bars2', label: 'Takte S2', min: 0, max: 64, value: 8, fmt: 'int' },
+    { id: 'bars3', label: 'Takte S3', min: 0, max: 64, value: 8, fmt: 'int' },
+    { id: 'bars4', label: 'Takte S4', min: 0, max: 64, value: 8, fmt: 'int' },
+    { id: 'bars5', label: 'Takte S5', min: 0, max: 64, value: 8, fmt: 'int' },
+  ];
+  static options = [
+    { id: 'autoRun', label: 'Song-Ablauf', choices: [[0, 'Aus'], [1, 'An']], value: 0 },
+    { id: 'loop', label: 'Ende', choices: [[1, 'Loop'], [0, 'One-Shot']], value: 1 },
+  ];
   static jacks = [
+    { id: 'barIn', type: 'in', signal: 'clock', label: 'BAR IN' },
     { id: 'slot1In', type: 'in', signal: 'gate', label: 'SLOT 1' },
     { id: 'slot2In', type: 'in', signal: 'gate', label: 'SLOT 2' },
     { id: 'slot3In', type: 'in', signal: 'gate', label: 'SLOT 3' },
@@ -1180,13 +1200,111 @@ export class SnapshotControllerModule extends ModuleBase {
   constructor(ctx, state = {}) {
     super(ctx, state);
     this.lastTriggeredSlot = null;
+    this.songSlot = null;   // aktueller Slot im Song-Ablauf (1–5)
+    this.barInSlot = 0;     // wie viele Takte der aktuelle Slot schon läuft
+    this.songFinished = false;
     this.initValues(state);
   }
 
-  onTrigger(portId, _time, _velocity = 1, _duration = 0.1) {
+  getSnapSys() {
+    return this.engine?.snapshotSystem || this.patchSystem?.engine?.snapshotSystem || null;
+  }
+
+  isAutoRun() {
+    return Number(this.values.autoRun) === 1;
+  }
+
+  slotBars(slot) {
+    const v = Math.round(Number(this.values[`bars${slot}`]) || 0);
+    return Math.max(0, Math.min(64, v));
+  }
+
+  firstActiveSlot() {
+    for (let s = 1; s <= 5; s++) if (this.slotBars(s) > 0) return s;
+    return null;
+  }
+
+  nextActiveSlot(from) {
+    for (let s = from + 1; s <= 5; s++) if (this.slotBars(s) > 0) return s;
+    return null;
+  }
+
+  /** Führt eine Aktion exakt zum geplanten Audio-Zeitpunkt aus (Clock wird ~100 ms vorausgeplant) */
+  atTime(time, fn) {
+    const delayMs = Number.isFinite(time) ? Math.max(0, (time - this.ctx.currentTime) * 1000) : 0;
+    if (delayMs < 4) fn();
+    else setTimeout(fn, delayMs);
+  }
+
+  fireSlot(slot, time) {
+    const snapSys = this.getSnapSys();
+    this.lastTriggeredSlot = slot;
+    this.atTime(time, () => {
+      snapSys?.triggerSlot(slot);
+      this.updateActiveUi?.(slot);
+      this.updateSongUi?.();
+    });
+  }
+
+  resetSong(time) {
+    this.songFinished = false;
+    const first = this.firstActiveSlot();
+    this.songSlot = first;
+    this.barInSlot = 0;
+    if (first) this.fireSlot(first, time);
+    else this.updateSongUi?.();
+  }
+
+  resetTransport(time) {
+    if (this.isAutoRun()) this.resetSong(time);
+  }
+
+  onClock(portId, time, tick = 0) {
+    if (portId !== 'barIn' || !this.enabled || !this.isAutoRun()) return;
+
+    // Clock-Neustart (Takt 0) oder noch nicht gestartet -> Song beginnt bei Slot 1
+    if (tick === 0 || this.songSlot === null) {
+      this.resetSong(time);
+    }
+    if (!this.songSlot) return;
+
+    // Manuell gewählter Slot (Performance-Board / Tasten 1–5) wird übernommen
+    const snapSys = this.getSnapSys();
+    const active = snapSys?.activeSlot;
+    if (active && active !== this.songSlot && active !== this.lastTriggeredSlot) {
+      this.songSlot = active;
+      this.barInSlot = 0;
+      this.songFinished = false;
+    }
+
+    this.barInSlot++;
+    const len = this.slotBars(this.songSlot);
+    if (len > 0 && this.barInSlot > len) {
+      let next = this.nextActiveSlot(this.songSlot);
+      if (!next && Number(this.values.loop) === 1) next = this.firstActiveSlot();
+      if (next) {
+        this.songSlot = next;
+        this.barInSlot = 1;
+        this.songFinished = false;
+        this.fireSlot(next, time);
+        return;
+      }
+      // One-Shot: im letzten Slot stehen bleiben
+      this.barInSlot = len;
+      this.songFinished = true;
+    }
+    this.atTime(time, () => this.updateSongUi?.());
+  }
+
+  onTrigger(portId, time, _velocity = 1, _duration = 0.1) {
     if (!this.enabled) return;
-    const snapSys = this.engine?.snapshotSystem || this.patchSystem?.engine?.snapshotSystem;
+    const snapSys = this.getSnapSys();
     if (!snapSys) return;
+
+    if (portId === 'resetIn' && this.isAutoRun()) {
+      this.resetSong(time);
+      return;
+    }
 
     let targetSlot = null;
     if (portId === 'slot1In') targetSlot = 1;
@@ -1201,9 +1319,27 @@ export class SnapshotControllerModule extends ModuleBase {
     }
 
     if (targetSlot !== null) {
+      if (this.isAutoRun()) {
+        // Song-Ablauf läuft ab dem gewählten Slot weiter
+        this.songSlot = targetSlot;
+        this.barInSlot = 0;
+        this.songFinished = false;
+      }
       this.lastTriggeredSlot = targetSlot;
       snapSys.triggerSlot(targetSlot);
       this.updateActiveUi?.(targetSlot);
+      this.updateSongUi?.();
+    }
+  }
+
+  applyParam(id) {
+    if (id === 'autoRun') {
+      this.songSlot = null;
+      this.barInSlot = 0;
+      this.songFinished = false;
+    }
+    if (id === 'autoRun' || id === 'loop' || id.startsWith('bars')) {
+      this.updateSongUi?.();
     }
   }
 
@@ -1212,11 +1348,19 @@ export class SnapshotControllerModule extends ModuleBase {
       <div class="snapshot-ctrl-display">
         <span class="snap-ctrl-lbl">AKTIVER PERFORMANCE SNAPSHOT</span>
         <div class="snap-ctrl-slots">
-          ${[1, 2, 3, 4, 5].map((s) => `<span class="snap-ctrl-pill" data-slot="${s}">SLOT ${s}</span>`).join('')}
+          ${[1, 2, 3, 4, 5].map((s) => `<span class="snap-ctrl-pill" data-slot="${s}">SLOT ${s}<small class="snap-ctrl-bars"></small></span>`).join('')}
         </div>
+        <div class="snap-ctrl-song">
+          <span class="snap-ctrl-song-state">SONG: AUS</span>
+          <span class="snap-ctrl-song-bar">—</span>
+        </div>
+        <div class="snap-ctrl-progress"><span class="snap-ctrl-progress-fill"></span></div>
       </div>
     `;
     const pills = el.querySelectorAll('.snap-ctrl-pill');
+    const stateEl = el.querySelector('.snap-ctrl-song-state');
+    const barEl = el.querySelector('.snap-ctrl-song-bar');
+    const fillEl = el.querySelector('.snap-ctrl-progress-fill');
 
     this.updateActiveUi = (activeSlot) => {
       pills.forEach((p) => {
@@ -1225,10 +1369,35 @@ export class SnapshotControllerModule extends ModuleBase {
       });
     };
 
-    const snapSys = this.engine?.snapshotSystem || this.patchSystem?.engine?.snapshotSystem;
+    this.updateSongUi = () => {
+      const auto = this.isAutoRun();
+      pills.forEach((p) => {
+        const s = Number(p.dataset.slot);
+        const bars = this.slotBars(s);
+        const small = p.querySelector('.snap-ctrl-bars');
+        if (small) small.textContent = auto ? (bars > 0 ? ` · ${bars}T` : ' · skip') : '';
+        p.classList.toggle('skipped', auto && bars === 0);
+      });
+      if (!auto) {
+        stateEl.textContent = 'SONG: AUS';
+        barEl.textContent = '—';
+        fillEl.style.width = '0%';
+        return;
+      }
+      const len = this.songSlot ? this.slotBars(this.songSlot) : 0;
+      const loopTxt = Number(this.values.loop) === 1 ? 'LOOP' : 'ONE-SHOT';
+      stateEl.textContent = this.songSlot
+        ? `SONG: SLOT ${this.songSlot} · ${this.songFinished ? 'ENDE' : loopTxt}`
+        : 'SONG: WARTET AUF BAR';
+      barEl.textContent = this.songSlot ? `Bar ${Math.max(0, this.barInSlot)} / ${len}` : 'Bar 0';
+      fillEl.style.width = len > 0 ? `${Math.min(100, (this.barInSlot / len) * 100)}%` : '0%';
+    };
+
+    const snapSys = this.getSnapSys();
     if (snapSys?.activeSlot) {
       this.updateActiveUi(snapSys.activeSlot);
     }
+    this.updateSongUi();
   }
 }
 

@@ -2355,6 +2355,46 @@ body.dragging-control #rack-controls {
   box-shadow: 0 0 10px rgba(249, 115, 22, 0.4);
 }
 
+.snap-ctrl-pill.skipped {
+  opacity: 0.35;
+  text-decoration: line-through;
+}
+
+.snap-ctrl-bars {
+  font-size: 0.55rem;
+  font-weight: 600;
+  opacity: 0.8;
+}
+
+.snap-ctrl-song {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+.snap-ctrl-song-bar {
+  color: #fb923c;
+}
+
+.snap-ctrl-progress {
+  height: 3px;
+  border-radius: 2px;
+  background: #1e293b;
+  overflow: hidden;
+}
+
+.snap-ctrl-progress-fill {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: #f97316;
+  transition: width 0.25s ease;
+}
+
 /* ───────────── Chord Arpeggiator Display ───────────── */
 .chord-arp-display {
   display: flex;

@@ -964,7 +964,8 @@ export class ManualModal {
     lines.push('- **Kaskadierende Trigger-Ketten:** `slope_generator:eofOut` -> `next_slope:trigIn` (löst am Ende der Fall-Phase das nächste Modul aus).');
     lines.push('- **A/B-Gate-Routing:** `logic_switch` mit `gateIn` + `ctrlCv` (z. B. von `slow_random:cvOut`) verteilt Triggers dynamisch auf `passOut` vs. `invPassOut`.');
     lines.push('- **Polyphone Harmonie-Kette:** `chord_glide:pitchOut` -> `chord_arp:pitchIn`, `chord_arp:pitchOut` -> `felt_piano:pitchIn` (oder `pluck:pitchIn`), `chord_arp:gateOut` -> `felt_piano:gateIn`.');
-    lines.push('- **Performance-Automation:** `clock_divider:barOut` -> `snapshot_ctrl:nextIn` schaltet automatisch durch die 5 Performance-Snapshots.');
+    lines.push('- **Performance-Automation:** `clock_divider:barOut` -> `snapshot_ctrl:nextIn` schaltet automatisch durch die 5 Performance-Snapshots (immer gleiche Taktzahl).');
+    lines.push('- **Song-Ablaufplan (unterschiedlich lange Parts):** `master_clock:barOut` -> `snapshot_ctrl:barIn` und im `snapshot_ctrl` `values: { autoRun: 1, loop: 0|1, bars1: 8, bars2: 8, bars3: 16, bars4: 16, bars5: 8 }` setzen. Jeder Slot läuft genau `barsN` Takte (`0..64`, `0` = Slot überspringen), danach springt der Controller automatisch zum nächsten Slot. `loop: 1` startet nach dem letzten Slot wieder bei Slot 1, `loop: 0` bleibt im letzten Slot stehen. `resetIn` bzw. ein Neustart der `master_clock` (Transport Pause -> Läuft) beginnt wieder bei Slot 1. Die Snapshot-Inhalte kommen aus `state.snapshots.slots`; `snapshot_ctrl` selbst wird nie in Snapshots mitgespeichert.');
     lines.push('');
     lines.push(`## 4. Alle ${Object.keys(MODULES).length} Module (Exakte Code-IDs)`);
     lines.push('');

@@ -233,7 +233,9 @@ export class SnapshotSystem {
 
   /** Speichert die Reglerstände der gewählten Blöcke in einen Slot */
   saveToSlot(slotNum) {
-    const allModules = [...this.engine.controls, ...this.engine.sources, ...this.engine.effects];
+    // snapshot_ctrl wird nie mitgespeichert, sonst würde ein Slot-Wechsel den Song-Ablaufplan selbst überschreiben
+    const allModules = [...this.engine.controls, ...this.engine.sources, ...this.engine.effects]
+      .filter((m) => m.meta?.type !== 'snapshot_ctrl');
     const targetModules = this.selectedModulesFilter === 'all'
       ? allModules
       : allModules.filter((m) => this.selectedModulesFilter.has(m.id));
@@ -296,12 +298,13 @@ export class SnapshotSystem {
 
     // Finde alle Module, die im Snapshot hinterlegt sind (primär per id, Fallback per type)
     Object.entries(slot.snapshot).forEach(([modKey, savedData]) => {
+      if (savedData?.type === 'snapshot_ctrl') return;
       let mod = allModules.find((m) => m.id === modKey);
       if (!mod) {
         const targetType = savedData?.type || modKey;
         mod = allModules.find((m) => m.meta?.type === targetType && !targetModuleMap.has(m));
       }
-      if (mod) {
+      if (mod && mod.meta?.type !== 'snapshot_ctrl') {
         targetModuleMap.set(mod, savedData);
       }
     });

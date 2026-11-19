@@ -28,7 +28,7 @@ export class DroneModule extends SourceBase {
   static description = '6 endlose Drone-Stimmen (Solar-42-Stil)';
   static params = [
     { id: 'level', label: 'Level', min: 0, max: 1, value: 0.7, fmt: 'pct' },
-    { id: 'tone', label: 'Tone', min: 150, max: 8000, value: 1800, log: true, fmt: 'hz' },
+    { id: 'tone', label: 'Tone', min: 150, max: 8000, value: 1500, log: true, fmt: 'hz' },
     { id: 'detune', label: 'Detune', min: 0, max: 30, value: 8, fmt: 'cents' },
     { id: 'sub', label: 'Sub', min: 0, max: 1, value: 0.35, fmt: 'pct' },
     { id: 'fm', label: 'FM', min: 0, max: 1, value: 0.06, fmt: 'pct' },
@@ -87,6 +87,11 @@ export class DroneModule extends SourceBase {
       v.sub.connect(v.subGain);
       v.subGain.connect(v.mix);
 
+      v.warmLp = ctx.createBiquadFilter();
+      v.warmLp.type = 'lowpass';
+      v.warmLp.frequency.value = 6500;
+      v.warmLp.Q.value = 0.5;
+
       // Langsame Amplituden-Drift pro Stimme → lebendiger, atmender Klang
       v.drift = ctx.createGain();
       v.drift.gain.value = 0.75;
@@ -95,7 +100,8 @@ export class DroneModule extends SourceBase {
       v.lfoGain = ctx.createGain();
       v.lfo.connect(v.lfoGain);
       v.lfoGain.connect(v.drift.gain);
-      v.mix.connect(v.drift);
+      v.mix.connect(v.warmLp);
+      v.warmLp.connect(v.drift);
 
       v.amp = ctx.createGain();
       v.amp.gain.value = 0;

@@ -44,7 +44,7 @@ export class ViolinModule extends SourceBase {
     { id: 'bow', label: 'Bogendruck', min: 0.1, max: 1.0, value: 0.55, fmt: 'pct' },
     { id: 'vibrato', label: 'Vibrato', min: 0, max: 1.0, value: 0.55, fmt: 'pct' },
     { id: 'glide', label: 'Finger-Glide', min: 0, max: 1.2, value: 0.14, log: true, fmt: 's' },
-    { id: 'tone', label: 'Holzkorpus', min: 800, max: 12000, value: 4800, log: true, fmt: 'hz' },
+    { id: 'tone', label: 'Holzkorpus', min: 800, max: 12000, value: 3800, log: true, fmt: 'hz' },
     { id: 'attack', label: 'Bogenstrich', min: 0.02, max: 2.0, value: 0.18, log: true, fmt: 's' },
     { id: 'release', label: 'Ausklang', min: 0.1, max: 6.0, value: 1.2, log: true, fmt: 's' },
   ];
@@ -101,12 +101,12 @@ export class ViolinModule extends SourceBase {
     this.bridgeHill.type = 'peaking';
     this.bridgeHill.frequency.value = 3100;
     this.bridgeHill.Q.value = 2.4;
-    this.bridgeHill.gain.value = 4.8; // Silbriges Singen
+    this.bridgeHill.gain.value = 2.6; // Wärmere, weniger kratzige Präsenz
 
     // Dämpfungsfilter (Kolophonium / Helligkeit)
     this.bodyTone = ctx.createBiquadFilter();
     this.bodyTone.type = 'lowpass';
-    this.bodyTone.frequency.value = this.values.tone ?? 4800;
+    this.bodyTone.frequency.value = this.values.tone ?? 3800;
     this.bodyTone.Q.value = 0.7;
 
     // Master-Voice-Mixer & Ausgänge
@@ -507,25 +507,31 @@ class ViolinVoice {
       this.oscSub.frequency.setValueAtTime(targetFreq, t);
     }
 
-    // 3. Kolophonium Bogen-Kratzgeräusch (Pink Noise durch Bogen-Bandpass)
+    // 3. Kolophonium Bogen-Kratzgeräusch (Pink Noise durch Bogen-Bandpass + Höhen-Dämpfung)
     this.noiseSource = ctx.createBufferSource();
     this.noiseSource.buffer = getNoiseBuffers(ctx).pink;
     this.noiseSource.loop = true;
 
     this.noiseFilter = ctx.createBiquadFilter();
     this.noiseFilter.type = 'bandpass';
-    this.noiseFilter.frequency.setValueAtTime(3200 + this.bow * 1400, t);
-    this.noiseFilter.Q.setValueAtTime(3.0, t);
+    this.noiseFilter.frequency.setValueAtTime(1800 + this.bow * 900, t);
+    this.noiseFilter.Q.setValueAtTime(2.2, t);
+
+    this.noiseLp = ctx.createBiquadFilter();
+    this.noiseLp.type = 'lowpass';
+    this.noiseLp.frequency.value = 3400;
+    this.noiseLp.Q.value = 0.6;
 
     this.noiseGain = ctx.createGain();
-    const bowFriction = (this.mode === 'sultasto') ? 0.025 : (0.06 + this.bow * 0.10) * this.velocity;
+    const bowFriction = (this.mode === 'sultasto') ? 0.014 : (0.028 + this.bow * 0.045) * this.velocity;
     this.noiseGain.gain.setValueAtTime(0.0001, t);
     this.noiseGain.gain.linearRampToValueAtTime(bowFriction, t + Math.min(0.06, this.attack * 0.4));
     // Reibungsgeräusch lässt nach dem ersten Anstrich minimal nach
     this.noiseGain.gain.setTargetAtTime(bowFriction * 0.42, t + Math.min(0.12, this.attack), 0.1);
 
     this.noiseSource.connect(this.noiseFilter);
-    this.noiseFilter.connect(this.noiseGain);
+    this.noiseFilter.connect(this.noiseLp);
+    this.noiseLp.connect(this.noiseGain);
 
     // 4. Saiten-Filter (Dynamische Helligkeit abhängig von Bogendruck & Anschlag)
     this.stringFilter = ctx.createBiquadFilter();
@@ -617,7 +623,7 @@ class ViolinVoice {
       : (2300 + this.bow * 4500) * Math.pow(this.velocity, 0.4);
     this.stringFilter.frequency.setTargetAtTime(Math.max(400, cutoffTarget), t, 0.06);
 
-    const bowFriction = (this.mode === 'sultasto') ? 0.018 : (0.035 + this.bow * 0.06) * this.velocity;
+    const bowFriction = (this.mode === 'sultasto') ? 0.01 : (0.018 + this.bow * 0.032) * this.velocity;
     this.noiseGain.gain.setTargetAtTime(bowFriction, t, 0.08);
 
     const vibDepthHz = ((this.currentFreq || 440) * 0.016) * this.vibrato;
@@ -662,6 +668,7 @@ class ViolinVoice {
       this.vibratoOsc.stop(); this.vibratoOsc.disconnect();
       if (this.tremoloOsc) { this.tremoloOsc.stop(); this.tremoloOsc.disconnect(); }
       this.noiseFilter.disconnect();
+      this.noiseLp.disconnect();
       this.noiseGain.disconnect();
       this.stringFilter.disconnect();
       this.vibratoGain.disconnect();

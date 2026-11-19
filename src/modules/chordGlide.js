@@ -305,12 +305,12 @@ export class ChordGlideModule extends SourceBase {
     // Interner Master-Filter & VCA für den Pad-Klang
     this.padFilter = ctx.createBiquadFilter();
     this.padFilter.type = 'lowpass';
-    this.padFilter.Q.value = 1.2;
+    this.padFilter.Q.value = 0.75;
     this.padLevel = ctx.createGain();
     this.padFilter.connect(this.padLevel);
     this.padLevel.connect(this.output);
 
-    // 6 polyphone Stimmen aufbauen (jeweils 2 Oszillatoren + Sub + Filter)
+    // 6 polyphone Stimmen aufbauen (jeweils 2 Oszillatoren + Sub + analoger Warm-Roll-off-Filter)
     this.voices = [];
     this.maxVoices = 6;
     for (let i = 0; i < this.maxVoices; i++) {
@@ -318,6 +318,7 @@ export class ChordGlideModule extends SourceBase {
         osc1: ctx.createOscillator(),
         osc2: ctx.createOscillator(),
         sub: ctx.createOscillator(),
+        warmLp: ctx.createBiquadFilter(),
         subGain: ctx.createGain(),
         gain: ctx.createGain(),
         currentFreq: 440,
@@ -327,12 +328,16 @@ export class ChordGlideModule extends SourceBase {
       v.osc1.type = 'sawtooth';
       v.osc2.type = 'triangle';
       v.sub.type = 'sine';
+      v.warmLp.type = 'lowpass';
+      v.warmLp.frequency.value = 6800;
+      v.warmLp.Q.value = 0.5;
       v.subGain.gain.value = i === 0 ? 0.35 : 0.0; // Bass-Stimme bekommt warmen Sub-Oszillator
 
       v.gain.gain.value = 0;
 
-      v.osc1.connect(v.gain);
-      v.osc2.connect(v.gain);
+      v.osc1.connect(v.warmLp);
+      v.osc2.connect(v.warmLp);
+      v.warmLp.connect(v.gain);
       v.sub.connect(v.subGain);
       v.subGain.connect(v.gain);
       v.gain.connect(this.padFilter);

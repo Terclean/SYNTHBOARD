@@ -129,6 +129,7 @@ export function resolveJackId(mod, portId, expectedType = null) {
     if (norm === 'and' || norm === 'andout') return 'andOut';
     if (norm === 'or' || norm === 'orout') return 'orOut';
   } else if (mType === 'snapshot_ctrl') {
+    if (norm === 'bar' || norm === 'barin' || norm === 'clock' || norm === 'clockin') return 'barIn';
     if (norm === 'slot1' || norm === 'slot1in' || norm === '1') return 'slot1In';
     if (norm === 'slot2' || norm === 'slot2in' || norm === '2') return 'slot2In';
     if (norm === 'slot3' || norm === 'slot3in' || norm === '3') return 'slot3In';

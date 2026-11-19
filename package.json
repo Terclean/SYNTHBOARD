@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node src/modules/patchValidator.test.js && node src/eurorack/verify.test.js && node src/ui/workspace.test.js"
+    "test": "node src/modules/patchValidator.test.js && node src/modules/snapshotSong.test.js && node src/eurorack/verify.test.js && node src/ui/workspace.test.js"
   },
   "devDependencies": {
     "vite": "^8.3.0"

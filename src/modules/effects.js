@@ -34,13 +34,18 @@ export class FilterModule extends EffectBase {
     this.pre = ctx.createGain();
     this.shaper = ctx.createWaveShaper();
     this.shaper.curve = makeSaturationCurve(1.2);
-    this.shaper.oversample = '2x';
+    this.shaper.oversample = '4x';
+    this.deHarsh = ctx.createBiquadFilter();
+    this.deHarsh.type = 'lowpass';
+    this.deHarsh.frequency.value = 9000;
+    this.deHarsh.Q.value = 0.5;
     this.post = ctx.createGain();
     this.f1 = ctx.createBiquadFilter();
     this.f2 = ctx.createBiquadFilter();
     this.input.connect(this.pre);
     this.pre.connect(this.shaper);
-    this.shaper.connect(this.f1);
+    this.shaper.connect(this.deHarsh);
+    this.deHarsh.connect(this.f1);
     this.f1.connect(this.f2);
     this.f2.connect(this.post);
     this.post.connect(this.wet);
@@ -69,7 +74,11 @@ export class FilterModule extends EffectBase {
     switch (id) {
       case 'cutoff': this.ramp(this.f1.frequency, val); this.ramp(this.f2.frequency, val); break;
       case 'reso': this.ramp(this.f1.Q, val); this.ramp(this.f2.Q, Math.max(0.5, val * 0.4)); break;
-      case 'drive': this.ramp(this.pre.gain, 0.6 + val * 5); this.ramp(this.post.gain, 1.4 / (1 + val * 2.5)); break;
+      case 'drive':
+        this.shaper.curve = makeSaturationCurve(0.8 + val * 2.2);
+        this.ramp(this.pre.gain, 0.85 + val * 1.6);
+        this.ramp(this.post.gain, 1.05 / (1 + val * 0.7));
+        break;
       case 'lfoRate': this.ramp(this.lfo.frequency, val); break;
       case 'lfoDepth': this.ramp(this.lfoGain.gain, val * 2400); break;
       case 'ftype': this.f1.type = val; this.f2.type = val; break;
@@ -178,9 +187,9 @@ export class ReverbModule extends EffectBase {
   static description = 'Großer, stabiler Hall (Convolution) bis 15 s';
   static params = [
     { id: 'decay', label: 'Decay', min: 0.4, max: 15, value: 5, log: true, fmt: 's' },
-    { id: 'damp', label: 'Dämpfung', min: 0, max: 1, value: 0.45, fmt: 'pct' },
+    { id: 'damp', label: 'Dämpfung', min: 0, max: 1, value: 0.6, fmt: 'pct' },
     { id: 'predelay', label: 'Pre-Delay', min: 0, max: 0.25, value: 0.03, fmt: 's' },
-    { id: 'tone', label: 'Tone', min: 500, max: 14000, value: 6000, log: true, fmt: 'hz' },
+    { id: 'tone', label: 'Tone', min: 500, max: 14000, value: 3200, log: true, fmt: 'hz' },
     { id: 'mix', label: 'Mix', min: 0, max: 1, value: 0.45, fmt: 'pct' },
   ];
   static jacks = [
@@ -216,7 +225,7 @@ export class ReverbModule extends EffectBase {
     const run = () => {
       const ctx = this.ctx;
       const decay = this.values.decay ?? 5;
-      const damp = this.values.damp ?? 0.45;
+      const damp = this.values.damp ?? 0.6;
       const sr = ctx.sampleRate;
       const len = Math.floor(sr * Math.min(16, decay * 1.1 + 0.2));
       const buf = ctx.createBuffer(2, len, sr);
@@ -384,12 +393,14 @@ function makeCrushCurve(bits, drive) {
   const n = 4096;
   const c = new Float32Array(n);
   const steps = Math.pow(2, bits) / 2;
-  const k = 0.5 + drive * 6;
+  const k = 0.35 + drive * 2.8;
   const norm = Math.tanh(k);
+  const noCrush = bits >= 16;
+  const noDrive = drive <= 0.001;
   for (let i = 0; i < n; i++) {
     const x = (i * 2) / (n - 1) - 1;
-    const y = Math.tanh(k * x) / norm;
-    c[i] = Math.round(y * steps) / steps;
+    const y = noDrive ? x : (Math.tanh(k * x) / norm);
+    c[i] = noCrush ? y : (Math.round(y * steps) / steps);
   }
   return c;
 }
@@ -411,7 +422,11 @@ export class LoFiModule extends EffectBase {
   constructor(ctx, state = {}) {
     super(ctx, state);
     this.shaper = ctx.createWaveShaper();
-    this.shaper.oversample = '2x';
+    this.shaper.oversample = '4x';
+    this.postDriveLp = ctx.createBiquadFilter();
+    this.postDriveLp.type = 'lowpass';
+    this.postDriveLp.frequency.value = 8800;
+    this.postDriveLp.Q.value = 0.5;
     this.toneF = ctx.createBiquadFilter();
     this.toneF.type = 'lowpass';
     this.hp = ctx.createBiquadFilter();
@@ -429,7 +444,8 @@ export class LoFiModule extends EffectBase {
     this.flutter.connect(this.flutG); this.flutG.connect(this.wow.delayTime);
     this.levelG = ctx.createGain();
     this.input.connect(this.shaper);
-    this.shaper.connect(this.hp); this.hp.connect(this.toneF);
+    this.shaper.connect(this.postDriveLp);
+    this.postDriveLp.connect(this.hp); this.hp.connect(this.toneF);
     this.toneF.connect(this.wow); this.wow.connect(this.levelG); this.levelG.connect(this.wet);
     this.start(this.lfo); this.start(this.flutter);
     this.initValues(state);
