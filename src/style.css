@@ -8194,17 +8194,28 @@ body.view-eurorack .panel-toggles {
 }
 
 .patch-selector-wrap {
-  min-width: 0;
-  flex: 0 1 230px;
+  min-width: 72px;
+  max-width: 210px;
+  flex: 1 1 130px;
+  overflow: hidden;
+}
+
+.studio-brand,
+.main-mode-nav,
+.daw-menubar {
+  flex-shrink: 0;
 }
 
 .board-dropdown-select {
-  min-width: 90px;
+  width: 100%;
+  min-width: 0;
   max-width: 100%;
+  overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-@media (max-width: 1540px) {
+@media (max-width: 1620px) {
   .scope-widget {
     display: none !important;
   }
