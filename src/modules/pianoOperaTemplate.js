@@ -1,10 +1,12 @@
 // SYNTHBOARD – Vorlage: Piano Opera (16 Module, 22 Kabel, 5 Performance-Snapshots)
 export const PIANO_OPERA_TEMPLATE = {
+  version: 2,
   name: 'Piano Opera',
   category: 'Piano & Melodie',
   description: 'Atmendes Felt Piano mit Arpeggiator, Chord Glide, Solo Violin, Drone-Fundament und 5 morphbaren Performance-Snapshots.',
   state: {
     version: 2,
+    name: 'Piano Opera',
     master: 0.85,
     modules: [
       { type: 'master_clock', id: 'clk1', enabled: true, collapsed: false, pos: { x: 60, y: 60 }, values: { tempo: 75, swing: 0, running: 1 }, extra: {} },

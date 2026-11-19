@@ -346,20 +346,23 @@ const cardVisibilityObserver = typeof IntersectionObserver !== 'undefined'
 
 // ───────────────────────── Community & Leaderboard ──
 const loadExternalRackState = (state, title) => {
-  const validated = validateAndSanitizePatchState({ name: title, state });
+  const validated = validateAndSanitizePatchState({ version: 2, name: title || state?.name || 'Custom Patch', state });
   if (!validated.ok) {
     toast(`${t('Laden fehlgeschlagen', 'Load failed')}: ${validated.error}`);
     return false;
   }
   focusDock?.clear();
   normalizePatchState(validated.state);
-  engine.load(validated.state);
+  engine.load(validated.state, validated.name);
   masterKnob.setValue(engine.masterValue);
   current = { kind: 'new', key: validated.name };
   renderRack();
   populateBoards();
   snapshotSystem?.updateVisuals();
   changed();
+  setTimeout(() => {
+    fitZoomToScreen(false);
+  }, 60);
   return true;
 };
 
@@ -385,15 +388,8 @@ $('#btn-menu-track-analyzer')?.addEventListener('click', () => audioAnalyzerModa
 // ───────────────────────── ManualModal ─────────────────────────
 const manualModal = new ManualModal({
   getCurrentState: () => engine.getState(),
-  onLoadRackState: (state) => {
-    focusDock?.clear();
-    normalizePatchState(state);
-    engine.load(state);
-    masterKnob.setValue(engine.masterValue);
-    current = { kind: 'tpl', key: 'empty' };
-    renderRack();
-    snapshotSystem?.updateVisuals();
-    changed();
+  onLoadRackState: (state, title) => {
+    loadExternalRackState(state, title || state?.name || 'Example Rack');
   },
   onToast: (msg) => toast(msg),
   onStartAudio: () => startAudio(),
@@ -410,6 +406,7 @@ const infoSystem = new InfoSystem(engine, patchBay, {
   onToast: (msg) => toast(msg),
   onStartAudio: () => startAudio(),
   onLoadTemplate: (key) => loadBoard('tpl', key),
+  onLoadRackState: (state, title) => loadExternalRackState(state, title || state?.name || 'Tutorial Patch'),
   onOpenManual: () => manualModal.open(),
 });
 
@@ -680,22 +677,22 @@ function createCard(mod, index = -1) {
   card.dataset.category = M.category;
   card.style.setProperty('--mod-color', M.color);
 
-  const subTitle = isFx ? `FX ${index + 1}` : isCtrl ? 'Steuerung' : 'Stimme';
+  const subTitle = isFx ? `FX ${index + 1}` : isCtrl ? t('Steuerung', 'Control') : t('Stimme', 'Voice');
 
   card.innerHTML = `
-    <header class="mod-head" title="Modul anfassen zum Verschieben · Doppelklick: Ein-/ausklappen">
-      <span class="mod-grip" title="Modul anfassen zum Verschieben">${ICONS.grip}</span>
+    <header class="mod-head" title="${t('Modul anfassen zum Verschieben · Doppelklick: Ein-/ausklappen', 'Drag module to move · Double-click: collapse/expand')}">
+      <span class="mod-grip" title="${t('Modul anfassen zum Verschieben', 'Drag module to move')}">${ICONS.grip}</span>
       <span class="mod-icon">${getModuleIcon(M.type)}</span>
       <div class="mod-titles">
         <h3>${esc(M.title)}</h3>
         <small>${subTitle}</small>
       </div>
       <div class="mod-actions">
-        ${isFx ? `<button class="icon-btn mv-left" title="Nach links" ${index === 0 ? 'disabled' : ''}>◀</button>
-                  <button class="icon-btn mv-right" title="Nach rechts" ${index === engine.effects.length - 1 ? 'disabled' : ''}>▶</button>` : ''}
-        <button class="icon-btn mod-min-btn" title="${mod.collapsed ? 'Modul vergrößern' : 'Modul minimieren'}">${mod.collapsed ? '▢' : '―'}</button>
-        <button class="icon-btn mod-info-btn" title="Modul-Info &amp; Handbuch">?</button>
-        <button class="icon-btn power" title="${isFx ? 'Bypass' : 'An / Aus'}"><span class="pled"></span></button>
+        ${isFx ? `<button class="icon-btn mv-left" title="${t('Nach links', 'Move left')}" ${index === 0 ? 'disabled' : ''}>◀</button>
+                  <button class="icon-btn mv-right" title="${t('Nach rechts', 'Move right')}" ${index === engine.effects.length - 1 ? 'disabled' : ''}>▶</button>` : ''}
+        <button class="icon-btn mod-min-btn" title="${mod.collapsed ? t('Modul vergrößern', 'Expand module') : t('Modul minimieren', 'Collapse module')}">${mod.collapsed ? '▢' : '―'}</button>
+        <button class="icon-btn mod-info-btn" title="${t('Modul-Info & Handbuch', 'Module Info & Manual')}">?</button>
+        <button class="icon-btn power" title="${isFx ? 'Bypass' : t('An / Aus', 'On / Off')}"><span class="pled"></span></button>
         <button class="icon-btn remove" title="Entfernen">✕</button>
       </div>
     </header>
@@ -1234,10 +1231,11 @@ $('.patch-selector-wrap')?.addEventListener('click', (e) => {
 function loadBoard(kind, key) {
   const state = kind === 'tpl' ? TEMPLATES[key]?.state : loadBoards()[key];
   if (!state) return;
+  const boardName = kind === 'tpl' ? (TEMPLATES[key]?.name || key) : key;
   focusDock?.clear();
   const cloned = structuredClone(state);
   normalizePatchState(cloned);
-  engine.load(cloned);
+  engine.load(cloned, boardName);
   masterKnob.setValue(engine.masterValue);
   current = { kind, key };
   renderRack();
@@ -1250,14 +1248,14 @@ function loadBoard(kind, key) {
 }
 
 function confirmDiscard() {
-  return !dirty || confirm('Ungespeicherte Änderungen am aktuellen Board verwerfen?');
+  return !dirty || confirm(t('Ungespeicherte Änderungen am aktuellen Board verwerfen?', 'Discard unsaved changes to the current board?'));
 }
 
 function clearEntireStorage() {
-  if (confirm('Möchtest du wirklich deinen Speicher komplett leeren und alle gespeicherten Boards entfernen?')) {
+  if (confirm(t('Möchtest du wirklich deinen Speicher komplett leeren und alle gespeicherten Boards entfernen?', 'Do you really want to clear all storage and delete all saved boards?'))) {
     storeBoards({});
     try { localStorage.removeItem(LS_AUTO); } catch { /* ignore */ }
-    toast('Speicher bereinigt: Alle Boards gelöscht');
+    toast(t('Speicher bereinigt: Alle Boards gelöscht', 'Storage cleared: all boards deleted'));
     loadBoard('tpl', 'empty');
   }
 }
@@ -1276,57 +1274,68 @@ $('#board-select')?.addEventListener('change', (e) => {
 
 function saveAs() {
   const boards = loadBoards();
-  const suggestion = current.kind === 'my' ? `${current.key} (Kopie)` : current.kind === 'tpl' ? `Mein ${TEMPLATES[current.key]?.name?.replace(/^\S+\s/, '') || 'Board'}` : 'Mein Board';
-  const name = prompt('Name für dein Board:', suggestion)?.trim();
+  const suggestion = current.kind === 'my'
+    ? `${current.key} ${t('(Kopie)', '(Copy)')}`
+    : current.kind === 'tpl'
+      ? `${t('Mein', 'My')} ${TEMPLATES[current.key]?.name?.replace(/^\S+\s/, '') || 'Board'}`
+      : t('Mein Board', 'My Board');
+  const name = prompt(t('Name für dein Board:', 'Name for your board:'), suggestion)?.trim();
   if (!name) return;
-  if (boards[name] && !confirm(`„${name}“ existiert schon. Überschreiben?`)) return;
-  boards[name] = engine.getState();
+  if (boards[name] && !confirm(t(`„${name}“ existiert schon. Überschreiben?`, `"${name}" already exists. Overwrite?`))) return;
+  engine.boardName = name;
+  boards[name] = { ...engine.getState(), version: 2, name };
   storeBoards(boards);
   current = { kind: 'my', key: name };
   populateBoards();
   setDirty(false);
-  toast(`„${name}“ gespeichert`);
+  toast(t(`„${name}“ gespeichert`, `"${name}" saved`));
 }
 
 $('#btn-save')?.addEventListener('click', () => {
   if (current.kind !== 'my') return saveAs();
   const boards = loadBoards();
-  boards[current.key] = engine.getState();
+  engine.boardName = current.key;
+  boards[current.key] = { ...engine.getState(), version: 2, name: current.key };
   storeBoards(boards);
   setDirty(false);
-  toast(`„${current.key}“ gespeichert`);
+  toast(t(`„${current.key}“ gespeichert`, `"${current.key}" saved`));
 });
 
 $('#btn-save-as')?.addEventListener('click', saveAs);
 
 $('#btn-new')?.addEventListener('click', () => {
   if (!confirmDiscard()) return;
-  engine.load({ master: engine.masterValue, modules: [], cables: [] });
+  const name = t('Neues Board', 'New Board');
+  engine.load({ version: 2, name, master: engine.masterValue, modules: [], cables: [] }, name);
   current = { kind: 'new', key: '' };
   renderRack();
   populateBoards();
   setDirty(false);
-  toast('Leeres Board – füge links Module hinzu');
+  toast(t('Leeres Board – füge links Module hinzu', 'Blank board – add modules from the left library'));
 });
 
 $('#btn-delete')?.addEventListener('click', (e) => {
   const boards = loadBoards();
-  const mine = Object.keys(boards);
   if (e.shiftKey || current.kind !== 'my') {
     clearEntireStorage();
     return;
   }
-  if (confirm(`Möchtest du das Board „${current.key}“ löschen?`)) {
+  if (confirm(t(`Möchtest du das Board „${current.key}“ löschen?`, `Delete board "${current.key}"?`))) {
     delete boards[current.key];
     storeBoards(boards);
-    toast(`Board „${current.key}“ gelöscht`);
+    toast(t(`Board „${current.key}“ gelöscht`, `Board "${current.key}" deleted`));
     loadBoard('tpl', 'empty');
   }
 });
 
 $('#btn-export')?.addEventListener('click', () => {
-  const name = current.kind === 'my' ? current.key : current.kind === 'tpl' ? (TEMPLATES[current.key]?.name || 'Board') : 'Neues Board';
-  const blob = new Blob([JSON.stringify({ name, state: engine.getState() }, null, 2)], { type: 'application/json' });
+  const name = current.kind === 'my'
+    ? current.key
+    : current.kind === 'tpl'
+      ? (TEMPLATES[current.key]?.name || 'Board')
+      : (engine.boardName || t('Neues Board', 'New Board'));
+  const state = { ...engine.getState(), version: 2, name };
+  const blob = new Blob([JSON.stringify({ version: 2, name, state }, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = `${name.replace(/[^\wäöüÄÖÜß -]/g, '').trim() || 'board'}.synthboard.json`;
@@ -1348,10 +1357,10 @@ $('#file-import')?.addEventListener('change', async (e) => {
     try {
       data = JSON.parse(rawText);
     } catch {
-      throw new Error('Ungültiges JSON-Format.');
+      throw new Error(t('Ungültiges JSON-Format.', 'Invalid JSON format.'));
     }
 
-    const fallbackName = file.name.replace(/\.[^.]+$/, '').trim() || 'Importiertes Board';
+    const fallbackName = file.name.replace(/\.[^.]+$/, '').trim() || t('Importiertes Board', 'Imported Board');
     const validated = validateAndSanitizePatchState(data, { fallbackName });
     if (!validated.ok) throw new Error(validated.error);
 
@@ -1368,12 +1377,12 @@ $('#file-import')?.addEventListener('change', async (e) => {
       while (boards[`${baseName} (${counter})`]) counter++;
       name = `${baseName} (${counter})`;
     }
-    boards[name] = state;
+    boards[name] = { ...state, version: 2, name };
     storeBoards(boards);
     loadBoard('my', name);
-    toast(`„${name}“ importiert`);
+    toast(t(`„${name}“ importiert`, `"${name}" imported`));
   } catch (err) {
-    toast(`Import fehlgeschlagen: ${err.message}`);
+    toast(`${t('Import fehlgeschlagen', 'Import failed')}: ${err.message}`);
   }
 });
 
@@ -1986,7 +1995,7 @@ function boot() {
   } else {
     // Erster Start: „Start Here“-Lernpatch laden für sofortigen Einstieg
     loadBoard('tpl', 'start_here');
-    toast('Start Here geladen · Klicke irgendwo oder auf AN für Audio (Space: Start/Stop, MASTER rechts)');
+    toast(t('Start Here geladen · Klicke irgendwo oder auf AN für Audio (Space: Start/Stop, MASTER rechts)', 'Start Here loaded · Click anywhere or ON for audio (Space: Start/Stop, MASTER right)'));
   }
 
   try {

@@ -1264,13 +1264,18 @@ Soll das Preset eigene vorbereitete Performance-Snapshots mitliefern, verwendet 
 
 ---
 
-#### 11.4.4 Vollständiges, valides Beispiel-JSON
+#### 11.4.4 Vollständiges, valides Beispiel-JSON (`version` & `name` immer angeben!)
+
+> [!IMPORTANT]
+> Jedes SYNTHBOARD-JSON (sowohl auf Root-Ebene als auch innerhalb von `state`) muss stets `"version": 2` und `"name": "<Patch-Name>"` enthalten, damit Importer, Board-Auswahl, Handbuch und Community-Tools jeden Patch eindeutig versionieren und benennen können.
 
 ```json
 {
+  "version": 2,
   "name": "Zwischen den Sternen – Chord Glide & Violin",
   "state": {
     "version": 2,
+    "name": "Zwischen den Sternen – Chord Glide & Violin",
     "master": 0.85,
     "modules": [
       {

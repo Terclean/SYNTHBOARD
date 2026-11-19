@@ -354,7 +354,8 @@ export class CommunityModal {
         const track = filtered.find((tr) => tr.id === btn.dataset.shareTrack);
         const state = this.resolveTrackState(track);
         if (!state) return;
-        const hash = await encodePatchToHash({ name: track.name, state });
+        const payloadState = { ...state, version: 2, name: track.name };
+        const hash = await encodePatchToHash({ version: 2, name: track.name, state: payloadState });
         const url = `${window.location.origin}${window.location.pathname}${hash}`;
         await navigator.clipboard?.writeText(url);
         this.onToast(t('Share-Link in Zwischenablage kopiert', 'Share link copied to clipboard'));
@@ -376,8 +377,9 @@ export class CommunityModal {
 
     this.el.querySelector('#comm-copy-link')?.addEventListener('click', async () => {
       const name = this.el.querySelector('#comm-pub-name')?.value?.trim() || 'SYNTHBOARD Patch';
-      const state = this.getSelectedPublishState();
-      const hash = await encodePatchToHash({ name, state });
+      const rawState = this.getSelectedPublishState();
+      const state = { ...rawState, version: 2, name };
+      const hash = await encodePatchToHash({ version: 2, name, state });
       const url = `${window.location.origin}${window.location.pathname}${hash}`;
       await navigator.clipboard?.writeText(url);
       this.onToast(t('Share-Link in Zwischenablage kopiert', 'Share link copied to clipboard'));
@@ -389,11 +391,12 @@ export class CommunityModal {
       const author = this.el.querySelector('#comm-pub-author')?.value?.trim() || 'Community';
       const description = this.el.querySelector('#comm-pub-desc')?.value?.trim() || '';
       const tags = normalizeTags(this.el.querySelector('#comm-pub-tags')?.value || '');
-      const state = this.getSelectedPublishState();
+      const rawState = this.getSelectedPublishState();
+      const state = { ...rawState, version: 2, name };
       const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'rack';
 
       // 1. JSON-Paket herunterladen
-      const bundle = { name, author, description, tags, state };
+      const bundle = { version: 2, name, author, description, tags, state };
       const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);

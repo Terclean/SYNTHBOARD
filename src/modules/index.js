@@ -41,6 +41,7 @@ export class RackEngine {
     this.sources = [];
     this.effects = [];
     this.masterValue = 0.8;
+    this.boardName = 'SYNTHBOARD Patch';
     this.onRecover = null;
 
     this.patchSystem = new PatchSystem(this);
@@ -296,6 +297,7 @@ export class RackEngine {
   getState() {
     return {
       version: 2,
+      name: this.boardName || 'SYNTHBOARD Patch',
       master: this.masterValue,
       modules: [...this.controls, ...this.sources, ...this.effects].map((m) => m.getState()),
       cables: this.patchSystem.getState(),
@@ -313,8 +315,11 @@ export class RackEngine {
     this.snapshotSystem?.clear?.();
   }
 
-  load(state) {
+  load(state, fallbackName = null) {
     this.clear();
+    if (fallbackName || state?.name) {
+      this.boardName = String(state?.name || fallbackName);
+    }
     const now = this.ctx.currentTime;
     try {
       this.chainGate.gain.cancelScheduledValues(now);
@@ -389,11 +394,13 @@ const m = (type, values = {}, extra) => ({ type, values, ...(extra ? { extra } :
 
 export const TEMPLATES = {
   start_here: {
+    version: 2,
     name: 'Start Here – Erster Ton',
     category: 'Einstieg & Lernen',
     description: 'Übersichtlicher 4-Modul-Einstieg: Ein warmes Drone-Pad wird rhythmisch von einem Slope Generator moduliert und in Hall gebettet.',
     state: {
       version: 2,
+      name: 'Start Here – Erster Ton',
       master: 0.78,
       modules: [
         { id: 'clk_start', type: 'master_clock', values: { tempo: 84, swing: 0, running: 1 }, pos: { x: 60, y: 60 } },
@@ -411,10 +418,13 @@ export const TEMPLATES = {
   piano_opera: PIANO_OPERA_TEMPLATE,
 
   sleep: {
+    version: 2,
     name: 'Somnus (Schlaf & Traumdrift)',
     category: 'Deep Sleep & Relaxation',
     description: 'Beruhigende Delta-Wellen-Frequenzen, sanfter Tri-Drone, gefiltertes rosa Rauschen, samtige Keys und 12s Raumhall.',
     state: {
+      version: 2,
+      name: 'Somnus (Schlaf & Traumdrift)',
       master: 0.75,
       modules: [
         m('drone', {
@@ -485,10 +495,13 @@ export const TEMPLATES = {
   },
 
   solar: {
+    version: 2,
     name: 'Solar 42 Drone Desk',
     category: 'Drone & Space',
     description: 'Schwebendes Solar-Akkord-Cluster mit analoger Schwebung, Slow-Random Filteratmung und weiten Stereo-Echos.',
     state: {
+      version: 2,
+      name: 'Solar 42 Drone Desk',
       master: 0.8,
       modules: [
         m('slow_random', { rate: 0.08, smooth: 0.92, depth: 0.8, mode: 'smooth' }),
@@ -519,12 +532,14 @@ export const TEMPLATES = {
   },
 
   tpl_sleep_calm: {
+    version: 2,
     id: 'tpl_sleep_calm',
     category: 'Beruhigung & Schlaf',
     name: '01. Deep Sleep & Warm Rain',
     description: 'Sanfte, langsam atmende Moll-Akkorde mit warmem Pink-Noise-Regen und gedämpftem Filz-Klavier.',
     state: {
       version: 2,
+      name: '01. Deep Sleep & Warm Rain',
       master: 0.8,
       modules: [
         { id: 'clk1', type: 'master_clock', enabled: true, pos: { x: 60, y: 60 }, values: { tempo: 58, swing: 0, running: 1 } },
@@ -553,12 +568,14 @@ export const TEMPLATES = {
   },
 
   tpl_space_drone: {
+    version: 2,
     id: 'tpl_space_drone',
     category: 'Drone & Soundscape',
     name: '02. Solar-42 Deep Space Drone',
     description: 'Endlose 6-stimmige Analog-Drone kombiniert mit 18 schwebenden Spectral-Swarm-Teiltönen und Granular-Shimmer.',
     state: {
       version: 2,
+      name: '02. Solar-42 Deep Space Drone',
       master: 0.82,
       modules: [
         { id: 'lfo1', type: 'slope_generator', enabled: true, pos: { x: 60, y: 60 }, values: { rise: 16, fall: 20, curve: 0.55, scale: 0.8, offset: 0.1, mode: 'loop' } },
@@ -586,12 +603,14 @@ export const TEMPLATES = {
   },
 
   tpl_felt_piano: {
+    version: 2,
     id: 'tpl_felt_piano',
     category: 'Piano & Neoklassik',
     name: '03. Intimate Felt Piano & Arpeggio',
     description: 'Warmes Filz-Klavier im Ólafur-Arnalds-Stil mit polyphoner Chord-Arp-Kette und sanftem Tape-Delay.',
     state: {
       version: 2,
+      name: '03. Intimate Felt Piano & Arpeggio',
       master: 0.84,
       modules: [
         { id: 'clk1', type: 'master_clock', enabled: true, pos: { x: 60, y: 60 }, values: { tempo: 76, swing: 0.05, running: 1 } },
@@ -625,12 +644,14 @@ export const TEMPLATES = {
   },
 
   tpl_solo_violin: {
+    version: 2,
     id: 'tpl_solo_violin',
     category: 'Streicher & Kammermusik',
     name: '04. Neo-Classical Solo Violin',
     description: 'Ausdrucksstarke Solo-Violine mit Bogen-Atmung, sanftem Vibrato, Filz-Klavier und tiefem Cello-Fundament.',
     state: {
       version: 2,
+      name: '04. Neo-Classical Solo Violin',
       master: 0.84,
       modules: [
         { id: 'clk1', type: 'master_clock', enabled: true, pos: { x: 60, y: 60 }, values: { tempo: 72, swing: 0.02, running: 1 } },
@@ -666,12 +687,14 @@ export const TEMPLATES = {
   },
 
   tpl_organic_drums: {
+    version: 2,
     id: 'tpl_organic_drums',
     category: 'Drums & Percussion',
     name: '05. Organic Polyrhythm & Drums',
     description: 'Euklidische Polyrhythmen aus Analog-Drums, Hybrid-Percussion und gestimmtem Resonator-Holz.',
     state: {
       version: 2,
+      name: '05. Organic Polyrhythm & Drums',
       master: 0.85,
       modules: [
         { id: 'clk1', type: 'master_clock', enabled: true, pos: { x: 60, y: 60 }, values: { tempo: 116, swing: 0.14, running: 1 } },
@@ -709,12 +732,14 @@ export const TEMPLATES = {
   },
 
   tpl_lofi_chillhop: {
+    version: 2,
     id: 'tpl_lofi_chillhop',
     category: 'Lo-Fi & Chillhop',
     name: '06. Warm Lo-Fi Study Beats',
     description: 'Entspannte 78-BPM-Chillhop-Beats mit jazzigen Akkorden, warmem Vinyl-Knistern und sanftem Tape-Wobble.',
     state: {
       version: 2,
+      name: '06. Warm Lo-Fi Study Beats',
       master: 0.84,
       modules: [
         { id: 'clk1', type: 'master_clock', enabled: true, pos: { x: 60, y: 60 }, values: { tempo: 78, swing: 0.22, running: 1 } },
@@ -752,12 +777,14 @@ export const TEMPLATES = {
   },
 
   tpl_generative_harp: {
+    version: 2,
     id: 'tpl_generative_harp',
     category: 'Generatives Ambient',
     name: '07. Generative Harp & Kalimba Garden',
     description: 'Sich endlos weiterentwickelnde Zupf-Melodien in Hirajoshi-Skala mit Granular-Cloud-Shimmer.',
     state: {
       version: 2,
+      name: '07. Generative Harp & Kalimba Garden',
       master: 0.82,
       modules: [
         { id: 'clk1', type: 'master_clock', enabled: true, pos: { x: 60, y: 60 }, values: { tempo: 84, swing: 0.08, running: 1 } },
@@ -792,12 +819,14 @@ export const TEMPLATES = {
   },
 
   tpl_dark_halftime_trap: {
+    version: 2,
     id: 'tpl_dark_halftime_trap',
     category: 'Trap & Electronic',
     name: '08. Dark Halftime Trap & 808',
     description: 'Schwerer 68-BPM-Halftime-Groove mit dunklen Orgel-Pads, drückendem 808-Sub und Sidechain-Pumping.',
     state: {
       version: 2,
+      name: '08. Dark Halftime Trap & 808',
       master: 0.86,
       modules: [
         { id: 'clk1', type: 'master_clock', enabled: true, pos: { x: 60, y: 60 }, values: { tempo: 68, swing: 0.04, running: 1 } },
@@ -837,12 +866,14 @@ export const TEMPLATES = {
   },
 
   tpl_cinematic_epic: {
+    version: 2,
     id: 'tpl_cinematic_epic',
     category: 'Cinematic & Filmscore',
     name: '09. Hans Zimmer Brass & Taiko Swell',
     description: 'Monumentaler Filmscore-Aufbau mit tiefen Brass-Drones, langsamem Filter-Swell und wuchtigen Taiko-Trommeln.',
     state: {
       version: 2,
+      name: '09. Hans Zimmer Brass & Taiko Swell',
       master: 0.85,
       modules: [
         { id: 'clk1', type: 'master_clock', enabled: true, pos: { x: 60, y: 60 }, values: { tempo: 64, swing: 0, running: 1 } },
@@ -875,12 +906,14 @@ export const TEMPLATES = {
   },
 
   tpl_synthwave_drive: {
+    version: 2,
     id: 'tpl_synthwave_drive',
     category: 'Synthwave & 80s',
     name: '10. Midnight Outrun Synthwave',
     description: 'Treibender 108-BPM-80er-Groove mit rollendem Achtel-Bass, breitem Stereo-Chorus und schimmernder Lead-Sequenz.',
     state: {
       version: 2,
+      name: '10. Midnight Outrun Synthwave',
       master: 0.85,
       modules: [
         { id: 'clk1', type: 'master_clock', enabled: true, pos: { x: 60, y: 60 }, values: { tempo: 108, swing: 0, running: 1 } },
@@ -918,9 +951,10 @@ export const TEMPLATES = {
   },
 
   empty: {
+    version: 2,
     name: 'Leeres Board (Tabula Rasa)',
     category: 'Eigener Aufbau',
     description: 'Völlig freie Arbeitsfläche ohne Module und Kabel zum eigenen Rack-Aufbau von Grund auf.',
-    state: { master: 0.8, modules: [], cables: [] },
+    state: { version: 2, name: 'Leeres Board (Tabula Rasa)', master: 0.8, modules: [], cables: [] },
   },
 };

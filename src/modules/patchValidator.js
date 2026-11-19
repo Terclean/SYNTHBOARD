@@ -154,6 +154,12 @@ export function validateAndSanitizePatchState(rawData, { fallbackName = 'Importi
     return { ok: false, error: 'Die JSON-Datei muss ein Objekt enthalten.' };
   }
 
+  if (rawData.version !== undefined) {
+    if (typeof rawData.version !== 'number' || !Number.isInteger(rawData.version) || !SUPPORTED_VERSIONS.has(rawData.version)) {
+      return { ok: false, error: `Nicht unterstützte Format-Version: ${String(rawData.version)}.` };
+    }
+  }
+
   const rawState = isPlainObject(rawData.state) ? rawData.state : rawData;
 
   if (rawState.version !== undefined) {
@@ -398,9 +404,10 @@ export function validateAndSanitizePatchState(rawData, { fallbackName = 'Importi
     };
   }
 
-  const cleanName = sanitizeText(rawData.name, fallbackName);
+  const cleanName = sanitizeText(rawData.name ?? rawState.name, fallbackName);
   const state = {
-    version: rawState.version ?? 2,
+    version: rawState.version ?? rawData.version ?? 2,
+    name: cleanName,
     master,
     modules,
     cables,

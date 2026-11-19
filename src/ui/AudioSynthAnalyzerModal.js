@@ -250,11 +250,13 @@ function computeSpectralFeatures(samples, start, end, sr) {
 }
 
 function buildPlainTextReport(data) {
+  const baseName = String(data.fileName || 'Analyzed Track').replace(/\.[^.]+$/, '');
   const lines = [
-    `=== TRACK ANALYSE: ${data.fileName} ===`,
-    `Dauer: ${data.duration.toFixed(1)}s | BPM: ${data.bpm.toFixed(1)} (Halftime: ${data.halftime.toFixed(1)})`,
-    `Haupt-Akkorde: ${data.topChords.join(', ')}`,
-    `${'Zeit'.padEnd(11)} | ${'Akkord'.padEnd(18)} | ${'Cutoff~Hz'.padEnd(9)} | ${'Energie'.padEnd(7)} | Drums`,
+    `=== TRACK ANALYSIS: ${data.fileName} ===`,
+    `Target JSON Header: { "version": 2, "name": "${baseName}", "state": { "version": 2, "name": "${baseName}", ... } }`,
+    `Duration: ${data.duration.toFixed(1)}s | BPM: ${data.bpm.toFixed(1)} (Halftime: ${data.halftime.toFixed(1)})`,
+    `Top Chords: ${data.topChords.join(', ')}`,
+    `${'Time'.padEnd(11)} | ${'Chord'.padEnd(18)} | ${'Cutoff~Hz'.padEnd(9)} | ${'Energy'.padEnd(7)} | Drums`,
     '-'.repeat(68),
   ];
   for (const s of data.segments) {
