@@ -1,0 +1,32 @@
+name: Community Rack Submission
+description: Submit a SYNTHBOARD rack to the open-source Community Leaderboard
+title: "[Rack] "
+labels: ["community-rack"]
+body:
+  - type: input
+    id: rack-name
+    attributes:
+      label: Rack Name
+      placeholder: e.g. Velvet Shimmer
+    validations:
+      required: true
+  - type: input
+    id: author
+    attributes:
+      label: Author / Handle
+      placeholder: e.g. @synthartist
+  - type: input
+    id: tags
+    attributes:
+      label: Tags (comma-separated)
+      placeholder: ambient, piano, downtempo
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Short description of the sound, inspiration, or how to play it.
+  - type: markdown
+    attributes:
+      value: |
+        **Attach your exported `.synthboard.json` (and optional 30s `.webm`/`.mp3` teaser) by dragging the file(s) below.**
+        Community members can vote with a `👍` reaction on this issue to rank it on the SYNTHBOARD Leaderboard!

@@ -12,6 +12,8 @@ import { StudioWorkspace } from './ui/StudioWorkspace.js';
 import { ManualModal } from './ui/ManualModal.js';
 import { MAX_IMPORT_BYTES, validateFileSize, validateAndSanitizePatchState } from './modules/patchValidator.js';
 import { getLang, setLang, onLangChange, applyTranslations, t } from './ui/i18n.js';
+import { CommunityModal } from './ui/CommunityModal.js';
+import { decodePatchFromHash } from './ui/communityUtils.js';
 
 const LS_BOARDS = 'synthboard:boards';
 const LS_AUTO = 'synthboard:autosave';
@@ -263,6 +265,35 @@ const cardVisibilityObserver = typeof IntersectionObserver !== 'undefined'
       }
     }, { rootMargin: '120px' })
   : null;
+
+// ───────────────────────── Community & Leaderboard ──
+const loadExternalRackState = (state, title) => {
+  const validated = validateAndSanitizePatchState({ name: title, state });
+  if (!validated.ok) {
+    toast(`${t('Laden fehlgeschlagen', 'Load failed')}: ${validated.error}`);
+    return false;
+  }
+  focusDock?.clear();
+  normalizePatchState(validated.state);
+  engine.load(validated.state);
+  masterKnob.setValue(engine.masterValue);
+  current = { kind: 'new', key: validated.name };
+  renderRack();
+  populateBoards();
+  snapshotSystem?.updateVisuals();
+  changed();
+  return true;
+};
+
+const communityModal = new CommunityModal({
+  engine,
+  getCurrentState: () => engine.getState(),
+  onOpenRackState: (state, title) => loadExternalRackState(state, title),
+  onToast: (msg) => toast(msg),
+  onStartAudio: () => startAudio(),
+});
+
+$('#btn-community-topbar')?.addEventListener('click', () => communityModal.open('leaderboard'));
 
 // ───────────────────────── ManualModal ─────────────────────────
 const manualModal = new ManualModal({
@@ -1850,6 +1881,17 @@ function boot() {
     switchMainView('eurorack');
   } else {
     ui?.setActiveView(false);
+  }
+
+  // Geteilten Patch aus URL-Hash (#p=...) laden, falls vorhanden
+  if (window.location?.hash?.startsWith('#p=')) {
+    decodePatchFromHash(window.location.hash)
+      .then((payload) => {
+        if (payload?.state && loadExternalRackState(payload.state, payload.name || 'Shared Rack')) {
+          toast(`${t('Geteiltes Rack geladen', 'Shared rack loaded')}: ${payload.name || 'Shared Rack'}`);
+        }
+      })
+      .catch(() => {});
   }
 }
 

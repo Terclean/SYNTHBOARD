@@ -84,6 +84,7 @@ const DICT = {
   'Patch-Kabel-Guide': 'Patch Cable Guide',
   'Studio-Analyzer Großansicht': 'Studio Analyzer Pop-Out',
   'Sprache: DE / EN': 'Language: DE / EN',
+  'Community & Top Tracks öffnen': 'Open Community & Top Tracks',
   'Klänge': 'Sounds',
   'Shift + Klick': 'Shift + Click',
   'auf beliebige Regler im Rack, um sie hier live zu spielen.': 'on any knob in the rack to play it live here.',

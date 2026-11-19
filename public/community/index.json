@@ -1,0 +1,39 @@
+{
+  "updatedAt": "2026-11-19T12:00:00Z",
+  "repo": "Terclean/SYNTHBOARD",
+  "tracks": [
+    {
+      "id": "piano-opera",
+      "name": "Piano Opera",
+      "author": "Terclean",
+      "description": "Expressive felt piano chords layered with breathing shimmer reverb, slow tape drift and emotional polyphonic voicings.",
+      "tags": ["piano", "cinematic", "atmospheric", "downtempo", "modular"],
+      "votes": 14,
+      "templateKey": "piano_opera",
+      "issueUrl": "https://github.com/Terclean/SYNTHBOARD/discussions",
+      "createdAt": "2026-11-19T10:00:00Z"
+    },
+    {
+      "id": "somnus-dreamdrift",
+      "name": "Somnus (Dreamdrift)",
+      "author": "Terclean",
+      "description": "Deep ambient tri-drone, filtered pink noise, soft keys and 12s hall reverb for late-night listening.",
+      "tags": ["ambient", "drone", "keys", "atmospheric", "downtempo"],
+      "votes": 9,
+      "templateKey": "sleep",
+      "issueUrl": "https://github.com/Terclean/SYNTHBOARD/discussions",
+      "createdAt": "2026-11-18T18:00:00Z"
+    },
+    {
+      "id": "start-here-first-tone",
+      "name": "Start Here – First Tone",
+      "author": "Terclean",
+      "description": "Clean 4-module starter patch: warm fifths drone modulated by a slope generator into spacious reverb.",
+      "tags": ["ambient", "drone", "atmospheric", "downtempo"],
+      "votes": 6,
+      "templateKey": "start_here",
+      "issueUrl": "https://github.com/Terclean/SYNTHBOARD/discussions",
+      "createdAt": "2026-11-17T14:00:00Z"
+    }
+  ]
+}
