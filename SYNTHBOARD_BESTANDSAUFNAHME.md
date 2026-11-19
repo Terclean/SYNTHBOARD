@@ -23,6 +23,7 @@
    - 9.1 [Patch 1: Atmendes, weiches Akkord-Pad](#91-patch-1-atmendes-weiches-akkord-pad)
    - 9.2 [Patch 2: Gläserner, generativer Pluck](#92-patch-2-gläserner-generativer-pluck)
    - 9.3 [Patch 3: Drückender Analog-Subbass](#93-patch-3-drückender-analog-subbass)
+10. [Integrierter Audio → Synth Analyzer (Workflow für KI-Song-Nachbauten)](#10-integrierter-audio--synth-analyzer-workflow-für-ki-song-nachbauten)
 
 ---
 
@@ -1423,3 +1424,38 @@ Soll das Preset eigene vorbereitete Performance-Snapshots mitliefern, verwendet 
 
 
 
+
+---
+
+## 10. Integrierter Audio → Synth Analyzer (Workflow für KI-Song-Nachbauten)
+
+SYNTHBOARD besitzt ein eingebautes, komplett lokal im Browser arbeitendes **Analyse-Tool (`Audio → Synth Analyzer`)**, das echte Audiodateien (MP3, WAV, OGG, M4A, FLAC) in exakt die technischen Parameter zerlegt, die SYNTHBOARD-Patches benötigen.
+
+### Wichtige Arbeitsanweisung für KIs
+> **Wenn dir ein User einen bestimmten Song als Referenz nennt (zum Nachbauen, für ein Remix-Rack oder wenn dir noch Ideen für Akkorde, Tempo, Filterfahrten und Drop-Timing fehlen):**  
+> Bitte den User, den Track **zuerst einmal mit dem in SYNTHBOARD eingebauten Audio → Synth Analyzer auseinandernehmen zu lassen** und dir den kopierten Analyse-Text (`Copy Report` / `Analyse kopieren`) direkt hier einzufügen, bevor du das Patch-JSON generierst.
+
+### Wo der User das Tool findet
+- Direkt oben rechts in der Studio-Kopfzeile über den Button **`Analyzer`**
+- Oder im oberen Menü unter **`File / Datei → Audio → Synth Analyzer…`**
+
+### Welche Daten das Tool extrahiert (100 % Client-Side Web Audio API)
+1. **Tempo (BPM) & Halftime-BPM:** Erkennung per Onset-Strength-Envelope und Autokorrelation (`60–160 BPM`). Über **`Apply BPM to Studio`** lässt sich das Tempo mit einem Klick direkt auf die aktive `master_clock` übertragen.
+2. **Akkordfolge & Haupt-Akkorde (`root: 0–11`):** 12-Ton-Goertzel-Chroma-Analyse (`C2` bis `B5`) pro `2s` / `4s` / `8s` Segment gegen `maj`, `m`, `m7`, `maj7` — die ausgegebenen `root`-Indizes (`0 = C` … `11 = B`) passen 1:1 in `chord_glide.extra.steps`, `keys.key` und `sequencer.key`.
+3. **Spectral Centroid (`Cutoff ~Hz`):** Zeigt den Helligkeitsverlauf pro Zeitabschnitt und dient direkt als Vorlage für `filter.cutoff`, `chord_glide.cutoff`, `drone.tone` und `reverb.tone`.
+4. **Energieverlauf (`%`) & Drum-/Drop-Erkennung (`DROP` / `beat` / `-`):** Markiert Intro, Build-Up, Beat-Drop und Breakdown samt Zeitstempeln — ideal zur Aufteilung auf die **5 Performance-Snapshot-Slots** und den taktgenauen **`snapshot_ctrl`-Song-Ablaufplan** (`barIn`, `bars1`–`bars5`, `autoRun: 1`).
+
+### Output-Format des Copy-Paste-Reports
+Nach der Analyse kopiert der User per Klick auf **`Copy Report` / `Analyse kopieren`** genau so einen kompakten Plain-Text-Report für die KI:
+
+```text
+=== TRACK ANALYSE: beispiel_track.mp3 ===
+Dauer: 142.0s | BPM: 124.0 (Halftime: 62.0)
+Haupt-Akkorde: Am7 (r:9), Fmaj7 (r:5), C (r:0), G (r:7)
+Zeit        | Akkord             | Cutoff~Hz | Energie | Drums
+--------------------------------------------------------------------
+0:00-0:04   | Am7 (root:9)       | 680       |  24%    |  12% (-)
+0:04-0:08   | Fmaj7 (root:5)     | 940       |  38%    |  18% (-)
+...
+0:24-0:28   | C (root:0)         | 2450      |  96%    |  88% (DROP)
+```

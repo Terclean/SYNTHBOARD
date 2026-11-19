@@ -85,6 +85,8 @@ const DICT = {
   'Studio-Analyzer Großansicht': 'Studio Analyzer Pop-Out',
   'Sprache: DE / EN': 'Language: DE / EN',
   'Community & Top Tracks öffnen': 'Open Community & Top Tracks',
+  'Audio → Synth Analyzer öffnen': 'Open Audio → Synth Analyzer',
+  'Audio → Synth Analyzer…': 'Audio → Synth Analyzer…',
   'Klänge': 'Sounds',
   'Shift + Klick': 'Shift + Click',
   'auf beliebige Regler im Rack, um sie hier live zu spielen.': 'on any knob in the rack to play it live here.',

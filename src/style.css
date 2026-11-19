@@ -10405,3 +10405,497 @@ body.view-eurorack .panel-toggles {
     grid-template-columns: 1fr;
   }
 }
+
+/* ==========================================================================
+   Audio -> Synth Analyzer Modal (SYNTHBOARD Stil)
+   ========================================================================== */
+.analyzer-topbar-btn {
+  gap: 5px;
+  padding: 0 8px;
+  height: 28px;
+}
+
+.asa-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1220;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(6, 9, 15, 0.8);
+  backdrop-filter: blur(8px);
+}
+
+.asa-modal.hidden {
+  display: none;
+}
+
+.asa-dialog {
+  width: min(940px, 100%);
+  max-height: min(88vh, 820px);
+  display: flex;
+  flex-direction: column;
+  background: #141820;
+  border: 1px solid #2b313c;
+  border-radius: 12px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+  color: #e2e8f0;
+}
+
+.asa-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  background: #1b202b;
+  border-bottom: 1px solid #2b313c;
+}
+
+.asa-header-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #38bdf8;
+}
+
+.asa-header-title h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.asa-sub {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.asa-close-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid #303744;
+  background: rgba(255, 255, 255, 0.05);
+  color: #cbd5e1;
+  cursor: pointer;
+}
+
+.asa-body {
+  padding: 16px 18px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.asa-top-grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 12px;
+}
+
+.asa-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 6px;
+  padding: 20px 16px;
+  border-radius: 10px;
+  border: 1.5px dashed #334155;
+  background: #10141c;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.asa-dropzone:hover,
+.asa-dropzone.is-drag {
+  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.08);
+}
+
+.asa-upload-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 9px;
+  background: #1a202c;
+  border: 1px solid #2b313c;
+  color: #38bdf8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 2px;
+}
+
+.asa-dropzone strong {
+  font-size: 13px;
+  color: #f8fafc;
+}
+
+.asa-dropzone span {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.asa-file-pill {
+  margin-top: 4px;
+  padding: 3px 9px;
+  border-radius: 5px;
+  background: rgba(56, 189, 248, 0.14);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: #7dd3fc;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asa-controls-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid #282e39;
+  background: #1a1f29;
+}
+
+.asa-ctrl-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.asa-ctrl-group label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+}
+
+.asa-seg-pills {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.asa-seg-btn {
+  padding: 6px 0;
+  border-radius: 6px;
+  border: 1px solid #303744;
+  background: #12161e;
+  color: #cbd5e1;
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.asa-seg-btn.active {
+  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.18);
+  color: #7dd3fc;
+}
+
+.asa-player {
+  width: 100%;
+  height: 32px;
+}
+
+.asa-btn-accent {
+  padding: 9px 14px;
+  border-radius: 7px;
+  border: 1px solid #f07832;
+  background: rgba(240, 120, 50, 0.22);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.asa-btn-accent:hover:not(:disabled) {
+  background: #f07832;
+}
+
+.asa-btn-accent:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.asa-loading {
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid #282e39;
+  background: #1a1f29;
+}
+
+.asa-loading-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #cbd5e1;
+  margin-bottom: 6px;
+}
+
+.asa-progress-track {
+  height: 6px;
+  border-radius: 999px;
+  background: #0e1218;
+  overflow: hidden;
+}
+
+.asa-progress-track > div {
+  height: 100%;
+  background: linear-gradient(90deg, #38bdf8, #10b981);
+  transition: width 0.12s ease;
+}
+
+.asa-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.asa-stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 11px 12px;
+  border-radius: 8px;
+  border: 1px solid #282e39;
+  background: #1a1f29;
+  min-width: 0;
+}
+
+.asa-stat-lbl {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+}
+
+.asa-stat-file {
+  font-size: 13px;
+  color: #f8fafc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.asa-stat-card small {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.asa-stat-bpm {
+  font-family: var(--font-mono, monospace);
+  font-size: 20px;
+  color: #38bdf8;
+}
+
+.asa-stat-half {
+  color: #fbbf24 !important;
+}
+
+.asa-stat-chords {
+  font-family: var(--font-mono, monospace);
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: #6ee7a8;
+}
+
+.asa-actions-card {
+  justify-content: center;
+  gap: 6px;
+}
+
+.asa-btn-primary,
+.asa-btn-sec {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.asa-btn-primary {
+  border: 1px solid rgba(16, 185, 129, 0.45);
+  background: rgba(16, 185, 129, 0.16);
+  color: #6ee7a8;
+}
+
+.asa-btn-sec {
+  border: 1px solid #303744;
+  background: #232834;
+  color: #e2e8f0;
+}
+
+.asa-chart-box,
+.asa-table-wrap {
+  border-radius: 10px;
+  border: 1px solid #282e39;
+  background: #1a1f29;
+  padding: 12px 14px;
+}
+
+.asa-chart-head,
+.asa-table-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.asa-table-head small {
+  font-family: var(--font-mono, monospace);
+  font-weight: 500;
+  color: #94a3b8;
+}
+
+.asa-legend {
+  display: flex;
+  gap: 12px;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.asa-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.asa-legend i {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}
+
+.asa-legend .leg-en { color: #6ee7a8; }
+.asa-legend .leg-en i { background: #10b981; }
+.asa-legend .leg-co { color: #38bdf8; }
+.asa-legend .leg-co i { background: #38bdf8; height: 2px; }
+.asa-legend .leg-dr { color: #f07832; }
+.asa-legend .leg-dr i { background: #f07832; border-radius: 50%; }
+
+.asa-chart-canvas {
+  width: 100%;
+  height: 165px;
+  display: block;
+  border-radius: 7px;
+  border: 1px solid #252c38;
+}
+
+.asa-table-scroll {
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.asa-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono, monospace);
+  font-size: 11.5px;
+}
+
+.asa-table th {
+  text-align: left;
+  padding: 7px 10px;
+  border-bottom: 1px solid #2b313c;
+  font-size: 10px;
+  text-transform: uppercase;
+  color: #94a3b8;
+  background: #141820;
+  position: sticky;
+  top: 0;
+}
+
+.asa-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid #232834;
+  color: #cbd5e1;
+}
+
+.asa-table td small {
+  color: #64748b;
+}
+
+.asa-table td.asa-hz {
+  color: #38bdf8;
+}
+
+.asa-en-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.asa-en-track {
+  width: 56px;
+  height: 5px;
+  border-radius: 999px;
+  background: #0e1218;
+  overflow: hidden;
+}
+
+.asa-en-track i {
+  display: block;
+  height: 100%;
+  background: #10b981;
+}
+
+.asa-en-bar b {
+  font-weight: 600;
+  color: #6ee7a8;
+}
+
+.asa-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 4px;
+  border: 1px solid #303744;
+  background: #141820;
+  color: #94a3b8;
+  font-size: 10.5px;
+}
+
+.asa-badge.is-beat {
+  border-color: rgba(56, 189, 248, 0.35);
+  background: rgba(56, 189, 248, 0.14);
+  color: #7dd3fc;
+}
+
+.asa-badge.is-drop {
+  border-color: rgba(240, 120, 50, 0.55);
+  background: rgba(240, 120, 50, 0.2);
+  color: #fbbf24;
+  font-weight: 700;
+}
+
+@media (max-width: 780px) {
+  .asa-top-grid,
+  .asa-stats-grid {
+    grid-template-columns: 1fr;
+  }
+}

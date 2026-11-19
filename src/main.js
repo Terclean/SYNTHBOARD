@@ -14,6 +14,7 @@ import { MAX_IMPORT_BYTES, validateFileSize, validateAndSanitizePatchState } fro
 import { getLang, setLang, onLangChange, applyTranslations, t } from './ui/i18n.js';
 import { CommunityModal } from './ui/CommunityModal.js';
 import { decodePatchFromHash } from './ui/communityUtils.js';
+import { AudioSynthAnalyzerModal } from './ui/AudioSynthAnalyzerModal.js';
 
 const LS_BOARDS = 'synthboard:boards';
 const LS_AUTO = 'synthboard:autosave';
@@ -371,6 +372,14 @@ const communityModal = new CommunityModal({
 });
 
 $('#btn-community-topbar')?.addEventListener('click', () => communityModal.open('leaderboard'));
+
+// ───────────────────────── Audio -> Synth Track Analyzer ──
+const audioAnalyzerModal = new AudioSynthAnalyzerModal({
+  onToast: (msg) => toast(msg),
+  onApplyBpm: (bpm) => setRackBpm(bpm),
+});
+$('#btn-analyzer-topbar')?.addEventListener('click', () => audioAnalyzerModal.open());
+$('#btn-menu-track-analyzer')?.addEventListener('click', () => audioAnalyzerModal.open());
 
 // ───────────────────────── ManualModal ─────────────────────────
 const manualModal = new ManualModal({
