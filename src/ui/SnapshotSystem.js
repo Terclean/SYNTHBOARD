@@ -35,6 +35,7 @@ export class SnapshotSystem {
     this.engine = engine;
     this.onToast = options.onToast || (() => {});
     this.onModified = options.onModified || (() => {});
+    this.onSlotTrigger = options.onSlotTrigger || null;
 
     // 5 Preset-Slots (1 bis 5)
     this.slots = {
@@ -266,6 +267,7 @@ export class SnapshotSystem {
 
     this.activeSlot = slotNum;
     this.updateVisuals();
+    this.onSlotTrigger?.(slotNum);
     this.onToast(`In Preset-Slot ${slotNum} gespeichert (${targetModules.length} Blöcke)`);
     this.onModified();
   }
@@ -282,6 +284,7 @@ export class SnapshotSystem {
 
     this.activeSlot = slotNum;
     this.updateVisuals();
+    this.onSlotTrigger?.(slotNum);
 
     const speedInfo = this.SPEEDS[this.currentSpeed] || this.SPEEDS[7];
     const duration = speedInfo.duration;

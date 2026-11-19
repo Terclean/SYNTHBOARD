@@ -284,6 +284,14 @@ export class PatchSystem {
   }
 
   // ── Signalweiterleitung in Audio-Echtzeit ──
+  emitMusicalEvent(payload, time) {
+    if (!this.onMusicalEvent) return;
+    const now = this.engine.ctx?.currentTime || 0;
+    const delayMs = Number.isFinite(time) ? Math.max(0, (time - now) * 1000) : 0;
+    if (delayMs < 4) this.onMusicalEvent(payload);
+    else setTimeout(() => this.onMusicalEvent?.(payload), delayMs);
+  }
+
   routeTrigger(fromModuleId, fromPortId, time, velocity = 1, duration = 0.1, meta = null) {
     for (const c of this.connections.values()) {
       if (c.fromModuleId === fromModuleId && c.fromPortId === fromPortId) {
@@ -299,6 +307,10 @@ export class PatchSystem {
         this.notifyActivity(c.fromModuleId, c.fromPortId, c.toModuleId, c.toPortId, time, 'gate');
       }
     }
+    const subKind = /kick|bd|low|sub|bar/i.test(fromPortId)
+      ? 'kick'
+      : (/hat|hh|high|shimmer|eof|eor|accent/i.test(fromPortId) ? 'hat' : 'pulse');
+    this.emitMusicalEvent({ kind: 'trigger', subKind, velocity, fromModuleId, fromPortId }, time);
   }
 
   routePitch(fromModuleId, fromPortId, time, midiNote, velocity = 1, duration = 0.1, meta = null) {
@@ -311,6 +323,15 @@ export class PatchSystem {
         this.notifyActivity(c.fromModuleId, c.fromPortId, c.toModuleId, c.toPortId, time, 'pitch');
       }
     }
+    const isChord = Array.isArray(midiNote) && midiNote.length > 1;
+    this.emitMusicalEvent({
+      kind: isChord ? 'chord' : 'note',
+      midi: midiNote,
+      velocity,
+      duration,
+      fromModuleId,
+      fromPortId,
+    }, time);
   }
 
   routeMod(fromModuleId, fromPortId, value, time) {

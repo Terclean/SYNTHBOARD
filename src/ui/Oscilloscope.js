@@ -1,8 +1,8 @@
 // SYNTHBOARD – Studio-Oszilloskop & 3D Multi-Color Timbre Analyzer
-// 5 Modi: 'wave' (3D Ribbon), 'fft' (Multi-Color Spectrum), 'xy' (3D Multi-Band Lissajous),
-//         '3d' (40-Frame Spectral Waterfall), 'radial' (3D Sound-Vortex)
+// 6 Modi: 'wave' (3D Ribbon), 'fft' (Multi-Color Spectrum), 'xy' (3D Multi-Band Lissajous),
+//         '3d' (40-Frame Spectral Waterfall), 'radial' (3D Sound-Vortex), 'sculpt' (12-Punkte-Lichtskulptur)
 
-const MODES = ['wave', 'fft', 'xy', '3d', 'radial'];
+const MODES = ['wave', 'fft', 'xy', '3d', 'radial', 'sculpt'];
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
@@ -106,6 +106,8 @@ export class Oscilloscope {
     this.bands = [0, 0, 0, 0];
     this.silentFrames = 0;
     this.idleDrawn = false;
+    this.lastPitchHz = 0;
+    this.initSculpture();
   }
 
   registerCanvas(key, canvas) {
@@ -275,8 +277,8 @@ export class Oscilloscope {
   drawFrame(now) {
     if (!this.analyser || this.paused) return;
 
-    // 30 FPS Capping für 3D / RADIAL / XY
-    const isHeavyMode = this.mode === '3d' || this.mode === 'radial' || this.mode === 'xy';
+    // 30 FPS Capping für 3D / RADIAL / XY / SCULPT
+    const isHeavyMode = this.mode === '3d' || this.mode === 'radial' || this.mode === 'xy' || this.mode === 'sculpt';
     if (isHeavyMode && now - this.lastSlowDrawAt < 32) {
       return;
     }
@@ -319,9 +321,20 @@ export class Oscilloscope {
       const peakDb = peak > 0.0001 ? Math.max(-60, 20 * Math.log10(peak)) : -60;
       const sr = this.analyser.context?.sampleRate || 48000;
       const pitchHz = isSilent ? 0 : estimatePitchHz(this.timeData, sr);
+      this.lastPitchHz = pitchHz;
       const note = pitchHz > 0 ? `${freqToNoteName(pitchHz)} (${Math.round(pitchHz)} Hz)` : '—';
       const timbre = timbreFromCentroid(isSilent ? 0 : this.centroidHz);
       this.onReadout({ peakDb, note, freq: pitchHz, centroidHz: this.centroidHz, timbre });
+    }
+
+    if (this.mode === 'sculpt') {
+      if (!isSilent && (!this.onReadout || now - this.lastReadoutAt > 90)) {
+        const sr = this.analyser.context?.sampleRate || 48000;
+        this.lastPitchHz = estimatePitchHz(this.timeData, sr);
+      } else if (isSilent) {
+        this.lastPitchHz = 0;
+      }
+      this.updateSculpture(now, isSilent, this.lastPitchHz);
     }
 
     if (this.mode === 'wave') {
@@ -361,6 +374,8 @@ export class Oscilloscope {
         this.drawXy(ctx, w, h, isCompact);
       } else if (this.mode === 'radial') {
         this.drawRadial(ctx, w, h, isCompact);
+      } else if (this.mode === 'sculpt') {
+        this.drawSculpture(ctx, w, h, isCompact);
       } else {
         this.draw3DWaterfall(key, ctx, w, h, isCompact);
       }
@@ -722,6 +737,423 @@ export class Oscilloscope {
       ctx.lineWidth = z === 0 ? (isCompact ? 1.5 : 2.1) : (isCompact ? 0.8 : 1.15);
       ctx.stroke();
       ctx.restore();
+    }
+  }
+
+  // ───────────────────────────────────────────── 12-PUNKTE LICHTSKULPTUR ──
+  initSculpture() {
+    this.sculptNodes = Array.from({ length: 12 }, (_, i) => {
+      const ring = i % 2 === 0 ? 0.72 : 0.42;
+      const angle = (i / 12) * Math.PI * 2 - Math.PI / 2;
+      const zBase = ((i * 5) % 12 - 5.5) / 5.5;
+      return {
+        id: i,
+        x: Math.cos(angle) * ring,
+        y: Math.sin(angle) * ring,
+        z: zBase * 0.75,
+        wing: i < 6 ? -1 : 1,
+        glow: 0,
+      };
+    });
+    this.resetSculpture();
+  }
+
+  resetSculpture() {
+    this.sculptLastNode = 0;
+    this.sculptEdges = new Map();
+    this.sculptFaces = new Map();
+    this.sculptPulses = [];
+    this.sculptPhase = 'build'; // 'build' (Aufbau) | 'open' (Öffnung) | 'return' (Rückkehr)
+    this.sculptCamYaw = 0;
+    this.sculptCamPitch = 0;
+    this.sculptDepthReveal = 0.06;
+    this.sculptFoldAngle = 0;
+    this.sculptFoldTarget = 0;
+    this.sculptFoldVel = 0;
+    this.sculptLayerCursor = 0;
+    this.lastAudioNote = -1;
+    this.lastAudioNoteAt = 0;
+    this.lastBassHitAt = 0;
+    this.lastHatHitAt = 0;
+    this.prevBassBand = 0;
+    this.prevAirBand = 0;
+    if (this.sculptNodes) {
+      this.sculptNodes.forEach((n) => { n.glow = 0; });
+    }
+  }
+
+  setSculptPhase(phase) {
+    if (!['build', 'open', 'return'].includes(phase)) return;
+    this.sculptPhase = phase;
+    if (phase === 'return') {
+      for (const edge of this.sculptEdges.values()) {
+        if (!edge.isMotif) edge.alpha *= 0.18;
+      }
+      for (const face of this.sculptFaces.values()) {
+        if (!face.isMotif) face.alpha *= 0.22;
+      }
+    } else if (phase === 'build') {
+      this.sculptFoldTarget = 0.05;
+    } else if (phase === 'open') {
+      this.sculptFoldTarget = Math.max(0.55, this.sculptFoldTarget + 0.3);
+    }
+    this.idleDrawn = false;
+    this.silentFrames = 0;
+  }
+
+  pushMusicalEvent(ev) {
+    if (!ev || !this.sculptNodes) return;
+    this.idleDrawn = false;
+    this.silentFrames = 0;
+
+    if (ev.kind === 'note') {
+      const midi = Array.isArray(ev.midi) ? ev.midi[0] : ev.midi;
+      if (!Number.isFinite(midi)) return;
+      const target = ((Math.round(midi) % 12) + 12) % 12;
+      this._addSculptJump(this.sculptLastNode, target, false);
+      this.sculptLastNode = target;
+    } else if (ev.kind === 'chord' && Array.isArray(ev.midi)) {
+      const unique = [...new Set(
+        ev.midi.filter((n) => Number.isFinite(n)).map((n) => ((Math.round(n) % 12) + 12) % 12),
+      )];
+      if (!unique.length) return;
+      this.sculptLayerCursor = (this.sculptLayerCursor + 1) % 4;
+      if (unique.length === 1) {
+        this._addSculptJump(this.sculptLastNode, unique[0], true);
+        this.sculptLastNode = unique[0];
+        return;
+      }
+      for (let i = 0; i < unique.length; i++) {
+        const a = unique[i];
+        const b = unique[(i + 1) % unique.length];
+        this._addSculptJump(a, b, true);
+      }
+      if (unique.length >= 3) {
+        for (let i = 1; i + 1 < unique.length; i++) {
+          this._registerSculptFace(unique[0], unique[i], unique[i + 1], this.sculptLayerCursor);
+        }
+      }
+      this.sculptLastNode = unique[unique.length - 1];
+    } else if (ev.kind === 'trigger') {
+      if (ev.subKind === 'kick') this._triggerSculptKick();
+      else if (ev.subKind === 'hat') this._triggerSculptHatSpark();
+    }
+  }
+
+  _addSculptJump(from, to, isChordPart = false) {
+    const a = from === to ? (to + 7) % 12 : from;
+    const b = to;
+    if (this.sculptNodes[b]) this.sculptNodes[b].glow = 1.0;
+    if (this.sculptNodes[a]) this.sculptNodes[a].glow = Math.max(this.sculptNodes[a].glow, 0.55);
+
+    const minId = Math.min(a, b);
+    const maxId = Math.max(a, b);
+    const key = `${minId}-${maxId}`;
+    const existing = this.sculptEdges.get(key);
+    const layer = existing ? existing.layer : this.sculptLayerCursor;
+    const isMotif = existing ? existing.isMotif : (this.sculptEdges.size < 6);
+
+    this.sculptEdges.set(key, {
+      a: minId,
+      b: maxId,
+      alpha: 1.0,
+      isMotif,
+      layer,
+      createdAt: performance.now(),
+    });
+
+    if (this.sculptEdges.size > 28) {
+      for (const [ek, edge] of this.sculptEdges.entries()) {
+        if (!edge.isMotif) {
+          this.sculptEdges.delete(ek);
+          if (this.sculptEdges.size <= 24) break;
+        }
+      }
+    }
+
+    this.sculptPulses.push({
+      from: a,
+      to: b,
+      progress: 0,
+      speed: isChordPart ? 0.075 : 0.09,
+      isSpark: false,
+      layer,
+    });
+    if (this.sculptPulses.length > 36) this.sculptPulses.shift();
+
+    this._checkTrianglesForEdge(minId, maxId, layer);
+  }
+
+  _checkTrianglesForEdge(a, b, layer) {
+    for (let c = 0; c < 12; c++) {
+      if (c === a || c === b) continue;
+      const e1 = this.sculptEdges.get(`${Math.min(a, c)}-${Math.max(a, c)}`);
+      const e2 = this.sculptEdges.get(`${Math.min(b, c)}-${Math.max(b, c)}`);
+      if (e1 && e2 && e1.alpha > 0.15 && e2.alpha > 0.15) {
+        this._registerSculptFace(a, b, c, layer);
+      }
+    }
+  }
+
+  _registerSculptFace(n1, n2, n3, layer) {
+    const tri = [n1, n2, n3].sort((x, y) => x - y);
+    if (tri[0] === tri[1] || tri[1] === tri[2]) return;
+    const key = tri.join('-');
+    const existing = this.sculptFaces.get(key);
+    const isMotif = existing ? existing.isMotif : (this.sculptFaces.size < 2);
+    const avgWing = (this.sculptNodes[tri[0]].wing + this.sculptNodes[tri[1]].wing + this.sculptNodes[tri[2]].wing) >= 0 ? 1 : -1;
+
+    this.sculptFaces.set(key, {
+      a: tri[0],
+      b: tri[1],
+      c: tri[2],
+      alpha: existing ? Math.max(existing.alpha, 0.36) : 0.42,
+      flash: 1.0,
+      isMotif,
+      layer,
+      foldSide: avgWing,
+      tilt: ((tri[0] + tri[1] + tri[2]) % 5) * 0.08,
+    });
+
+    if (this.sculptFaces.size > 14) {
+      for (const [fk, face] of this.sculptFaces.entries()) {
+        if (!face.isMotif) {
+          this.sculptFaces.delete(fk);
+          if (this.sculptFaces.size <= 12) break;
+        }
+      }
+    }
+  }
+
+  _triggerSculptKick() {
+    this.sculptFoldTarget = Math.min(1.25, this.sculptFoldTarget + 0.22);
+    this.sculptFoldVel = (this.sculptFoldVel || 0) + 0.045;
+    if (this.sculptPhase === 'build' && this.sculptFaces.size >= 1 && this.sculptEdges.size >= 4) {
+      this.sculptPhase = 'open';
+    } else if (this.sculptPhase === 'return') {
+      this.sculptPhase = 'open';
+    }
+  }
+
+  _triggerSculptHatSpark() {
+    let count = 0;
+    for (const edge of this.sculptEdges.values()) {
+      if (edge.alpha < 0.2) continue;
+      this.sculptPulses.push({
+        from: count % 2 === 0 ? edge.a : edge.b,
+        to: count % 2 === 0 ? edge.b : edge.a,
+        progress: 0,
+        speed: 0.18,
+        isSpark: true,
+        layer: edge.layer || 0,
+      });
+      count++;
+      if (count >= 2) break;
+    }
+    if (this.sculptPulses.length > 40) this.sculptPulses.splice(0, this.sculptPulses.length - 40);
+  }
+
+  updateSculpture(now, isSilent, pitchHz) {
+    // 1. Live Audio Fallback (wenn Patch keine expliziten Pitch/Gate-Kabel routet)
+    if (!isSilent && pitchHz > 30) {
+      const midi = Math.round(69 + 12 * Math.log2(pitchHz / 440));
+      const pc = ((midi % 12) + 12) % 12;
+      if (pc !== this.lastAudioNote && now - this.lastAudioNoteAt > 170) {
+        this._addSculptJump(this.sculptLastNode, pc, false);
+        this.sculptLastNode = pc;
+        this.lastAudioNote = pc;
+        this.lastAudioNoteAt = now;
+      }
+    }
+
+    const bass = this.bands[0] || 0;
+    const air = this.bands[3] || 0;
+    if (bass - this.prevBassBand > 0.14 && bass > 0.36 && now - this.lastBassHitAt > 210) {
+      this._triggerSculptKick();
+      this.lastBassHitAt = now;
+    }
+    if (air - this.prevAirBand > 0.10 && air > 0.22 && now - this.lastHatHitAt > 110) {
+      this._triggerSculptHatSpark();
+      this.lastHatHitAt = now;
+    }
+    this.prevBassBand = bass;
+    this.prevAirBand = air;
+
+    // 2. Break-Erkennung bei Stille / Energieabfall
+    if (this.sculptPhase === 'open' && isSilent && this.silentFrames === 25 && this.sculptEdges.size >= 5) {
+      this.setSculptPhase('return');
+    }
+
+    // 3. Kamera, Tiefenstaffelung & Klapplogik animieren
+    const targetReveal = this.sculptPhase === 'build' ? 0.08 : 1.0;
+    this.sculptDepthReveal += (targetReveal - this.sculptDepthReveal) * 0.05;
+
+    if (this.sculptPhase === 'build') {
+      this.sculptCamYaw += (0 - this.sculptCamYaw) * 0.06;
+      this.sculptCamPitch += (0 - this.sculptCamPitch) * 0.06;
+    } else {
+      this.sculptCamYaw += this.sculptPhase === 'open' ? 0.012 : 0.006;
+      this.sculptCamPitch = Math.sin(this.sculptCamYaw * 0.5) * 0.24;
+    }
+
+    this.sculptFoldTarget *= 0.96;
+    this.sculptFoldVel = (this.sculptFoldVel || 0) * 0.85;
+    this.sculptFoldAngle += (this.sculptFoldTarget + this.sculptFoldVel - this.sculptFoldAngle) * 0.16;
+
+    // 4. Knoten, Linien, Flächen & Impulse fortschreiben
+    for (const n of this.sculptNodes) {
+      n.glow *= 0.86;
+    }
+    for (const [k, edge] of this.sculptEdges.entries()) {
+      const decay = this.sculptPhase === 'return' && !edge.isMotif ? 0.94 : 0.992;
+      edge.alpha *= decay;
+      const floor = edge.isMotif ? 0.28 : 0.08;
+      if (edge.alpha < floor) edge.alpha = edge.isMotif ? floor : Math.max(0.05, edge.alpha);
+      if (!edge.isMotif && this.sculptPhase === 'return' && edge.alpha <= 0.055) {
+        this.sculptEdges.delete(k);
+      }
+    }
+    for (const [k, face] of this.sculptFaces.entries()) {
+      face.flash *= 0.88;
+      if (this.sculptPhase === 'return' && !face.isMotif) {
+        face.alpha *= 0.93;
+        if (face.alpha < 0.02) this.sculptFaces.delete(k);
+      } else {
+        face.alpha = Math.max(face.isMotif ? 0.14 : 0.08, face.alpha * 0.995);
+      }
+    }
+    for (let i = this.sculptPulses.length - 1; i >= 0; i--) {
+      const p = this.sculptPulses[i];
+      p.progress += p.speed;
+      if (p.progress >= 1) this.sculptPulses.splice(i, 1);
+    }
+  }
+
+  _projectSculptNode(node, layer = 0, w = 320, h = 190) {
+    const reveal = this.sculptDepthReveal;
+    const layerOffset = (layer - 1.2) * 0.28 * reveal;
+    let x = node.x;
+    let y = node.y;
+    let z = (node.z + layerOffset) * reveal;
+
+    // Klappen entlang einer zentralen Faltkante (x-Achse / Scharnier) bei Kick/Bass
+    if (this.sculptFoldAngle > 0.001) {
+      const bend = this.sculptFoldAngle * node.wing * 0.85;
+      const cosB = Math.cos(bend);
+      const sinB = Math.sin(bend);
+      const nx = x * cosB - z * sinB;
+      const nz = x * sinB + z * cosB;
+      x = nx;
+      z = nz;
+    }
+
+    // Kamera-Rotation (seitliches Vorbeifahren bei Öffnung)
+    const cosY = Math.cos(this.sculptCamYaw);
+    const sinY = Math.sin(this.sculptCamYaw);
+    const rx = x * cosY - z * sinY;
+    const rz1 = x * sinY + z * cosY;
+
+    const cosP = Math.cos(this.sculptCamPitch);
+    const sinP = Math.sin(this.sculptCamPitch);
+    const ry = y * cosP - rz1 * sinP;
+    const rz = y * sinP + rz1 * cosP;
+
+    const perspective = 2.6 / (2.6 + rz * 0.75);
+    const scale = Math.min(w, h) * 0.43 * perspective;
+    return {
+      sx: w * 0.5 + rx * scale,
+      sy: h * 0.5 + ry * scale,
+      depth: rz,
+    };
+  }
+
+  drawSculpture(ctx, w, h, isCompact) {
+    ctx.fillStyle = '#030508';
+    ctx.fillRect(0, 0, w, h);
+
+    // 1. Geschlossene Dreiecksflächen im einzigen kühlen Blau (#38bdf8)
+    for (const face of this.sculptFaces.values()) {
+      const pA = this._projectSculptNode(this.sculptNodes[face.a], face.layer, w, h);
+      const pB = this._projectSculptNode(this.sculptNodes[face.b], face.layer, w, h);
+      const pC = this._projectSculptNode(this.sculptNodes[face.c], face.layer, w, h);
+      const fillAlpha = Math.min(0.48, face.alpha * 0.45 + face.flash * 0.34);
+
+      ctx.beginPath();
+      ctx.moveTo(pA.sx, pA.sy);
+      ctx.lineTo(pB.sx, pB.sy);
+      ctx.lineTo(pC.sx, pC.sy);
+      ctx.closePath();
+      ctx.fillStyle = `rgba(56, 189, 248, ${fillAlpha.toFixed(3)})`;
+      ctx.fill();
+      ctx.strokeStyle = `rgba(56, 189, 248, ${Math.min(0.7, fillAlpha * 1.4).toFixed(3)})`;
+      ctx.lineWidth = isCompact ? 0.6 : 0.9;
+      ctx.stroke();
+    }
+
+    // 2. Dünne weiße Kanten (alte Linien bleiben schwach sichtbar)
+    for (const edge of this.sculptEdges.values()) {
+      const pA = this._projectSculptNode(this.sculptNodes[edge.a], edge.layer, w, h);
+      const pB = this._projectSculptNode(this.sculptNodes[edge.b], edge.layer, w, h);
+      ctx.beginPath();
+      ctx.moveTo(pA.sx, pA.sy);
+      ctx.lineTo(pB.sx, pB.sy);
+      ctx.strokeStyle = `rgba(248, 250, 252, ${Math.min(0.9, edge.alpha * 0.62).toFixed(3)})`;
+      ctx.lineWidth = edge.isMotif ? (isCompact ? 0.9 : 1.25) : (isCompact ? 0.65 : 0.95);
+      ctx.stroke();
+    }
+
+    // 3. Laufende Lichtimpulse & Hi-Hat-Kantenfunken
+    for (const p of this.sculptPulses) {
+      const pA = this._projectSculptNode(this.sculptNodes[p.from], p.layer, w, h);
+      const pB = this._projectSculptNode(this.sculptNodes[p.to], p.layer, w, h);
+      const tHead = p.progress;
+      const tTail = Math.max(0, tHead - (p.isSpark ? 0.25 : 0.35));
+      const hx = pA.sx + (pB.sx - pA.sx) * tHead;
+      const hy = pA.sy + (pB.sy - pA.sy) * tHead;
+      const tx = pA.sx + (pB.sx - pA.sx) * tTail;
+      const ty = pA.sy + (pB.sy - pA.sy) * tTail;
+
+      ctx.beginPath();
+      ctx.moveTo(tx, ty);
+      ctx.lineTo(hx, hy);
+      ctx.strokeStyle = p.isSpark ? 'rgba(224, 242, 254, 0.95)' : 'rgba(255, 255, 255, 0.95)';
+      ctx.lineWidth = p.isSpark ? (isCompact ? 1.0 : 1.5) : (isCompact ? 1.3 : 2.1);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(hx, hy, p.isSpark ? (isCompact ? 1.2 : 1.9) : (isCompact ? 1.6 : 2.6), 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+    }
+
+    // 4. Die 12 matten Raumpunkte
+    for (let i = 0; i < this.sculptNodes.length; i++) {
+      const node = this.sculptNodes[i];
+      const pt = this._projectSculptNode(node, 0, w, h);
+      const g = node.glow;
+      const r = (isCompact ? 1.4 : 2.5) + g * (isCompact ? 1.1 : 2.2);
+      ctx.beginPath();
+      ctx.arc(pt.sx, pt.sy, r, 0, Math.PI * 2);
+      ctx.fillStyle = g > 0.15
+        ? `rgba(255, 255, 255, ${(0.45 + g * 0.55).toFixed(3)})`
+        : 'rgba(148, 163, 184, 0.42)';
+      ctx.fill();
+
+      if (!isCompact && w >= 240 && g > 0.2) {
+        ctx.fillStyle = `rgba(186, 230, 253, ${(g * 0.75).toFixed(2)})`;
+        ctx.font = '600 9px ui-monospace, monospace';
+        ctx.fillText(NOTE_NAMES[i], pt.sx + 5, pt.sy - 4);
+      }
+    }
+
+    // 5. Dezente Dramaturgie-Anzeige (Aufbau / Öffnung / Rückkehr)
+    if (!isCompact && w >= 220) {
+      const phaseLabel = this.sculptPhase === 'open'
+        ? 'II · ÖFFNUNG'
+        : (this.sculptPhase === 'return' ? 'III · RÜCKKEHR' : 'I · AUFBAU');
+      ctx.fillStyle = 'rgba(148, 163, 184, 0.55)';
+      ctx.font = '600 9px ui-monospace, monospace';
+      ctx.fillText(phaseLabel, 10, h - 10);
     }
   }
 }

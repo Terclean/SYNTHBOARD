@@ -9063,6 +9063,18 @@ body.view-eurorack .panel-toggles {
   font-size: 10px;
 }
 
+.scope-clip-btn {
+  border-color: rgba(56, 189, 248, 0.35);
+  color: #e2e8f0;
+}
+
+.scope-clip-btn.is-recording {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: #ef4444;
+  color: #fecaca;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
+}
+
 .scope-close-btn {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.12);

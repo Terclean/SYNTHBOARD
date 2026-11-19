@@ -330,6 +330,10 @@ export class StudioWorkspace {
       }
     }
 
+    if (mod) {
+      mod.pos = { x: Math.round(x), y: Math.round(y) };
+    }
+
     cardEl.style.position = 'absolute';
     cardEl.style.left = '0';
     cardEl.style.top = '0';
@@ -347,7 +351,9 @@ export class StudioWorkspace {
     this.cards.set(id, cardInfo);
     this.worldEl.appendChild(cardEl);
 
-    // Tatsächliche Abmessungen ermitteln
+    // Tatsächliche Abmessungen sofort + nach Layout-Reflow ermitteln
+    if (cardEl.offsetWidth > 0) cardInfo.width = cardEl.offsetWidth;
+    if (cardEl.offsetHeight > 0) cardInfo.height = cardEl.offsetHeight;
     requestAnimationFrame(() => {
       const r = cardEl.getBoundingClientRect();
       if (r.width > 0) cardInfo.width = r.width / this.zoom;
@@ -642,6 +648,20 @@ export class StudioWorkspace {
     return layout;
   }
 
+  hasOverlappingCards() {
+    const list = Array.from(this.cards.values());
+    for (let i = 0; i < list.length; i++) {
+      const a = list[i];
+      for (let j = i + 1; j < list.length; j++) {
+        const b = list[j];
+        const overlapX = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+        const overlapY = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+        if (overlapX > 12 && overlapY > 12) return true;
+      }
+    }
+    return false;
+  }
+
   rearrangeAuto(animate = true) {
     const layout = this.computeCompactLayout();
     if (!layout.size) return;
@@ -655,6 +675,7 @@ export class StudioWorkspace {
           card.x = pos.x;
           card.y = pos.y;
           card.el.style.transform = `translate3d(${pos.x}px, ${pos.y}px, 0)`;
+          if (card.mod) card.mod.pos = { x: Math.round(pos.x), y: Math.round(pos.y) };
         }
       });
       this.patchBay?.requestDraw?.();
@@ -697,6 +718,7 @@ export class StudioWorkspace {
           card.x = pos.x;
           card.y = pos.y;
           card.el.style.transform = `translate3d(${pos.x}px, ${pos.y}px, 0)`;
+          if (card.mod) card.mod.pos = { x: Math.round(pos.x), y: Math.round(pos.y) };
         }
       });
       this.patchBay?.requestDraw?.();
@@ -725,6 +747,7 @@ export class StudioWorkspace {
           card.x = x + (targetX - x) * ease;
           card.y = y + (targetY - y) * ease;
           card.el.style.transform = `translate3d(${card.x}px, ${card.y}px, 0)`;
+          if (card.mod) card.mod.pos = { x: Math.round(card.x), y: Math.round(card.y) };
         }
       });
 
@@ -739,6 +762,7 @@ export class StudioWorkspace {
             card.x = Math.round(targetX);
             card.y = Math.round(targetY);
             card.el.style.transform = `translate3d(${card.x}px, ${card.y}px, 0)`;
+            if (card.mod) card.mod.pos = { x: card.x, y: card.y };
           }
         });
         this.patchBay?.requestDraw?.();

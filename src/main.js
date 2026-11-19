@@ -183,6 +183,7 @@ const scopeModeLabels = {
   xy: '3D LISSAJOUS',
   '3d': '3D WATERFALL',
   radial: '3D VORTEX',
+  sculpt: 'LIGHT SCULPT',
 };
 const scope = new Oscilloscope($('#scope'), engine.analyser, {
   analyserL: engine.analyserL,
@@ -219,6 +220,7 @@ if ($('#perf-scope-canvas')) {
   $('#perf-scope-canvas')?.addEventListener('click', () => scope.cycleMode());
 }
 scope.start();
+engine.patch.onMusicalEvent = (ev) => scope.pushMusicalEvent(ev);
 
 $('#scope')?.addEventListener('click', () => scope.cycleMode());
 document.querySelectorAll('.scope-pill[data-scope-mode]').forEach((btn) => {
@@ -243,6 +245,70 @@ $('#btn-scope-expand')?.addEventListener('click', (e) => {
 });
 $('#btn-scope-close')?.addEventListener('click', () => setScopePopoutOpen(false));
 scopePopoutCanvas?.addEventListener('click', () => scope.cycleMode());
+
+// Synchronisierter Audio+Video-Export für Popout-Visualizer (inkl. 2-Minuten-Clip-Limit)
+let clipRecorder = null;
+let clipMaxTimer = null;
+$('#btn-scope-clip')?.addEventListener('click', async (e) => {
+  e.stopPropagation();
+  const btn = $('#btn-scope-clip');
+  if (!btn || !scopePopoutCanvas) return;
+
+  if (clipRecorder && clipRecorder.state === 'recording') {
+    clipRecorder.stop();
+    return;
+  }
+
+  if (typeof scopePopoutCanvas.captureStream !== 'function' || typeof MediaRecorder === 'undefined') {
+    toast(t('Video-Export wird von diesem Browser nicht unterstützt.', 'Video export is not supported in this browser.'));
+    return;
+  }
+
+  await startAudio();
+  const videoStream = scopePopoutCanvas.captureStream(30);
+  const audioDest = engine.ctx.createMediaStreamDestination();
+  engine.limiter.connect(audioDest);
+  const combined = new MediaStream([
+    ...videoStream.getVideoTracks(),
+    ...audioDest.stream.getAudioTracks(),
+  ]);
+
+  const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+    ? 'video/webm;codecs=vp9,opus'
+    : 'video/webm';
+  const chunks = [];
+  const rec = new MediaRecorder(combined, { mimeType: mime });
+  clipRecorder = rec;
+
+  rec.ondataavailable = (ev) => {
+    if (ev.data && ev.data.size > 0) chunks.push(ev.data);
+  };
+  rec.onstop = () => {
+    clearTimeout(clipMaxTimer);
+    clipMaxTimer = null;
+    try { engine.limiter.disconnect(audioDest); } catch { /* ignore */ }
+    videoStream.getTracks().forEach((tr) => tr.stop());
+    btn.classList.remove('is-recording');
+    btn.textContent = '● CLIP';
+    clipRecorder = null;
+
+    if (!chunks.length) return;
+    const blob = new Blob(chunks, { type: mime });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `synthboard-light-sculpture-${Date.now()}.webm`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    toast(t('Audio+Video-Clip gespeichert (.webm)', 'Audio+Video clip saved (.webm)'));
+  };
+
+  rec.start(250);
+  btn.classList.add('is-recording');
+  btn.textContent = '■ STOP';
+  clipMaxTimer = setTimeout(() => {
+    if (clipRecorder && clipRecorder.state === 'recording') clipRecorder.stop();
+  }, 120000);
+});
 
 // ───────────────────────── Globaler Tab-Switch & Offscreen-Sleep ──
 document.addEventListener('visibilitychange', () => {
@@ -330,6 +396,11 @@ const infoSystem = new InfoSystem(engine, patchBay, {
 const snapshotSystem = new SnapshotSystem(engine, {
   onToast: (msg) => toast(msg),
   onModified: changed,
+  onSlotTrigger: (slotNum) => {
+    if (slotNum === 1) scope.setSculptPhase('build');
+    else if (slotNum === 5) scope.setSculptPhase('return');
+    else if (slotNum >= 2 && slotNum <= 4) scope.setSculptPhase('open');
+  },
 });
 engine.snapshotSystem = snapshotSystem;
 
@@ -520,6 +591,11 @@ function addModule(type, posOrIndex = -1) {
 
 // ───────────────────────── Rack Rendering & Workspace Integration ──
 function renderRack(highlightId) {
+  // Live-Positionen vor dem Neuaufbau auf die Module zurückschreiben
+  workspace?.cards?.forEach((c) => {
+    if (c.mod) c.mod.pos = { x: Math.round(c.x), y: Math.round(c.y) };
+  });
+
   patchBay?.clearJacks();
   workspace?.clear();
   cardVisibilityObserver?.disconnect();
@@ -535,12 +611,17 @@ function renderRack(highlightId) {
   const allMods = [...engine.controls, ...engine.sources, ...engine.effects];
 
   allMods.forEach((m, i) => {
-    const card = createCard(m, i);
+    const fxIdx = m.meta?.category === 'effect' ? engine.effects.indexOf(m) : i;
+    const card = createCard(m, fxIdx);
     workspace?.registerCard(m, card, m.pos);
     if (cardVisibilityObserver && canvasModuleTypes.has(m.meta?.type)) {
       cardVisibilityObserver.observe(card);
     }
   });
+
+  if (workspace?.hasOverlappingCards?.()) {
+    workspace.rearrangeAuto(false);
+  }
 
   // Modulauswahl wiederherstellen oder erstes Modul wählen
   if (highlightId) {
@@ -844,12 +925,14 @@ function createCard(mod, index = -1) {
     removeModule(mod.id);
   });
   card.querySelector('.mv-left')?.addEventListener('click', () => {
-    engine.moveEffect(mod.id, index - 1);
+    const curIdx = engine.effects.indexOf(mod);
+    if (curIdx > 0) engine.moveEffect(mod.id, curIdx - 1);
     renderRack();
     changed();
   });
   card.querySelector('.mv-right')?.addEventListener('click', () => {
-    engine.moveEffect(mod.id, index + 1);
+    const curIdx = engine.effects.indexOf(mod);
+    if (curIdx >= 0 && curIdx < engine.effects.length - 1) engine.moveEffect(mod.id, curIdx + 1);
     renderRack();
     changed();
   });
@@ -863,9 +946,43 @@ function removeModule(modId) {
   focusDock?.onModuleRemoved(modId);
   patchBay.unregisterModuleJacks(modId);
   setTimeout(() => {
+    // Live-Positionen aller verbleibenden Module bewahren
+    workspace?.cards?.forEach((c) => {
+      if (c.mod) c.mod.pos = { x: Math.round(c.x), y: Math.round(c.y) };
+    });
+
     engine.remove(modId);
-    if (selectedModuleId === modId) selectedModuleId = null;
-    renderRack();
+    workspace?.unregisterCard(modId);
+
+    const countControls = $('#count-controls');
+    const countSources = $('#count-sources');
+    const countEffects = $('#count-effects');
+    if (countControls) countControls.textContent = String(engine.controls.length);
+    if (countSources) countSources.textContent = String(engine.sources.length);
+    if (countEffects) countEffects.textContent = String(engine.effects.length);
+
+    engine.effects.forEach((fx, idx) => {
+      const fxCard = workspace?.cards?.get(fx.id)?.el || fx.cardEl;
+      if (!fxCard) return;
+      const sub = fxCard.querySelector('.mod-titles small');
+      if (sub) sub.textContent = `FX ${idx + 1}`;
+      const mvL = fxCard.querySelector('.mv-left');
+      const mvR = fxCard.querySelector('.mv-right');
+      if (mvL) mvL.disabled = idx === 0;
+      if (mvR) mvR.disabled = idx === engine.effects.length - 1;
+    });
+
+    const allMods = [...engine.controls, ...engine.sources, ...engine.effects];
+    if (selectedModuleId === modId) {
+      selectedModuleId = allMods.length ? allMods[0].id : null;
+    }
+    selectModule(selectedModuleId);
+
+    patchBay?.syncPatchedClasses?.();
+    patchBay?.requestDraw?.();
+    snapshotSystem?.updateVisuals();
+    focusDock?.updateRackBadges();
+    updateStatus();
     changed();
   }, 180);
 }
