@@ -178,17 +178,17 @@ const masterKnob = new Knob($('#knob-master'), {
 });
 
 const scopeModeLabels = {
-  wave: '3D WAVE RIBBON',
+  wave: 'WAVE',
   fft: 'TIMBRE FFT (20Hz-16k)',
-  xy: '3D LISSAJOUS',
+  xy: 'XY ORBIT / STEREO',
   '3d': '3D WATERFALL',
-  radial: '3D VORTEX',
+  radial: '3D RELIEF RING',
   sculpt: 'LIGHT SCULPT',
 };
 const scope = new Oscilloscope($('#scope'), engine.analyser, {
   analyserL: engine.analyserL,
   analyserR: engine.analyserR,
-  initialMode: '3d',
+  initialMode: 'radial',
   onReadout: ({ peakDb, note, timbre }) => {
     const peakEl = $('#scope-ro-peak');
     const noteEl = $('#scope-ro-note');
@@ -228,7 +228,13 @@ $('#scope')?.addEventListener('click', () => scope.cycleMode());
 document.querySelectorAll('.scope-pill[data-scope-mode]').forEach((btn) => {
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
-    scope.setMode(btn.dataset.scopeMode);
+    const targetMode = btn.dataset.scopeMode;
+    scope.directorMode = false;
+    if (targetMode === 'xy' && scope.mode === 'xy') {
+      scope.toggleXySubMode();
+    } else {
+      scope.setMode(targetMode);
+    }
   });
 });
 
@@ -288,6 +294,7 @@ $('#btn-scope-clip')?.addEventListener('click', async (e) => {
   rec.onstop = () => {
     clearTimeout(clipMaxTimer);
     clipMaxTimer = null;
+    scope.directorMode = false;
     try { engine.limiter.disconnect(audioDest); } catch { /* ignore */ }
     videoStream.getTracks().forEach((tr) => tr.stop());
     btn.classList.remove('is-recording');
@@ -304,6 +311,7 @@ $('#btn-scope-clip')?.addEventListener('click', async (e) => {
     toast(t('Audio+Video-Clip gespeichert (.webm)', 'Audio+Video clip saved (.webm)'));
   };
 
+  scope.directorMode = true;
   rec.start(250);
   btn.classList.add('is-recording');
   btn.textContent = '■ STOP';
@@ -399,9 +407,7 @@ const snapshotSystem = new SnapshotSystem(engine, {
   onToast: (msg) => toast(msg),
   onModified: changed,
   onSlotTrigger: (slotNum) => {
-    if (slotNum === 1) scope.setSculptPhase('build');
-    else if (slotNum === 5) scope.setSculptPhase('return');
-    else if (slotNum >= 2 && slotNum <= 4) scope.setSculptPhase('open');
+    scope.onArrangementSlot(slotNum);
   },
 });
 engine.snapshotSystem = snapshotSystem;

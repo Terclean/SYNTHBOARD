@@ -68,7 +68,7 @@ export class Oscilloscope {
     this.canvases = new Map();
     if (canvas) this.registerCanvas('topbar', canvas);
 
-    this.mode = options.initialMode || '3d';
+    this.mode = options.initialMode || 'radial';
     this.running = false;
     this.paused = false;
     this.rafId = null;
@@ -88,13 +88,26 @@ export class Oscilloscope {
     this.waterfallHistory = [];
     this.waterfallMaxFrames = 40;
     this.waterfallBins = 64;
-    // Ringbuffer für Radial-3D (nutzt bis zu 22 Frames × 48 Bins)
-    this.radialMaxFrames = 22;
-    this.radialBins = 48;
-    this.radialAngle = 0;
-    // Ringbuffer für 3D-Wave-Ribbon (letzte 5 Trigger-Wellen)
+    // Schwebender 3D-Radial-Relief-Ring (~4 Takte = 96 Zeitwinkel × 14 log-Frequenzbänder)
+    this.ringSlices = 96;
+    this.ringBands = 14;
+    this.ringGrid = Array.from({ length: this.ringSlices }, () => new Float32Array(this.ringBands));
+    this.ringCursor = 0;
+    this.lastRingWriteAt = 0;
+    this.ringCamDip = 0;
+    this.ringCamDipTarget = 0;
+    this.ringFirstDropDone = false;
+    this.radialShowXyInset = false;
+    this.directorMode = false;
+    // XY-Trajektorie mit Tiefenebenen ('orbit' = monophone Phasen-Schleife | 'stereo' = L/R)
+    this.xySubMode = 'orbit';
+    this.xyHistory = [];
+    this.xyMaxHistory = 4;
+    // Ringbuffer für stabilisierte Wave-Linie (1 Hauptlinie + 3 dünne dunkle Historienkonturen)
     this.waveHistory = [];
-    this.waveMaxEchoes = 5;
+    this.waveMaxEchoes = 4;
+    this.lastKickTriggerAt = 0;
+    this.prevBassEnergy = 0;
 
     // Gradient-Cache pro (canvasKey + size) -> kein createLinearGradient in der Zeichenschleife
     this.gradientCache = new Map();
@@ -143,6 +156,40 @@ export class Oscilloscope {
     const idx = MODES.indexOf(this.mode);
     const next = MODES[(idx + 1) % MODES.length];
     this.setMode(next);
+  }
+
+  toggleXySubMode() {
+    this.xySubMode = this.xySubMode === 'orbit' ? 'stereo' : 'orbit';
+    this.xyHistory = [];
+    this.idleDrawn = false;
+    this.silentFrames = 0;
+  }
+
+  triggerRadialCameraDip() {
+    this.ringCamDipTarget = 1.0;
+    this.idleDrawn = false;
+    this.silentFrames = 0;
+  }
+
+  onArrangementSlot(slotNum) {
+    if (slotNum === 1) {
+      this.setSculptPhase('build');
+      this.radialShowXyInset = false;
+      if (this.directorMode) this.setMode('xy');
+    } else if (slotNum === 2 || slotNum === 3) {
+      this.setSculptPhase('open');
+      this.radialShowXyInset = false;
+      this.triggerRadialCameraDip();
+      if (this.directorMode) this.setMode('radial');
+    } else if (slotNum === 4) {
+      this.setSculptPhase('open');
+      this.radialShowXyInset = false;
+      if (this.directorMode) this.setMode('wave');
+    } else if (slotNum === 5) {
+      this.setSculptPhase('return');
+      this.radialShowXyInset = true;
+      if (this.directorMode) this.setMode('radial');
+    }
   }
 
   setPaused(paused) {
@@ -246,6 +293,27 @@ export class Oscilloscope {
       c3 ? Math.min(1, (b3 / c3) * 2.0) : 0,
     ];
 
+    if (now - this.lastRingWriteAt >= 55) {
+      this.lastRingWriteAt = now;
+      const prevSlice = this.ringGrid[this.ringCursor];
+      this.ringCursor = (this.ringCursor + 1) % this.ringSlices;
+      const slice = this.ringGrid[this.ringCursor];
+      const minF = 28;
+      const maxF = 14000;
+      for (let b = 0; b < this.ringBands; b++) {
+        const f0 = minF * Math.pow(maxF / minF, b / this.ringBands);
+        const f1 = minF * Math.pow(maxF / minF, (b + 1) / this.ringBands);
+        const idx0 = Math.max(1, Math.floor(f0 / binHz));
+        const idx1 = Math.min(this.freqData.length - 1, Math.max(idx0, Math.ceil(f1 / binHz)));
+        let peak = 0;
+        for (let k = idx0; k <= idx1; k++) {
+          if (this.freqData[k] > peak) peak = this.freqData[k];
+        }
+        const raw = peak / 255;
+        slice[b] = prevSlice ? prevSlice[b] * 0.25 + raw * 0.75 : raw;
+      }
+    }
+
     if (now - this.lastWaterfallAt >= 32) {
       this.lastWaterfallAt = now;
       const frame = new Float32Array(this.waterfallBins);
@@ -311,10 +379,22 @@ export class Oscilloscope {
 
     this.analyzeTimbre(now);
 
-    if (this.mode === 'xy' && this.analyserL && this.analyserR) {
-      this.analyserL.getFloatTimeDomainData(this.timeL);
-      this.analyserR.getFloatTimeDomainData(this.timeR);
+    if (this.mode === 'xy' || (this.mode === 'radial' && this.radialShowXyInset)) {
+      if (this.xySubMode === 'stereo' && this.analyserL && this.analyserR) {
+        this.analyserL.getFloatTimeDomainData(this.timeL);
+        this.analyserR.getFloatTimeDomainData(this.timeR);
+      }
+      this.captureXySnapshot();
     }
+
+    if (this.bands[0] - this.prevBassEnergy > 0.14 && this.bands[0] > 0.36 && now - this.lastKickTriggerAt > 200) {
+      this.lastKickTriggerAt = now;
+      if (!this.ringFirstDropDone && this.mode === 'radial') {
+        this.ringFirstDropDone = true;
+        this.triggerRadialCameraDip();
+      }
+    }
+    this.prevBassEnergy = this.bands[0] || 0;
 
     if (this.onReadout && now - this.lastReadoutAt > 95) {
       this.lastReadoutAt = now;
@@ -338,7 +418,7 @@ export class Oscilloscope {
     }
 
     if (this.mode === 'wave') {
-      const trigIdx = this.findRisingZeroCrossing();
+      const trigIdx = this.findWaveAnchor(now);
       const snap = new Float32Array(128);
       const span = Math.min(512, this.timeData.length - trigIdx);
       for (let i = 0; i < 128; i++) {
@@ -347,10 +427,6 @@ export class Oscilloscope {
       }
       this.waveHistory.unshift(snap);
       if (this.waveHistory.length > this.waveMaxEchoes) this.waveHistory.pop();
-    }
-
-    if (this.mode === 'radial') {
-      this.radialAngle += 0.008;
     }
 
     // Primär-Canvas bestimmen (Popout > Perf > Topbar)
@@ -399,15 +475,88 @@ export class Oscilloscope {
     }
   }
 
-  findRisingZeroCrossing() {
-    const len = this.timeData.length;
+  /** Stabilisierter Anker für WAVE: Nulldurchgang mit maximaler Steigung oder Kick-Einsatz im Beat */
+  findWaveAnchor(now = 0) {
+    const d = this.timeData;
+    const len = d.length;
     const searchLimit = Math.floor(len * 0.55);
-    for (let i = 1; i < searchLimit; i++) {
-      if (this.timeData[i - 1] < 0 && this.timeData[i] >= 0) {
-        return i;
+
+    // Beat-Modus: kurz nach einem Kick auf den Transienten-Einsatz verankern
+    if (now - this.lastKickTriggerAt < 220) {
+      let peakIdx = 0;
+      let peakVal = 0;
+      for (let i = 4; i < searchLimit; i++) {
+        const a = Math.abs(d[i]);
+        if (a > peakVal) {
+          peakVal = a;
+          peakIdx = i;
+        }
+      }
+      const start = Math.max(0, peakIdx - 24);
+      for (let i = start; i > 2; i--) {
+        if (d[i - 1] < 0 && d[i] >= 0) return i;
+      }
+      return start;
+    }
+
+    // Periodisches Signal: tiefpassgeglätteter steigender Nulldurchgang mit höchster Steigung
+    let bestIdx = 0;
+    let bestSlope = 0;
+    let prev = (d[0] + d[1] + d[2] + d[3]) * 0.25;
+    for (let i = 4; i < searchLimit; i++) {
+      const cur = (d[i] + d[i - 1] + d[i - 2] + d[i - 3]) * 0.25;
+      if (prev < 0 && cur >= 0) {
+        const slope = cur - prev;
+        if (slope > bestSlope) {
+          bestSlope = slope;
+          bestIdx = i;
+        }
+      }
+      prev = cur;
+    }
+    return bestIdx;
+  }
+
+  captureXySnapshot() {
+    const count = 160;
+    const pts = new Float32Array(count * 2);
+    const isStereo = this.xySubMode === 'stereo' && this.analyserL && this.analyserR;
+    const len = isStereo ? this.timeL.length : this.timeData.length;
+    const stride = Math.max(1, Math.floor((len - 24) / count));
+
+    if (isStereo) {
+      let lpL = 0;
+      let lpR = 0;
+      for (let i = 0; i < count; i++) {
+        const idx = Math.min(len - 1, i * stride);
+        lpL += 0.35 * (this.timeL[idx] - lpL);
+        lpR += 0.35 * (this.timeR[idx] - lpR);
+        pts[i * 2] = (lpL - lpR) * 0.707;
+        pts[i * 2 + 1] = -(lpL + lpR) * 0.707;
+      }
+    } else {
+      // Orbit-Modus: melodiöses Bandpass-Signal gegen eine leicht verzögerte Kopie (Phase-Space Loop)
+      const delay = 18;
+      let hp = 0;
+      let lp = 0;
+      let lastX = 0;
+      const ring = new Float32Array(len);
+      for (let k = 0; k < Math.min(len, count * stride + delay + 4); k++) {
+        const x = this.timeData[k] || 0;
+        hp = 0.94 * (hp + x - lastX);
+        lastX = x;
+        lp += 0.32 * (hp - lp);
+        ring[k] = lp;
+      }
+      for (let i = 0; i < count; i++) {
+        const idx = delay + i * stride;
+        pts[i * 2] = (ring[idx] || 0) * 1.35;
+        pts[i * 2 + 1] = (ring[idx - delay] || 0) * 1.35;
       }
     }
-    return 0;
+
+    this.xyHistory.unshift(pts);
+    if (this.xyHistory.length > this.xyMaxHistory) this.xyHistory.pop();
   }
 
   drawSubGrid(ctx, w, h, isCompact) {
@@ -429,38 +578,36 @@ export class Oscilloscope {
     ctx.stroke();
   }
 
-  drawWave(key, ctx, w, h, isCompact) {
-    ctx.fillStyle = 'rgba(6, 9, 15, 0.45)';
+  drawWave(_key, ctx, w, h, isCompact) {
+    ctx.fillStyle = '#05080f';
     ctx.fillRect(0, 0, w, h);
     this.drawSubGrid(ctx, w, h, isCompact);
 
     const midY = h * 0.5;
-    const amp = h * (isCompact ? 0.42 : 0.36);
+    const amp = h * (isCompact ? 0.42 : 0.37);
 
-    // Hintere 3D-Ribbon-Spuren ohne shadowBlur
+    // Ältere Durchläufe als sehr dünne, dunkle Konturen dahinterlegen
     const echoCount = isCompact ? 2 : this.waveHistory.length;
     for (let e = echoCount - 1; e >= 1; e--) {
       const hist = this.waveHistory[e];
       if (!hist) continue;
-      const dx = -e * (isCompact ? 2 : 5);
-      const dy = -e * (isCompact ? 1.2 : 4.5);
-      const alpha = Math.max(0.08, 0.36 - e * 0.07);
+      const dy = -e * (isCompact ? 1.0 : 3.2);
+      const alpha = Math.max(0.08, 0.24 - e * 0.05);
       ctx.beginPath();
       for (let i = 0; i < hist.length; i++) {
-        const x = (i / (hist.length - 1)) * w + dx;
-        const y = midY + hist[i] * amp * (1 - e * 0.06) + dy;
+        const x = (i / (hist.length - 1)) * w;
+        const y = midY + hist[i] * amp * (1 - e * 0.04) + dy;
         if (i === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       }
-      ctx.strokeStyle = `rgba(129, 140, 248, ${alpha})`;
-      ctx.lineWidth = 1.1;
+      ctx.strokeStyle = `rgba(100, 116, 139, ${alpha.toFixed(3)})`;
+      ctx.lineWidth = 0.75;
       ctx.stroke();
     }
 
+    // Eine scharfe Hauptlinie
     const front = this.waveHistory[0];
     if (!front) return;
-    const timbre = timbreFromCentroid(this.centroidHz);
-
     ctx.beginPath();
     for (let i = 0; i < front.length; i++) {
       const x = (i / (front.length - 1)) * w;
@@ -468,9 +615,11 @@ export class Oscilloscope {
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     }
-
-    ctx.strokeStyle = isCompact ? timbre.color : this.getCachedHorizontalGradient(key, ctx, 0, w);
-    ctx.lineWidth = isCompact ? 1.6 : 2.1;
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
+    ctx.lineWidth = isCompact ? 2.4 : 3.2;
+    ctx.stroke();
+    ctx.strokeStyle = '#f8fafc';
+    ctx.lineWidth = isCompact ? 1.3 : 1.85;
     ctx.stroke();
   }
 
@@ -532,86 +681,68 @@ export class Oscilloscope {
     }
   }
 
+  drawXyTraces(ctx, cx, cy, scale, isCompact) {
+    const traces = this.xyHistory;
+    if (!traces.length) return;
+
+    // 1. Frühere Ausschnitte dunkler eine Ebene dahinter zeichnen
+    for (let e = traces.length - 1; e >= 1; e--) {
+      const pts = traces[e];
+      const planeScale = scale * (1 - e * 0.075);
+      const dx = -e * (isCompact ? 1.4 : 4.5);
+      const dy = -e * (isCompact ? 1.0 : 3.0);
+      const alpha = Math.max(0.10, 0.36 - e * 0.08);
+      ctx.beginPath();
+      for (let i = 0; i < pts.length; i += 2) {
+        const px = cx + dx + pts[i] * planeScale;
+        const py = cy + dy + pts[i + 1] * planeScale;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.strokeStyle = `rgba(56, 189, 248, ${alpha.toFixed(3)})`;
+      ctx.lineWidth = isCompact ? 0.75 : 1.05;
+      ctx.stroke();
+    }
+
+    // 2. Helle Vorderkante als durchgehende Spur
+    const front = traces[0];
+    ctx.beginPath();
+    for (let i = 0; i < front.length; i += 2) {
+      const px = cx + front[i] * scale;
+      const py = cy + front[i + 1] * scale;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.42)';
+    ctx.lineWidth = isCompact ? 2.2 : 3.4;
+    ctx.stroke();
+    ctx.strokeStyle = '#e0f2fe';
+    ctx.lineWidth = isCompact ? 1.2 : 1.85;
+    ctx.stroke();
+  }
+
   drawXy(ctx, w, h, isCompact) {
-    ctx.fillStyle = 'rgba(6, 9, 15, 0.24)';
+    ctx.fillStyle = '#05080f';
     ctx.fillRect(0, 0, w, h);
 
-    const cx = w / 2;
-    const cy = h / 2;
+    const cx = w * 0.5;
+    const cy = h * 0.5;
     const scale = Math.min(w, h) * 0.44;
 
-    ctx.strokeStyle = 'rgba(148, 163, 184, 0.09)';
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.08)';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(cx, 0); ctx.lineTo(cx, h);
     ctx.moveTo(0, cy); ctx.lineTo(w, cy);
-    if (!isCompact) ctx.arc(cx, cy, scale * 0.65, 0, Math.PI * 2);
+    if (!isCompact) ctx.arc(cx, cy, scale * 0.72, 0, Math.PI * 2);
     ctx.stroke();
 
-    const len = this.analyserL && this.analyserR ? this.timeL.length : this.timeData.length;
-    const step = isCompact ? 4 : 2;
+    this.drawXyTraces(ctx, cx, cy, scale, isCompact);
 
-    // 1. Geglätteter Bass-Kern (Violett/Indigo)
-    let lpL = 0;
-    let lpR = 0;
-    ctx.beginPath();
-    for (let i = 0; i < len; i += step) {
-      const l = this.analyserL ? this.timeL[i] : this.timeData[i];
-      const r = this.analyserR ? this.timeR[i] : this.timeData[(i + 64) % len];
-      lpL += 0.09 * (l - lpL);
-      lpR += 0.09 * (r - lpR);
-      const mid = (lpL + lpR) * 0.707;
-      const side = (lpL - lpR) * 0.707;
-      const x = cx + side * scale * 1.15;
-      const y = cy - mid * scale * 1.15;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.strokeStyle = 'rgba(168, 85, 247, 0.75)';
-    ctx.lineWidth = isCompact ? 1.8 : 3.0;
-    ctx.stroke();
-
-    // 2. Mittelton-Schicht (Smaragd / Gold)
-    ctx.beginPath();
-    let midLpL = 0;
-    let midLpR = 0;
-    for (let i = 0; i < len; i += step) {
-      const l = this.analyserL ? this.timeL[i] : this.timeData[i];
-      const r = this.analyserR ? this.timeR[i] : this.timeData[(i + 64) % len];
-      midLpL += 0.09 * (l - midLpL);
-      midLpR += 0.09 * (r - midLpR);
-      const hpL = l - midLpL;
-      const hpR = r - midLpR;
-      const mid = (hpL + hpR) * 0.707;
-      const side = (hpL - hpR) * 0.707;
-      const x = cx + side * scale;
-      const y = cy - mid * scale;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.strokeStyle = this.bands[2] > this.bands[1] ? 'rgba(251, 191, 36, 0.68)' : 'rgba(16, 185, 129, 0.68)';
-    ctx.lineWidth = isCompact ? 1.0 : 1.4;
-    ctx.stroke();
-
-    // 3. Hochfrequenz-Transienten als glitzernde Cyan/Pink-Partikel außen herum
-    if (!isCompact) {
-      for (let i = 1; i < len; i += 4) {
-        const l = this.analyserL ? this.timeL[i] : this.timeData[i];
-        const r = this.analyserR ? this.timeR[i] : this.timeData[(i + 64) % len];
-        const pl = this.analyserL ? this.timeL[i - 1] : this.timeData[i - 1];
-        const pr = this.analyserR ? this.timeR[i - 1] : this.timeData[(i + 63) % len];
-        const dl = l - pl;
-        const dr = r - pr;
-        const energy = Math.abs(dl) + Math.abs(dr);
-        if (energy > 0.045) {
-          const side = (l - r) * 0.707 + dl * 0.8;
-          const mid = (l + r) * 0.707 + dr * 0.8;
-          const px = cx + side * scale * 1.15;
-          const py = cy - mid * scale * 1.15;
-          ctx.fillStyle = i % 8 === 0 ? 'rgba(236, 72, 153, 0.85)' : 'rgba(103, 232, 249, 0.85)';
-          ctx.fillRect(px - 1, py - 1, 2.2, 2.2);
-        }
-      }
+    if (!isCompact && w >= 200) {
+      ctx.fillStyle = 'rgba(148, 163, 184, 0.65)';
+      ctx.font = '600 9px ui-monospace, monospace';
+      ctx.fillText(this.xySubMode === 'stereo' ? 'XY · STEREO (L/R)' : 'XY · ORBIT', 10, h - 10);
     }
   }
 
@@ -673,71 +804,138 @@ export class Oscilloscope {
     }
   }
 
-  /** Radialer 3D-Sound-Vortex (konzentrische, rotierende FFT-Ringe mit Timbre-Farbcode) */
+  _ringBandColor(bandFrac, alpha = 1) {
+    // Tiefes Violett -> kühles Blau -> Eisweiß -> Bernstein
+    if (bandFrac < 0.28) return `rgba(139, 92, 246, ${alpha})`;
+    if (bandFrac < 0.56) return `rgba(56, 189, 248, ${alpha})`;
+    if (bandFrac < 0.80) return `rgba(224, 242, 254, ${alpha})`;
+    return `rgba(245, 158, 11, ${alpha})`;
+  }
+
+  /** Schwebender gekippter 3D-Polarspektrogramm-Ring (Spuren der letzten ~4 Takte mit Höhenlinien) */
   drawRadial(ctx, w, h, isCompact) {
-    ctx.fillStyle = '#05080f';
+    ctx.fillStyle = '#04060b';
     ctx.fillRect(0, 0, w, h);
 
-    const cx = w * 0.5;
-    const cy = h * 0.5;
-    const maxR = Math.min(w, h) * 0.41;
+    this.ringCamDip += (this.ringCamDipTarget - this.ringCamDip) * 0.06;
+    this.ringCamDipTarget *= 0.992;
 
-    // Dezente Tunnel-Fadenkreuze
-    if (!isCompact) {
-      ctx.strokeStyle = 'rgba(148, 163, 184, 0.06)';
+    const showInset = this.radialShowXyInset && !isCompact && w >= 280;
+    const cx = showInset ? w * 0.62 : w * 0.5;
+    const cy = h * (0.52 + this.ringCamDip * 0.05);
+    const maxR = Math.min(showInset ? w * 0.58 : w, h) * (0.45 + this.ringCamDip * 0.14);
+
+    // Falls Motiv-Rückkehr aktiv: XY-Orbit-Nahaufnahme neben dem Ring zeichnen
+    if (showInset) {
+      const ix = w * 0.21;
+      const iy = h * 0.52;
+      const ir = Math.min(w * 0.16, h * 0.34);
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.14)';
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.arc(cx, cy, maxR * 0.35, 0, Math.PI * 2);
-      ctx.arc(cx, cy, maxR * 0.72, 0, Math.PI * 2);
+      ctx.arc(ix, iy, ir, 0, Math.PI * 2);
       ctx.stroke();
+      this.drawXyTraces(ctx, ix, iy, ir * 0.9, false);
     }
 
-    const frames = this.waterfallHistory;
-    if (!frames.length) return;
+    const S = isCompact ? 48 : this.ringSlices;
+    const sliceStep = this.ringSlices / S;
+    const B = isCompact ? 8 : this.ringBands;
+    const rMin = maxR * 0.26;
+    const rMax = maxR * 0.96;
+    const tiltY = 0.54 - this.ringCamDip * 0.22; // flacher bei Nah-Anflug -> Grate stehen plastisch hoch
+    const elevScale = maxR * (0.30 + this.ringCamDip * 0.18);
+    const seamAngle = 0.42;
 
-    const total = Math.min(isCompact ? 10 : this.radialMaxFrames, frames.length);
-    const pts = this.radialBins;
-    const zoneColors = ['#a855f7', '#10b981', '#fbbf24', '#ec4899'];
+    const proj = (angle, bandIdx, energy) => {
+      const frac = bandIdx / (B - 1);
+      const radius = rMin + frac * (rMax - rMin);
+      const px = Math.cos(angle) * radius;
+      const py = Math.sin(angle) * radius * tiltY;
+      const z = energy * elevScale;
+      return { x: cx + px, y: cy + py - z, depth: Math.sin(angle) };
+    };
 
-    // Von hinten (inneres Zentrum) nach vorne (äußerer Ring) zeichnen
-    for (let z = total - 1; z >= 0; z--) {
-      const frame = frames[z];
-      const depth = total > 1 ? z / (total - 1) : 0; // 0 = vorne/außen, 1 = hinten/innen
-      const scale = 1 - depth * 0.82;
-      const baseR = maxR * scale * 0.72;
-      const radialGain = maxR * scale * 0.46;
-      const rot = this.radialAngle + depth * 0.55;
-      const alpha = Math.max(0.16, 1 - depth * 0.78);
+    // Sektoren nach Tiefe sortieren (hinten nach vorne für korrekte Verdeckung)
+    const sectors = [];
+    for (let i = 0; i < S; i++) {
+      const sIdx = (this.ringCursor - Math.round(i * sliceStep) + this.ringSlices * 2) % this.ringSlices;
+      const nextIdx = (this.ringCursor - Math.round((i + 1) * sliceStep) + this.ringSlices * 2) % this.ringSlices;
+      const a0 = seamAngle - (i / S) * Math.PI * 2;
+      const a1 = seamAngle - ((i + 1) / S) * Math.PI * 2;
+      sectors.push({ i, sIdx, nextIdx, a0, a1, depth: Math.sin((a0 + a1) * 0.5) });
+    }
+    sectors.sort((u, v) => u.depth - v.depth);
 
-      // Spiegelsymmetrische geschlossene Kurve (0..2π ohne Nahtstelle)
-      ctx.beginPath();
-      for (let i = 0; i <= pts; i++) {
-        const frac = i / pts;
-        const theta = frac * Math.PI * 2 + rot;
-        // Symmetrie: 0..π -> Bass..Air, π..2π -> Air..Bass
-        const mirrorFrac = frac <= 0.5 ? frac * 2 : (1 - frac) * 2;
-        const binIdx = Math.min(this.waterfallBins - 1, Math.floor(mirrorFrac * (this.waterfallBins - 1)));
-        const amp = frame[binIdx] || 0;
-        const r = baseR + amp * radialGain;
-        const x = cx + Math.cos(theta) * r;
-        const y = cy + Math.sin(theta) * r;
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
+    // 1. Matte dunkle Oberfläche mit seitlicher Lichtschattierung
+    for (const sec of sectors) {
+      const slA = this.ringGrid[sec.sIdx];
+      const slB = this.ringGrid[sec.nextIdx];
+      for (let b = 0; b < B - 1; b++) {
+        const e00 = slA[b];
+        const e10 = slB[b];
+        const e11 = slB[b + 1];
+        const e01 = slA[b + 1];
+        const avgE = (e00 + e10 + e11 + e01) * 0.25;
+        const slope = (e00 - e10) + (e00 - e01) * 0.5;
+        const sideLight = Math.max(-0.3, Math.min(0.8, Math.cos(sec.a0 + 0.6) * 0.4 + slope * 1.4));
+
+        const p00 = proj(sec.a0, b, e00);
+        const p10 = proj(sec.a1, b, e10);
+        const p11 = proj(sec.a1, b + 1, e11);
+        const p01 = proj(sec.a0, b + 1, e01);
+
+        const shade = Math.round(11 + Math.max(0, sideLight) * 26 + avgE * 28);
+        const blue = Math.round(20 + Math.max(0, sideLight) * 44 + avgE * 52);
+        ctx.beginPath();
+        ctx.moveTo(p00.x, p00.y);
+        ctx.lineTo(p10.x, p10.y);
+        ctx.lineTo(p11.x, p11.y);
+        ctx.lineTo(p01.x, p01.y);
+        ctx.closePath();
+        ctx.fillStyle = `rgba(${shade}, ${Math.round(shade * 1.15)}, ${blue}, 0.94)`;
+        ctx.fill();
+
+        // Radiale Takt-/Zeitrippe dezent einzeichnen
+        if (!isCompact && sec.i % 4 === 0 && b === B - 2) {
+          ctx.beginPath();
+          const pInner = proj(sec.a0, 0, slA[0]);
+          ctx.moveTo(pInner.x, pInner.y);
+          ctx.lineTo(p01.x, p01.y);
+          ctx.strokeStyle = 'rgba(148, 163, 184, 0.08)';
+          ctx.lineWidth = 0.6;
+          ctx.stroke();
+        }
       }
-      ctx.closePath();
-
-      // Klangfarbe pro Ring anhand der dominanten Energie-Zone wählen
-      const zIdx = z % 4;
-      const dominantBand = this.bands.indexOf(Math.max(...this.bands));
-      const ringColor = z === 0 ? zoneColors[dominantBand >= 0 ? dominantBand : 0] : zoneColors[zIdx];
-
-      ctx.save();
-      ctx.globalAlpha = alpha;
-      ctx.strokeStyle = ringColor;
-      ctx.lineWidth = z === 0 ? (isCompact ? 1.5 : 2.1) : (isCompact ? 0.8 : 1.15);
-      ctx.stroke();
-      ctx.restore();
     }
+
+    // 2. Dünne leuchtende Höhenlinien (Frequenz-Ringe: Violett -> Blau -> Eisweiß -> Bernstein)
+    for (let b = 0; b < B; b++) {
+      const frac = b / (B - 1);
+      ctx.beginPath();
+      for (let i = 0; i <= S; i++) {
+        const idx = (this.ringCursor - Math.round((i % S) * sliceStep) + this.ringSlices * 2) % this.ringSlices;
+        const ang = seamAngle - ((i % S) / S) * Math.PI * 2;
+        const p = proj(ang, b, this.ringGrid[idx][b]);
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      }
+      ctx.strokeStyle = this._ringBandColor(frac, isCompact ? 0.65 : 0.72);
+      ctx.lineWidth = isCompact ? 0.85 : 1.05;
+      ctx.stroke();
+    }
+
+    // 3. Sichtbare Nahtstelle (aktueller Moment)
+    const curSlice = this.ringGrid[this.ringCursor];
+    ctx.beginPath();
+    for (let b = 0; b < B; b++) {
+      const p = proj(seamAngle, b, curSlice[b]);
+      if (b === 0) ctx.moveTo(p.x, p.y);
+      else ctx.lineTo(p.x, p.y);
+    }
+    ctx.strokeStyle = 'rgba(224, 242, 254, 0.9)';
+    ctx.lineWidth = isCompact ? 1.4 : 2.0;
+    ctx.stroke();
   }
 
   // ───────────────────────────────────────────── 12-PUNKTE LICHTSKULPTUR ──
