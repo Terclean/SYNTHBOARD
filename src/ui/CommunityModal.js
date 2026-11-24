@@ -277,7 +277,7 @@ export class CommunityModal {
             <button type="button" id="comm-copy-link" class="comm-btn-sec">${ICON_LINK} ${esc(t('Share-Link (#p=...) kopieren', 'Copy Share Link (#p=...)'))}</button>
             <button type="submit" class="comm-btn-primary">${esc(t('Für Open-Source-Leaderboard einreichen', 'Submit to Open-Source Leaderboard'))}</button>
           </div>
-          <p class="comm-os-note">${esc(t('100% Open Source ohne zentrale Datenbank: Share-Links enthalten dein Rack direkt in der URL. Einreichungen öffnen ein vorausgefülltes GitHub-Formular für das öffentliche Leaderboard.', '100% open source with no central database: Share links embed your rack in the URL. Submissions open a pre-filled GitHub form for the public leaderboard.'))}</p>
+          <p class="comm-os-note">${esc(t('So funktioniert die Veröffentlichung: Beim Klick wird deine .synthboard.json heruntergeladen und ein vorausgefülltes GitHub-Issue (Label „community-rack“) geöffnet. Schicke das Issue auf GitHub ab (die Rack-Daten sind bereits vorausgefüllt; alternativ kannst du die .synthboard.json auch per Drag & Drop in das Feld „Patch Data“ ziehen). Nach Freigabe durch einen Maintainer (Label „approved“) erscheint dein Rack automatisch im öffentlichen Leaderboard und 👍-Reaktionen werden als Stimmen synchronisiert.', 'How publishing works: Clicking submit downloads your .synthboard.json and opens a pre-filled GitHub Issue (label "community-rack"). Submit the issue on GitHub (your patch data is pre-filled automatically, or you can drag & drop the downloaded .synthboard.json file into the "Patch Data" box). Once approved by a maintainer (label "approved"), your rack automatically appears on the public Leaderboard and 👍 reactions sync as votes.'))}</p>
         </form>
       `;
     }
@@ -385,7 +385,7 @@ export class CommunityModal {
       this.onToast(t('Share-Link in Zwischenablage kopiert', 'Share link copied to clipboard'));
     });
 
-    this.el.querySelector('#comm-publish-form')?.addEventListener('submit', (e) => {
+    this.el.querySelector('#comm-publish-form')?.addEventListener('submit', async (e) => {
       e.preventDefault();
       const name = this.el.querySelector('#comm-pub-name')?.value?.trim() || 'Untitled Rack';
       const author = this.el.querySelector('#comm-pub-author')?.value?.trim() || 'Community';
@@ -413,7 +413,17 @@ export class CommunityModal {
         setTimeout(() => URL.revokeObjectURL(ta.href), 1500);
       }
 
-      // 3. Vorausgefülltes GitHub Issue öffnen
+      // 3. Vorausgefülltes GitHub Issue öffnen (inkl. Patch-Daten / Share-Link im Feld rack-data)
+      let shareHash = '';
+      try {
+        shareHash = await encodePatchToHash(bundle);
+      } catch { /* ignore */ }
+      const baseOrigin = (typeof window !== 'undefined' && window.location?.origin && window.location.origin !== 'null')
+        ? `${window.location.origin}${window.location.pathname || '/'}`
+        : `https://terclean.github.io/SYNTHBOARD/`;
+      const shareUrl = shareHash ? `${baseOrigin}${shareHash}` : '';
+      const compactJson = JSON.stringify(bundle);
+
       const issueUrl = new URL(`https://github.com/${REPO_SLUG}/issues/new`);
       issueUrl.searchParams.set('template', 'community-rack.yml');
       issueUrl.searchParams.set('title', `[Rack] ${name}`);
@@ -421,8 +431,28 @@ export class CommunityModal {
       issueUrl.searchParams.set('author', author);
       issueUrl.searchParams.set('tags', tags.join(', '));
       issueUrl.searchParams.set('description', description);
+
+      const fullRackData = [
+        shareUrl ? `Share Link: ${shareUrl}` : '',
+        '```json',
+        compactJson,
+        '```',
+      ].filter(Boolean).join('\n\n');
+
+      issueUrl.searchParams.set('rack-data', fullRackData);
+      if (issueUrl.toString().length > 7200) {
+        const compactRackData = [
+          shareUrl ? `Share Link: ${shareUrl}` : '',
+          `*(Optional: Drag & drop the downloaded \`${slug}.synthboard.json\` file into this box before submitting)*`,
+        ].filter(Boolean).join('\n\n');
+        issueUrl.searchParams.set('rack-data', compactRackData);
+      }
+
       window.open(issueUrl.toString(), '_blank', 'noopener,noreferrer');
-      this.onToast(t('JSON-Paket heruntergeladen & GitHub-Einreichung geöffnet', 'JSON bundle downloaded & GitHub submission opened'));
+      this.onToast(t(
+        'GitHub-Formular geöffnet – bitte auf GitHub absenden (Sichtbar nach Freigabe)',
+        'GitHub form opened – please submit the issue on GitHub (visible after approval)',
+      ));
     });
   }
 }

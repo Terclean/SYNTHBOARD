@@ -3,6 +3,13 @@ description: Submit a SYNTHBOARD rack to the open-source Community Leaderboard
 title: "[Rack] "
 labels: ["community-rack"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        ### Submit Your SYNTHBOARD Rack
+        1. Complete the fields below and click **Create** (**Submit new issue**) to send your submission.
+        2. If you opened this form from **SYNTHBOARD → Community → Share Rack**, the **Patch Data** field below is already pre-filled. You can also drag & drop your downloaded `.synthboard.json` file directly into the **Patch Data** box (GitHub will upload and link it) or paste the JSON / `#p=...` Share Link.
+        3. Once a maintainer reviews your submission and adds the `approved` label, your rack will automatically appear on the public SYNTHBOARD Leaderboard and `👍` reactions on this issue will sync as votes!
   - type: input
     id: rack-name
     attributes:
@@ -25,8 +32,13 @@ body:
     attributes:
       label: Description
       description: Short description of the sound, inspiration, or how to play it.
-  - type: markdown
+  - type: textarea
+    id: rack-data
     attributes:
-      value: |
-        **Attach your exported `.synthboard.json` (and optional 30s `.webm`/`.mp3` teaser) by dragging the file(s) below.**
-        Community members can vote with a `👍` reaction on this issue to rank it on the SYNTHBOARD Leaderboard!
+      label: Patch Data (.synthboard.json link, JSON, or #p=... Share Link)
+      description: >
+        Pre-filled automatically from SYNTHBOARD, or drag & drop your exported `.synthboard.json` file into this text box (GitHub inserts a download link), or paste the JSON / `#p=...` Share Link here.
+      placeholder: |
+        Drag & drop your .synthboard.json file here, paste a #p=gz... Share Link, or paste the JSON content...
+    validations:
+      required: true

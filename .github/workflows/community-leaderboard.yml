@@ -4,55 +4,55 @@ on:
   schedule:
     - cron: '0 */6 * * *'
   workflow_dispatch:
+  issues:
+    types: [labeled, unlabeled, edited, reopened, closed]
 
 permissions:
   contents: write
   issues: read
+  actions: write
+
+concurrency:
+  group: 'community-leaderboard-sync'
+  cancel-in-progress: false
 
 jobs:
   sync-leaderboard:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
 
-      - uses: actions/setup-node@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
         with:
           node-version: '22'
 
-      - name: Sync GitHub issue votes into public/community/index.json
+      - name: Sync approved community racks and votes
+        id: sync
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: node scripts/sync-community-leaderboard.mjs
+
+      - name: Commit, push and trigger Pages deploy if changed
+        if: steps.sync.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
         run: |
-          node -e '
-            const fs = require("fs");
-            const path = "public/community/index.json";
-            const current = JSON.parse(fs.readFileSync(path, "utf8"));
-            const existingById = new Map((current.tracks || []).map((t) => [t.id, t]));
-            async function run() {
-              const res = await fetch(`https://api.github.com/repos/${process.env.REPO}/issues?labels=community-rack&state=open&per_page=100`, {
-                headers: { Authorization: `Bearer ${process.env.GH_TOKEN}`, Accept: "application/vnd.github+json" }
-              });
-              if (!res.ok) throw new Error(`GitHub API ${res.status}`);
-              const issues = await res.json();
-              for (const issue of issues) {
-                const votes = (issue.reactions && issue.reactions["+1"]) || 0;
-                const id = `issue-${issue.number}`;
-                const prev = existingById.get(id);
-                if (prev) {
-                  prev.votes = votes;
-                  prev.issueUrl = issue.html_url;
-                }
-              }
-              current.updatedAt = new Date().toISOString();
-              current.tracks.sort((a, b) => (b.votes || 0) - (a.votes || 0));
-              fs.writeFileSync(path, JSON.stringify(current, null, 2) + "\n");
-            }
-            run().catch((err) => { console.error(err); process.exit(1); });
-          '
-
-      - name: Commit updated leaderboard if changed
-        run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git diff --quiet public/community/index.json || (git add public/community/index.json && git commit -m "chore: update community leaderboard votes" && git push)
+          if ! git diff --quiet public/community/index.json; then
+            git add public/community/index.json
+            git commit -m "chore: sync community leaderboard tracks and votes"
+            git push origin HEAD:main
+            echo "Triggering Deploy SYNTHBOARD to GitHub Pages workflow..."
+            curl -fsSL -X POST \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${REPO}/actions/workflows/deploy.yml/dispatches" \
+              -d '{"ref":"main"}'
+          fi
