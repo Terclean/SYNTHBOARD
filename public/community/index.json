@@ -1,7 +1,7 @@
 {
   "version": 2,
   "name": "SYNTHBOARD Community Leaderboard",
-  "updatedAt": "2026-11-24T03:32:54.374Z",
+  "updatedAt": "2026-11-24T11:41:48.223Z",
   "repo": "Terclean/SYNTHBOARD",
   "tracks": [
     {
@@ -56,6 +56,120 @@
       "templateKey": "start_here",
       "issueUrl": "https://github.com/Terclean/SYNTHBOARD/discussions",
       "createdAt": "2026-11-17T14:00:00Z"
+    },
+    {
+      "version": 2,
+      "id": "issue-1",
+      "issueNumber": 1,
+      "name": "Aurora Solar Drift",
+      "author": "@Terclean",
+      "description": "Warm fifths analog drone modulated by a slow random LFO and slope envelope into lush hall reverb.",
+      "tags": [
+        "ambient",
+        "drone",
+        "atmospheric",
+        "downtempo",
+        "modular"
+      ],
+      "votes": 0,
+      "issueUrl": "https://github.com/Terclean/SYNTHBOARD/issues/1",
+      "createdAt": "2026-11-24T11:41:39Z",
+      "state": {
+        "version": 2,
+        "name": "Aurora Solar Drift",
+        "master": 0.8,
+        "modules": [
+          {
+            "id": "clk_a",
+            "type": "master_clock",
+            "enabled": true,
+            "collapsed": false,
+            "values": {
+              "tempo": 78,
+              "swing": 0,
+              "running": 1
+            },
+            "pos": {
+              "x": 60,
+              "y": 60
+            }
+          },
+          {
+            "id": "slp_a",
+            "type": "slope_generator",
+            "enabled": true,
+            "collapsed": false,
+            "values": {
+              "rise": 4.5,
+              "fall": 6.5,
+              "curve": 0.55,
+              "scale": 0.8,
+              "offset": 0.15,
+              "mode": "loop"
+            },
+            "pos": {
+              "x": 340,
+              "y": 60
+            }
+          },
+          {
+            "id": "drn_a",
+            "type": "drone",
+            "enabled": true,
+            "collapsed": false,
+            "values": {
+              "level": 0.62,
+              "tone": 1050,
+              "detune": 10,
+              "sub": 0.45,
+              "fm": 0.05,
+              "drift": 0.5,
+              "root": 36,
+              "chord": "fifths",
+              "wave": "sawtooth"
+            },
+            "pos": {
+              "x": 620,
+              "y": 60
+            },
+            "extra": {
+              "voices": [
+                true,
+                true,
+                true,
+                false,
+                false,
+                false
+              ]
+            }
+          },
+          {
+            "id": "rev_a",
+            "type": "reverb",
+            "enabled": true,
+            "collapsed": false,
+            "values": {
+              "decay": 8.5,
+              "damp": 0.45,
+              "predelay": 0.025,
+              "tone": 3400,
+              "mix": 0.48
+            },
+            "pos": {
+              "x": 920,
+              "y": 60
+            }
+          }
+        ],
+        "cables": [
+          {
+            "from": "slp_a:envOut",
+            "to": "drn_a:cvTone",
+            "depth": 0.6
+          }
+        ],
+        "snapshots": null
+      }
     }
   ]
 }
